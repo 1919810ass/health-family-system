@@ -1,0 +1,87 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/health_family?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434/
+      chat:
+        options:
+          model: qwen2.5:7b
+          temperature: 0.7
+          timeout: 120s  # 🔥 新增：设置 120 秒超时
+          num-predict: 512  # 🔥 新增：限制生成长度，加快响应
+          top-p: 0.9  # 🔥 新增：提高输出质量
+
+  jpa:
+    hibernate:
+      ddl-auto: update  # 使用update确保表结构同步
+    show-sql: false  # 关闭SQL日志，避免大量输出
+    properties:
+      hibernate:
+        format_sql: true  # 格式化SQL输出
+        dialect: org.hibernate.dialect.MySQL8Dialect  # 确保使用正确的方言
+
+  jackson:
+    serialization:
+      INDENT_OUTPUT: false
+      FAIL_ON_EMPTY_BEANS: false  # 🔥 新增：避免序列化空对象时报错
+    deserialization:
+      ADJUST_DATES_TO_CONTEXT_TIME_ZONE: false  # 🔥 新增：保持日期时区不变
+    date-format: yyyy-MM-dd HH:mm:ss  # 🔥 新增：设置日期格式
+    time-zone: Asia/Shanghai  # 🔥 新增：设置时区
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:database_init.sql
+
+# 文件上传配置
+file:
+  upload-dir: uploads
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.healthfamily: DEBUG  # 🔥 修改：所有业务包都开启 DEBUG
+    com.healthfamily.service.recommendation: DEBUG
+    com.healthfamily.service.recommendation.RecommendationAiClient: DEBUG
+    com.healthfamily.service.consultation: DEBUG  # 🔥 新增：咨询服务日志
+    org.springframework.ai: DEBUG  # 🔥 新增：Spring AI 框架日志
+    org.springframework.web: DEBUG  # 🔥 新增：Web 请求日志
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"  # 🔥 新增：格式化日志输出
+
+# 推荐系统配置
+recommendation:
+  maxItems: 6
+  ai:
+    prompt-version: v1
+    per-category-limit: 3
+    strict-mode-default: false
+    model: qwen2.5:7b
+    format: json  # 🔥 新增：推荐系统专用的 JSON 格式配置
+    timeout: 120s  # 🔥 新增：推荐系统的超时配置
+
+# JWT 配置
+jwt:
+  secret: dev-secret-32-bytes-minimum-length-please-1234
+  issuer: health-family
+  accessTokenValidityMinutes: 120
+
+
+# Actuator 配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics  # 🔥 新增：metrics 端点
+  endpoint:
+    health:
+      show-details: always  # 🔥 新增：显示健康检查详情

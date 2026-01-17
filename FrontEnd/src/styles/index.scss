@@ -1,0 +1,188 @@
+@use './variables' as vars;
+@use './mixins';
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft Yahei', sans-serif;
+  background: vars.$gradient-bg;
+  color: vars.$text-main-color;
+  overflow-x: hidden;
+}
+
+/* 标题样式 */
+h1, h2, h3, h4, h5, h6 {
+  color: vars.$text-main-color;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* 按钮全局重写 */
+.el-button {
+  border-radius: vars.$radius-base !important;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  border: none;
+  transition: all 0.3s vars.$ease-spring;
+  box-shadow: vars.$shadow-sm;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: vars.$shadow-md;
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  &--primary {
+    background: vars.$gradient-primary !important;
+    border: none !important;
+    
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+  
+  &--success {
+    background: vars.$gradient-success !important;
+    border: none !important;
+  }
+}
+
+/* 卡片全局重写 */
+.el-card {
+  @include mixins.card;
+  border: none;
+  
+  &__header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 16px 24px;
+    font-weight: 600;
+    font-size: 16px;
+    color: vars.$primary-color;
+  }
+}
+
+/* 表单元素重写 */
+.el-input__wrapper, .el-select__wrapper {
+  border-radius: vars.$radius-base !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1) inset !important;
+  padding: 8px 12px !important;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.8) !important;
+  
+  &:hover {
+    background: #fff !important;
+  }
+  
+  &.is-focus {
+    box-shadow: 0 0 0 2px vars.$primary-color inset !important;
+    background: #fff !important;
+  }
+}
+
+/* 弹窗重写 */
+.el-dialog {
+  border-radius: vars.$radius-lg !important;
+  @include mixins.glass-effect;
+  overflow: hidden;
+  
+  &__header {
+    margin-right: 0;
+    padding: 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  }
+  
+  &__footer {
+    padding: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* 关键帧动画 */
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translate3d(0, 20px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translate3d(0, -20px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes slideInUp {
+  from { transform: translate3d(0, 100%, 0); visibility: visible; }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(123, 97, 255, 0.6);
+  outline-offset: 2px;
+}
+
+.page-container {
+  padding: vars.$spacing-unit * 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
