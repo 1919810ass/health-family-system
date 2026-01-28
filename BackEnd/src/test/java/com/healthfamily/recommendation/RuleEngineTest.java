@@ -1,7 +1,7 @@
 package com.healthfamily.recommendation;
 
-import com.healthfamily.modules.recommendationv2.domain.Rule;
-import com.healthfamily.modules.recommendationv2.repository.RuleRepository;
+import com.healthfamily.modules.recommendationv2.domain.RuleV2;
+import com.healthfamily.modules.recommendationv2.repository.RuleV2Repository;
 import com.healthfamily.modules.recommendationv2.service.RuleEngine;
 import com.healthfamily.modules.recommendationv2.service.model.LogsSummary;
 import com.healthfamily.modules.recommendationv2.service.model.Preferences;
@@ -16,21 +16,22 @@ import static org.junit.jupiter.api.Assertions.*;
 public class RuleEngineTest {
   @Test
   void testGenerate() {
-    RuleRepository repo = Mockito.mock(RuleRepository.class);
-    Rule r = new Rule();
+    RuleV2Repository repo = Mockito.mock(RuleV2Repository.class);
+    RuleV2 r = new RuleV2();
     r.setId(1L);
-    r.setCategory(Rule.Category.DIET);
+    r.setCategory(RuleV2.Category.DIET);
     r.setConditionJson("{\"maxSaltDays\":3}");
     r.setActionTemplate("{\"title\":\"低盐饮食\",\"content\":\"减少盐摄入\",\"steps\":[\"少盐\"]}");
     r.setWeight(1.0);
     r.setSource("rule");
-    r.setStatus(Rule.Status.ENABLED);
-    Mockito.when(repo.findByCategoryAndStatus(Rule.Category.DIET, Rule.Status.ENABLED)).thenReturn(List.of(r));
-    Mockito.when(repo.findByCategoryAndStatus(Rule.Category.SLEEP, Rule.Status.ENABLED)).thenReturn(List.of());
-    Mockito.when(repo.findByCategoryAndStatus(Rule.Category.SPORT, Rule.Status.ENABLED)).thenReturn(List.of());
-    Mockito.when(repo.findByCategoryAndStatus(Rule.Category.MOOD, Rule.Status.ENABLED)).thenReturn(List.of());
-    Mockito.when(repo.findByCategoryAndStatus(Rule.Category.VITALS, Rule.Status.ENABLED)).thenReturn(List.of());
-    RuleEngine engine = new RuleEngine(repo,0.7,0.5,0.2,0.3);
+    r.setStatus(RuleV2.Status.ENABLED);
+    Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.DIET, RuleV2.Status.ENABLED)).thenReturn(List.of(r));
+    Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.SLEEP, RuleV2.Status.ENABLED)).thenReturn(List.of());
+    Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.SPORT, RuleV2.Status.ENABLED)).thenReturn(List.of());
+    Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.MOOD, RuleV2.Status.ENABLED)).thenReturn(List.of());
+    Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.VITALS, RuleV2.Status.ENABLED)).thenReturn(List.of());
+    Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.TCM, RuleV2.Status.ENABLED)).thenReturn(List.of());
+    RuleEngine engine = new RuleEngine(repo, 0.7, 0.5, 0.2, 0.3);
     UserProfile p = new UserProfile();
     p.setTcmTags(java.util.List.of("Qi-deficiency"));
     p.setContraindications(java.util.List.of("alcohol"));

@@ -2,6 +2,62 @@
   <div class="doctor-settings">
     <el-page-header content="医生系统设置" />
     
+    <!-- 个人信息设置 -->
+    <el-card class="mt-16">
+      <template #header>
+        <span>个人信息</span>
+        <el-text type="info" size="small" style="margin-left: 12px">管理您的基本信息和头像</el-text>
+      </template>
+      
+      <div class="profile-setting-container">
+        <!-- 头像部分 -->
+        <div class="avatar-section">
+          <el-upload
+            class="avatar-uploader"
+            action="#"
+            :auto-upload="false"
+            :show-file-list="false"
+            :on-change="onFileChange"
+          >
+            <div class="avatar-wrapper" v-loading="avatarLoading">
+              <el-avatar :size="100" :src="userStore.profile?.avatar" class="avatar-img">
+                {{ userStore.profile?.nickname?.charAt(0) || '医' }}
+              </el-avatar>
+              <div class="avatar-mask">
+                <el-icon><Camera /></el-icon>
+                <span>更换头像</span>
+              </div>
+            </div>
+          </el-upload>
+          <div class="avatar-tip">点击头像进行更换</div>
+        </div>
+
+        <AvatarCropper
+          v-model:visible="cropperVisible"
+          :file="selectedFile"
+          @confirm="handleCropConfirm"
+        />
+
+        <!-- 表单部分 -->
+        <el-form :model="profileForm" label-width="100px" class="profile-form">
+          <el-form-item label="昵称">
+            <el-input v-model="profileForm.nickname" placeholder="请输入昵称" />
+          </el-form-item>
+          <el-form-item label="手机号">
+            <el-input v-model="profileForm.phone" placeholder="请输入手机号" disabled>
+              <template #append>
+                <el-button link>修改</el-button>
+              </template>
+            </el-input>
+            <div class="form-tip">手机号修改请联系管理员</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="savingProfile" @click="saveProfile">保存个人信息</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+    </el-card>
+
     <!-- 通知设置 -->
     <el-card class="mt-16">
       <template #header>
@@ -89,11 +145,86 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Camera } from '@element-plus/icons-vue'
 import { getDoctorSettings, updateDoctorSettings } from '../../api/doctor'
+import { useUserStore } from '../../stores/user'
 import dayjs from 'dayjs'
+import AvatarCropper from '@/components/Common/AvatarCropper.vue'
 
+const userStore = useUserStore()
 const saving = ref(false)
 const savingWork = ref(false)
+const savingProfile = ref(false)
+const avatarLoading = ref(false)
+const cropperVisible = ref(false)
+const selectedFile = ref(null)
+
+// 个人信息表单
+const profileForm = ref({
+  nickname: '',
+  phone: ''
+})
+
+// 同步用户信息
+watch(() => userStore.profile, (newVal) => {
+  if (newVal) {
+    profileForm.value.nickname = newVal.nickname || ''
+    profileForm.value.phone = newVal.phone || ''
+  }
+}, { immediate: true })
+
+// 头像上传
+const onFileChange = (uploadFile) => {
+  const file = uploadFile.raw
+  if (!file) return
+
+  const isJPG = file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp'
+  const isLt2M = file.size / 1024 / 1024 < 2
+
+  if (!isJPG) {
+    ElMessage.error('头像只能是 JPG/PNG/WEBP 格式!')
+    return
+  }
+  if (!isLt2M) {
+    ElMessage.error('头像大小不能超过 2MB!')
+    return
+  }
+  
+  selectedFile.value = file
+  cropperVisible.value = true
+}
+
+const handleCropConfirm = async (file) => {
+  avatarLoading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    await userStore.updateAvatar(formData)
+    ElMessage.success('头像更新成功')
+  } catch (error) {
+    console.error('上传头像失败', error)
+    ElMessage.error('上传头像失败')
+  } finally {
+    avatarLoading.value = false
+    selectedFile.value = null
+  }
+}
+
+// 保存个人信息
+const saveProfile = async () => {
+  savingProfile.value = true
+  try {
+    await userStore.updateProfile({
+      nickname: profileForm.value.nickname
+    })
+    ElMessage.success('个人信息保存成功')
+  } catch (error) {
+    console.error('保存个人信息失败', error)
+    ElMessage.error('保存失败')
+  } finally {
+    savingProfile.value = false
+  }
+}
 
 // 通知设置
 const notifications = ref({
@@ -306,6 +437,92 @@ onMounted(async () => {
 
   .el-card__body {
     padding: 24px;
+  }
+}
+
+.profile-setting-container {
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+}
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 120px;
+  
+  .avatar-uploader {
+    cursor: pointer;
+    
+    .avatar-wrapper {
+      position: relative;
+      border-radius: 50%;
+      overflow: hidden;
+      transition: all 0.3s;
+      
+      &:hover .avatar-mask {
+        opacity: 1;
+      }
+    }
+    
+    .avatar-img {
+      border: 4px solid rgba(var(--el-color-primary-rgb), 0.1);
+      background: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
+      font-size: 32px;
+      font-weight: bold;
+    }
+    
+    .avatar-mask {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+      gap: 4px;
+      
+      .el-icon {
+        font-size: 24px;
+      }
+      
+      span {
+        font-size: 12px;
+      }
+    }
+  }
+  
+  .avatar-tip {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
+}
+
+.profile-form {
+  flex: 1;
+  max-width: 500px;
+  width: 100%;
+  
+  .form-tip {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    margin-top: 4px;
+    line-height: 1.4;
   }
 }
 

@@ -84,6 +84,25 @@ public class ConsultationSession {
     @Builder.Default
     private Integer unreadCountPatient = 0;
 
+    /**
+     * 是否经过AI预问诊
+     */
+    @Column(name = "is_ai_triaged")
+    @Builder.Default
+    private Boolean isAiTriaged = false;
+
+    /**
+     * AI生成的预问诊摘要(SOAP格式)
+     */
+    @Column(name = "triage_summary", columnDefinition = "TEXT")
+    private String triageSummary;
+
+    /**
+     * 患者的主诉原文
+     */
+    @Column(name = "patient_symptoms", columnDefinition = "TEXT")
+    private String patientSymptoms;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

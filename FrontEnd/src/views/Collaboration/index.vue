@@ -1,6 +1,14 @@
 <template>
   <div class="collab glass-effect">
-    <el-page-header content="家庭健康协作" class="glass-header" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><Connection /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">家庭健康协作</h2>
+        <p class="subtitle">家庭成员健康互助，共享健康生活</p>
+      </div>
+    </div>
 
     <el-card class="mt-16 glass-card" shadow="hover">
       <template #header>
@@ -71,6 +79,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { Connection } from '@element-plus/icons-vue'
 import { useFamilyStore } from '../../stores/family'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
@@ -159,25 +168,61 @@ onMounted(init)
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @use '@/styles/variables.scss' as vars;
 @use '@/styles/mixins.scss' as mixins;
 
 .collab {
-  padding: 20px;
+  padding: 24px;
   min-height: 100%;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
   
-  &.glass-effect {
-    background: transparent;
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$primary-color, color.adjust(vars.$primary-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$primary-color, 0.3);
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+  }
+
+  .header-content {
+    flex: 1;
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-main-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$primary-color));
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
   }
 }
 
 .glass-header {
   margin-bottom: 24px;
-  animation: fadeInDown 0.6s vars.$ease-spring;
-  
   :deep(.el-page-header__content) {
-    color: vars.$text-main-color;
     font-weight: 600;
+    color: vars.$text-main-color;
   }
 }
 

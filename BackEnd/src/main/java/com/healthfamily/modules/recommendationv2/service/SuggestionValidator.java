@@ -1,7 +1,7 @@
 package com.healthfamily.modules.recommendationv2.service;
 
 import com.healthfamily.modules.recommendationv2.dto.RecommendationItemDto;
-import com.healthfamily.modules.recommendationv2.domain.Rule;
+import com.healthfamily.modules.recommendationv2.domain.RuleV2;
 import com.healthfamily.modules.recommendationv2.service.model.Preferences;
 import com.healthfamily.modules.recommendationv2.service.model.UserProfile;
 
@@ -14,7 +14,7 @@ public class SuggestionValidator {
     public double matchScore;
     public boolean categoryMismatch;
     public boolean contraindicationHit;
-    public Rule.Category detected;
+    public RuleV2.Category detected;
   }
 
   public static Result validate(RecommendationItemDto item, UserProfile profile, Preferences pref) {

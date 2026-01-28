@@ -96,16 +96,36 @@ public class LifestyleServiceImpl implements LifestyleService {
                 }
             }
 
-            String prompt = "识别以下饮食内容，返回JSON数组，每项包含name与calories:" + desc + (request.imageUrl() != null ? (" 图片URL:" + request.imageUrl()) : "");
+            String prompt = "识别以下饮食内容，返回JSON数组，每项包含name与calories:" + desc;
+            if (request.quantity() != null && !request.quantity().isBlank()) {
+                prompt += "，份量为：" + request.quantity();
+            }
+            prompt += (request.imageUrl() != null ? (" 图片URL:" + request.imageUrl()) : "") + "。如果是蒸饺，热量约为200千卡/100g。";
+            
             String content = chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
             
             // Clean up possible markdown code blocks if AI returns them
-            if (content.contains("```")) {
-                content = content.replaceAll("```json", "").replaceAll("```", "").trim();
+            if (content.contains("```json")) {
+                content = content.substring(content.indexOf("```json") + 7);
+                if (content.contains("```")) {
+                    content = content.substring(0, content.indexOf("```"));
+                }
+            } else if (content.contains("```")) {
+                content = content.substring(content.indexOf("```") + 3);
+                if (content.contains("```")) {
+                    content = content.substring(0, content.indexOf("```"));
+                }
             }
+            content = content.trim();
             
             items = objectMapper.readValue(content, new TypeReference<List<Map<String, Object>>>() {});
-            totalCalories = items.stream().map(m -> m.get("calories")).filter(v -> v != null).mapToDouble(v -> Double.valueOf(v.toString())).sum();
+            totalCalories = items.stream().map(m -> m.get("calories")).filter(v -> v != null).mapToDouble(v -> {
+                try {
+                    return Double.valueOf(v.toString());
+                } catch (NumberFormatException nfe) {
+                    return 0d;
+                }
+            }).sum();
         } catch (Exception e) {
             log.error("Diet ingest failed", e);
             // Fallback for demo if AI fails
@@ -155,7 +175,9 @@ public class LifestyleServiceImpl implements LifestyleService {
 
     @Override
     public String analyzeDietWeekly(Long requesterId, Long familyId, Boolean dp, Double epsilon) {
-        LocalDate start = LocalDate.now().minusDays(7);
+        log.info("Starting weekly diet analysis for user: {}, familyId: {}", requesterId, familyId);
+        // 临时放宽时间范围到30天，以便调试
+        LocalDate start = LocalDate.now().minusDays(30);
         List<HealthLog> logs;
         if (familyId != null) {
             logs = healthLogRepository.findByUserOrderByLogDateDesc(userRepository.findById(requesterId).orElseThrow(() -> new RuntimeException("用户不存在")))
@@ -164,16 +186,24 @@ public class LifestyleServiceImpl implements LifestyleService {
             logs = healthLogRepository.findByUser_IdAndTypeOrderByLogDateDesc(requesterId, HealthLogType.DIET)
                     .stream().filter(l -> !l.getLogDate().isBefore(start)).collect(Collectors.toList());
         }
+        
+        log.info("Found {} diet logs for analysis since {}", logs.size(), start);
+        
+        // 即使没有日志，也要生成一个基础报告，避免前端显示为空
+        if (logs.isEmpty()) {
+             return "<p>系统未检测到您的饮食记录（查询起始日期：" + start + "）。请确认您已成功记录饮食。</p>";
+        }
+
         double total = 0d;
         for (HealthLog l : logs) total += extractCalories(l.getContentJson());
         if (Boolean.TRUE.equals(dp)) {
             double eps = epsilon != null && epsilon > 0 ? epsilon : 1.0;
             total = addLaplaceNoise(total, 100.0, eps);
         }
-        String base = "过去7天总热量约" + Math.round(total) + "千卡。";
+        String base = "过去30天总热量约" + Math.round(total) + "千卡。";
         try {
             String prompt = """
-                    请根据过去一周的饮食热量与均衡性，生成一份结构化、人性化的周营养报告。
+                    请根据过去一段时间的饮食热量与均衡性，生成一份结构化、人性化的营养报告。
                     要求：
                     1. 使用HTML格式输出（不包含markdown标记，直接返回HTML标签）。
                     2. 使用 <h3> 作为章节标题（如：总体情况、均衡性分析、改进建议）。
@@ -183,9 +213,16 @@ public class LifestyleServiceImpl implements LifestyleService {
                     6. 语言自然流畅，专业且具有亲和力。
                     基础数据：
                     """ + base;
-            return chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
+            String result = chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
+            // 清理可能存在的 markdown 标记
+            if (result.contains("```html")) {
+                result = result.replace("```html", "").replace("```", "");
+            }
+            log.info("AI report generated successfully, length: {}", result.length());
+            return result;
         } catch (Exception e) {
-            return "<p>" + base + "蛋白质可能不足，建议增加鸡蛋、牛奶。</p>";
+            log.error("Failed to generate AI report", e);
+            return "<p>" + base + "蛋白质可能不足，建议增加鸡蛋、牛奶。（AI服务异常：" + e.getClass().getSimpleName() + "）</p>";
         }
     }
 
@@ -247,6 +284,11 @@ public class LifestyleServiceImpl implements LifestyleService {
         content.put("deepHours", request.deepHours());
         content.put("wakeCount", request.wakeCount());
         content.put("note", request.note());
+        // 保存新增字段
+        if (request.bedtime() != null) content.put("bedtime", request.bedtime());
+        if (request.wakeTime() != null) content.put("wakeTime", request.wakeTime());
+        if (request.sleepLatency() != null) content.put("sleepLatency", request.sleepLatency());
+        if (request.wakeUpLatency() != null) content.put("wakeUpLatency", request.wakeUpLatency());
 
         HealthLog log = HealthLog.builder()
                 .user(user)

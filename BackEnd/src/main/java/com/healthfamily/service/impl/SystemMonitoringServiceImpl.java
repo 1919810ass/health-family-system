@@ -5,17 +5,23 @@ import com.healthfamily.domain.repository.FamilyRepository;
 import com.healthfamily.domain.repository.HealthLogRepository;
 import com.healthfamily.domain.repository.DoctorProfileRepository;
 import com.healthfamily.domain.repository.AlertRepository;
+import com.healthfamily.domain.repository.UserLoginLogRepository;
 import com.healthfamily.domain.entity.Alert;
+import com.healthfamily.domain.entity.UserLoginLog;
 import com.healthfamily.domain.constant.AlertLevel;
 import com.healthfamily.domain.constant.AlertStatus;
 import com.healthfamily.service.SystemMonitoringService;
 import com.healthfamily.web.dto.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,34 +34,52 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     private final HealthLogRepository healthLogRepository;
     private final DoctorProfileRepository doctorProfileRepository;
     private final AlertRepository alertRepository;
+    private final UserLoginLogRepository userLoginLogRepository;
 
     @Override
     public UserActivityStatsDto getUserActivityStats(LocalDateTime startTime, LocalDateTime endTime) {
-        // 计算活跃用户数
-        Long dailyActiveUsers = userRepository.count();
-        Long weeklyActiveUsers = userRepository.count();
-        Long monthlyActiveUsers = userRepository.count();
-        Long onlineUsers = 234L; // 模拟在线用户数
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
+        LocalDateTime weekStart = todayStart.minusDays(6);
+        LocalDateTime monthStart = todayStart.minusDays(29);
+        LocalDateTime onlineStart = now.minusMinutes(15);
 
-        // 在线用户列表
-        List<Map<String, Object>> onlineUsersList = Arrays.asList(
-            createUserMap(1001L, "张三", "MEMBER", "2024-01-15 14:30:22", "192.168.1.100", "Chrome/Windows", "北京"),
-            createUserMap(1002L, "李四", "FAMILY_ADMIN", "2024-01-15 14:28:15", "192.168.1.101", "Safari/iOS", "上海"),
-            createUserMap(1003L, "王五", "DOCTOR", "2024-01-15 14:25:43", "192.168.1.102", "Firefox/Linux", "广州"),
-            createUserMap(1004L, "赵六", "MEMBER", "2024-01-15 14:22:18", "192.168.1.103", "Edge/Windows", "深圳"),
-            createUserMap(1005L, "钱七", "ADMIN", "2024-01-15 14:20:33", "192.168.1.104", "Chrome/Mac", "杭州")
-        );
+        Long dailyActiveUsers = userLoginLogRepository.countDistinctUserIdByLoginTimeBetween(todayStart, now);
+        Long weeklyActiveUsers = userLoginLogRepository.countDistinctUserIdByLoginTimeBetween(weekStart, now);
+        Long monthlyActiveUsers = userLoginLogRepository.countDistinctUserIdByLoginTimeBetween(monthStart, now);
+        Long onlineUsers = userLoginLogRepository.countDistinctUserIdByLoginTimeBetween(onlineStart, now);
+        Long todayVisits = userLoginLogRepository.countByLoginTimeBetween(todayStart, now);
 
-        // 登录频次数据
-        List<Map<String, Object>> loginFrequency = Arrays.asList(
-            createLoginFreqMap("周一", 1200),
-            createLoginFreqMap("周二", 1320),
-            createLoginFreqMap("周三", 1010),
-            createLoginFreqMap("周四", 1340),
-            createLoginFreqMap("周五", 900),
-            createLoginFreqMap("周六", 2300),
-            createLoginFreqMap("周日", 2100)
-        );
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+        List<UserLoginLog> onlineLogs = userLoginLogRepository.findByLoginTimeBetweenOrderByLoginTimeDesc(onlineStart, now);
+        Map<Long, Map<String, Object>> onlineUserMap = new LinkedHashMap<>();
+        for (UserLoginLog log : onlineLogs) {
+            if (log.getUserId() == null) continue;
+            if (onlineUserMap.containsKey(log.getUserId())) continue;
+            onlineUserMap.put(log.getUserId(), createUserMap(
+                    log.getUserId(),
+                    log.getUsername(),
+                    log.getRole(),
+                    log.getLoginTime() != null ? formatter.format(log.getLoginTime()) : null,
+                    log.getIpAddress(),
+                    log.getUserAgent(),
+                    null
+            ));
+        }
+        List<Map<String, Object>> onlineUsersList = new ArrayList<>(onlineUserMap.values());
+
+        Map<String, Integer> loginFreqMap = initLoginFreqMap();
+        List<UserLoginLog> weeklyLogs = userLoginLogRepository.findByLoginTimeBetweenOrderByLoginTimeDesc(weekStart, now);
+        for (UserLoginLog log : weeklyLogs) {
+            if (log.getLoginTime() == null) continue;
+            DayOfWeek dayOfWeek = log.getLoginTime().getDayOfWeek();
+            String label = mapDayOfWeek(dayOfWeek);
+            loginFreqMap.put(label, loginFreqMap.getOrDefault(label, 0) + 1);
+        }
+        List<Map<String, Object>> loginFrequency = loginFreqMap.entrySet().stream()
+                .map(entry -> createLoginFreqMap(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
 
         // 功能使用数据
         List<Map<String, Object>> featureUsage = Arrays.asList(
@@ -67,25 +91,33 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
             createFeatureUsageMap("体质测评", 1200)
         );
 
-        // 登录日志数据
-        List<Map<String, Object>> loginLogs = Arrays.asList(
-            createLoginLogMap(1001L, "张三", "2024-01-15 14:30:22", "192.168.1.100", "Mozilla/5.0...", "success", "北京"),
-            createLoginLogMap(1002L, "李四", "2024-01-15 14:28:15", "192.168.1.101", "Mozilla/5.0...", "success", "上海"),
-            createLoginLogMap(1003L, "王五", "2024-01-15 14:25:43", "192.168.1.102", "Mozilla/5.0...", "failed", "广州"),
-            createLoginLogMap(1004L, "赵六", "2024-01-15 14:22:18", "192.168.1.103", "Mozilla/5.0...", "success", "深圳"),
-            createLoginLogMap(1005L, "钱七", "2024-01-15 14:20:33", "192.168.1.104", "Mozilla/5.0...", "success", "杭州")
-        );
+        List<UserLoginLog> latestLogs = userLoginLogRepository.findAllOrderByLoginTimeDesc(
+                PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "loginTime"))
+        ).getContent();
+        List<Map<String, Object>> loginLogs = latestLogs.stream()
+                .map(log -> createLoginLogMap(
+                        log.getUserId(),
+                        log.getUsername(),
+                        log.getLoginTime() != null ? formatter.format(log.getLoginTime()) : null,
+                        log.getIpAddress(),
+                        log.getUserAgent(),
+                        log.getStatus(),
+                        null
+                ))
+                .collect(Collectors.toList());
+        int totalLoginLogs = (int) userLoginLogRepository.count();
 
         return UserActivityStatsDto.builder()
                 .dailyActiveUsers(dailyActiveUsers)
                 .weeklyActiveUsers(weeklyActiveUsers)
                 .monthlyActiveUsers(monthlyActiveUsers)
                 .onlineUsers(onlineUsers)
+                .todayVisits(todayVisits)
                 .onlineUsersList(onlineUsersList)
                 .loginFrequency(loginFrequency)
                 .featureUsage(featureUsage)
                 .loginLogs(loginLogs)
-                .totalLoginLogs(100)
+                .totalLoginLogs(totalLoginLogs)
                 .build();
     }
 
@@ -96,6 +128,30 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
             createUserMap(1002L, "李四", "FAMILY_ADMIN", "2024-01-15 14:28:15", "192.168.1.101", "Safari/iOS", "上海"),
             createUserMap(1003L, "王五", "DOCTOR", "2024-01-15 14:25:43", "192.168.1.102", "Firefox/Linux", "广州")
         );
+    }
+
+    private Map<String, Integer> initLoginFreqMap() {
+        Map<String, Integer> map = new LinkedHashMap<>();
+        map.put("周一", 0);
+        map.put("周二", 0);
+        map.put("周三", 0);
+        map.put("周四", 0);
+        map.put("周五", 0);
+        map.put("周六", 0);
+        map.put("周日", 0);
+        return map;
+    }
+
+    private String mapDayOfWeek(DayOfWeek dayOfWeek) {
+        return switch (dayOfWeek) {
+            case MONDAY -> "周一";
+            case TUESDAY -> "周二";
+            case WEDNESDAY -> "周三";
+            case THURSDAY -> "周四";
+            case FRIDAY -> "周五";
+            case SATURDAY -> "周六";
+            case SUNDAY -> "周日";
+        };
     }
 
     @Override

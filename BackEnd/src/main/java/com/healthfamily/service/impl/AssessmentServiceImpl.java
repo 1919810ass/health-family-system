@@ -46,9 +46,64 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
+
 @Service
 @RequiredArgsConstructor
 public class AssessmentServiceImpl implements AssessmentService {
+    // ... existing fields ...
+
+    @Override
+    public Flux<ServerSentEvent<String>> getTrendInsightsStream(Long userId, int lookbackDays) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
+        
+        List<ConstitutionAssessment> assessments = assessmentRepository.findByUserOrderByCreatedAtDesc(user)
+                .stream()
+                .filter(a -> a.getCreatedAt().isAfter(LocalDateTime.now().minusDays(lookbackDays)))
+                .sorted((a1, a2) -> a2.getCreatedAt().compareTo(a1.getCreatedAt()))
+                .collect(Collectors.toList());
+        
+        if (assessments.size() < 2) {
+            return Flux.just(ServerSentEvent.<String>builder().event("complete").data("").build());
+        }
+        
+        Collections.reverse(assessments);
+        
+        Map<String, List<Double>> scoresOverTime = new HashMap<>();
+        for (ConstitutionAssessment assessment : assessments) {
+            Map<String, Object> vec = fromJson(assessment.getScoreVector(), new TypeReference<Map<String, Object>>() {});
+            for (Map.Entry<String, Object> entry : vec.entrySet()) {
+                scoresOverTime.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                    .add(norm(entry.getValue()));
+            }
+        }
+        
+        Map<String, String> trends = new HashMap<>();
+        for (Map.Entry<String, List<Double>> entry : scoresOverTime.entrySet()) {
+            List<Double> values = entry.getValue();
+            if (values.size() >= 2) {
+                double oldest = values.get(0);
+                double newest = values.get(values.size() - 1);
+                if (newest > oldest + 5) {
+                    trends.put(entry.getKey(), "上升");
+                } else if (newest < oldest - 5) {
+                    trends.put(entry.getKey(), "下降");
+                } else {
+                    trends.put(entry.getKey(), "稳定");
+                }
+            }
+        }
+        
+        String primaryType = assessments.get(assessments.size() - 1).getPrimaryType();
+        
+        return Flux.concat(
+            aiService.generateTrendInsightsStream(userId, trends, primaryType)
+                .map(chunk -> ServerSentEvent.<String>builder().event("data").data(chunk).build()),
+            Flux.just(ServerSentEvent.<String>builder().event("complete").data("").build())
+        );
+    }
     
     private final ConstitutionAssessmentRepository assessmentRepository;
     private final UserRepository userRepository;

@@ -11,6 +11,11 @@ export const useFamilyStore = defineStore('family', () => {
 
   function setCurrent(family) {
     current.value = family
+    if (family && family.id) {
+      localStorage.setItem('current_family_id', family.id)
+    } else {
+      localStorage.removeItem('current_family_id')
+    }
   }
 
   function addFamily(family) {

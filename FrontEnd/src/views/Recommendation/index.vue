@@ -1,6 +1,14 @@
 <template>
   <div class="page-container recommendation-page">
-    <el-page-header content="个性化建议" icon="" class="mb-24" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><MagicStick /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">个性化建议</h2>
+        <p class="subtitle">每日健康生活指南，科学指导您的饮食起居</p>
+      </div>
+    </div>
 
     <el-row :gutter="20" class="category-row">
       <el-col v-for="(cat, index) in categories" :key="cat.key" :xs="24" :sm="12" :md="6">
@@ -117,7 +125,7 @@ import { ElMessage } from 'element-plus'
 import { useRecommendationStore } from '../../stores'
 import { fetchRecommendations, generateRecommendations, sendFeedback } from '../../api/recommendation'
 import { getLogs } from '../../api/log'
-import { Food, Clock, Bicycle, Orange } from '@element-plus/icons-vue'
+import { Food, Clock, Bicycle, Orange, MagicStick } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { mapToBackendCategories } from '../../utils/recommendation'
 
@@ -251,15 +259,57 @@ const handleFeedback = async (item, accepted) => {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @use '@/styles/variables' as vars;
 @use '@/styles/mixins' as mixins;
 
 .recommendation-page {
-  padding: 16px;
+  padding: 24px;
   min-height: 100%;
   
   .category-row {
     margin-bottom: 24px;
+  }
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
+  
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$success-color, color.adjust(vars.$success-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$success-color, 0.3);
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+  }
+
+  .header-content {
+    flex: 1;
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-main-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$success-color));
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
   }
 }
 .mb-24 { margin-bottom: 24px; }

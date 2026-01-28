@@ -77,4 +77,10 @@ public interface DoctorService {
     
     // 医生注册（需要审核）
     User registerDoctor(com.healthfamily.web.dto.DoctorRegisterRequest request);
+
+    // 医生评分
+    void rateDoctor(Long userId, Long doctorId, Integer rating, String comment);
+    
+    // 获取医生评价列表
+    java.util.List<com.healthfamily.web.dto.DoctorRatingResponse> getDoctorRatings(Long doctorId);
 }

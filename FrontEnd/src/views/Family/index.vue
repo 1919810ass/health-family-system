@@ -1,8 +1,13 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h2 class="title-text">家庭管理</h2>
-      <p class="subtitle-text">管理您的家庭成员和健康数据权限</p>
+      <div class="header-icon">
+        <el-icon><House /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title-text">家庭管理</h2>
+        <p class="subtitle-text">管理您的家庭成员和健康数据权限</p>
+      </div>
     </div>
 
     <!-- Actions Bar -->
@@ -94,14 +99,20 @@
             <p class="hospital" v-if="currentDoctor.hospital">{{ currentDoctor.hospital }} · {{ currentDoctor.department }}</p>
             <p class="bio" v-if="currentDoctor.bio">{{ currentDoctor.bio }}</p>
             <div class="stats-row">
-              <span class="stat-item">评分: {{ currentDoctor.rating || '5.0' }}</span>
-              <span class="stat-item">服务数: {{ currentDoctor.serviceCount || 0 }}</span>
-            </div>
-          </div>
-          <div class="doctor-actions" v-if="isAdmin">
-             <el-button type="danger" plain size="small" @click="handleUnbindDoctor">解约</el-button>
-          </div>
-        </div>
+        <span class="stat-item">评分: {{ currentDoctor.rating || '5.0' }}</span>
+        <span class="stat-item">服务数: {{ currentDoctor.serviceCount || 0 }}</span>
+      </div>
+      <div class="mt-2">
+        <el-button link type="primary" size="small" @click="showRateDialog(currentDoctor)">
+          <el-icon><Star /></el-icon> 评价医生
+        </el-button>
+      </div>
+    </div>
+    <!-- 解约操作 -->
+    <div class="doctor-actions" v-if="isAdmin">
+      <el-button type="danger" plain size="small" @click="handleUnbindDoctor">解约</el-button>
+    </div>
+  </div>
         
         <div v-else class="empty-doctor">
           <p>暂无签约家庭医生</p>
@@ -155,6 +166,30 @@
         </span>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="showRateDialogVisible" title="评价医生" width="400px" class="glass-dialog">
+      <el-form :model="rateForm" label-position="top">
+        <el-form-item label="评分">
+          <el-rate v-model="rateForm.rating" show-text :texts="['极差', '失望', '一般', '满意', '非常满意']" />
+        </el-form-item>
+        <el-form-item label="评价内容">
+          <el-input 
+            v-model="rateForm.comment" 
+            type="textarea" 
+            :rows="3" 
+            placeholder="请输入您对医生的评价..." 
+            maxlength="200" 
+            show-word-limit 
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showRateDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleRateDoctor">提交评价</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -162,9 +197,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useFamilyStore } from '@/stores/family'
 import { useUserStore } from '@/stores/user'
-import { getFamilies, createFamily, joinFamily, getFamilyMembers, removeMember, getFamilyDoctor, bindFamilyDoctor, unbindFamilyDoctor } from '@/api/family'
+import { getFamilies, createFamily, joinFamily, getFamilyMembers, removeMember, getFamilyDoctor, bindFamilyDoctor, unbindFamilyDoctor, rateDoctor } from '@/api/family'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Connection, CopyDocument, FirstAidKit } from '@element-plus/icons-vue'
+import { Plus, Connection, CopyDocument, FirstAidKit, Star, House } from '@element-plus/icons-vue'
 
 const familyStore = useFamilyStore()
 const userStore = useUserStore()
@@ -175,11 +210,15 @@ const currentDoctor = ref(null)
 const showCreateDialog = ref(false)
 const showJoinDialog = ref(false)
 const showBindDoctorDialog = ref(false)
+const showRateDialogVisible = ref(false)
 const loading = ref(false)
 
 const createForm = ref({ name: '' })
 const joinForm = ref({ code: '' })
 const bindDoctorForm = ref({ inviteCode: '' })
+const rateForm = ref({ rating: 5, comment: '' })
+const currentRateDoctorId = ref(null)
+
 const createFormRef = ref(null)
 const joinFormRef = ref(null)
 const bindDoctorFormRef = ref(null)
@@ -275,6 +314,26 @@ const handleUnbindDoctor = async () => {
   }
 }
 
+const showRateDialog = (doctor) => {
+  currentRateDoctorId.value = doctor.doctorUserId || doctor.userId || doctor.id
+  rateForm.value = { rating: 5, comment: '' }
+  showRateDialogVisible.value = true
+}
+
+const handleRateDoctor = async () => {
+  if (!currentRateDoctorId.value) return
+  try {
+    await rateDoctor(currentRateDoctorId.value, rateForm.value)
+    ElMessage.success('评价提交成功')
+    showRateDialogVisible.value = false
+    // 刷新医生信息以更新评分
+    await loadDoctor(currentFamilyId.value)
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('评价失败')
+  }
+}
+
 const handleCreate = async () => {
   if (!createFormRef.value) return
   await createFormRef.value.validate(async (valid) => {
@@ -336,6 +395,7 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @use '@/styles/variables' as vars;
 @use '@/styles/mixins' as mixins;
 
@@ -346,18 +406,44 @@ onMounted(() => {
 }
 
 .page-header {
+  display: flex;
+  align-items: center;
   margin-bottom: 24px;
   animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
   
-  .title-text {
-    font-size: 24px;
-    font-weight: 600;
-    color: vars.$text-primary-color;
-    margin-bottom: 8px;
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$primary-color, color.adjust(vars.$primary-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$primary-color, 0.3);
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
   }
-  
-  .subtitle-text {
-    color: vars.$text-secondary-color;
+
+  .header-content {
+    flex: 1;
+    
+    .title-text {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-primary-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-primary-color, vars.$primary-color));
+    }
+    
+    .subtitle-text {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
   }
 }
 

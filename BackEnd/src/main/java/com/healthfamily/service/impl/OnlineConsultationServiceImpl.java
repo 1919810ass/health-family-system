@@ -318,7 +318,10 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
                 session.getUnreadCountPatient(),
                 session.getLastMessageAt(),
                 session.getCreatedAt(),
-                session.getUpdatedAt()
+                session.getUpdatedAt(),
+                session.getIsAiTriaged(),
+                session.getTriageSummary(),
+                session.getPatientSymptoms()
         );
     }
 

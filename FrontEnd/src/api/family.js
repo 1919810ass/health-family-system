@@ -21,3 +21,4 @@ export const getFamilyDoctor = (familyId) => request.get(`/families/${familyId}/
 export const getDoctorView = (familyId, useAi = false) => request.get(`/families/${familyId}/doctor-view`, { params: { useAi } })
 export const unbindFamilyDoctor = (familyId) => request.delete(`/families/${familyId}/doctor`)
 export const getDoctorFamilies = () => request.get('/doctor/families')
+export const rateDoctor = (doctorId, data) => request.post(`/families/rate/${doctorId}`, data)

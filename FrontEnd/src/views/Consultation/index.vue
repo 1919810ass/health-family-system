@@ -28,16 +28,24 @@
       <!-- 主聊天区域 -->
       <main class="chat-container">
         <!-- 头部导航 -->
-        <header class="chat-header">
-          <div class="header-left">
-            <el-button class="hidden-md-and-up mr-2" link @click="historyDrawerVisible = true">
-              <el-icon :size="20"><Menu /></el-icon>
-            </el-button>
-            <span class="title">智能健康咨询助手</span>
-            <el-tag size="small" effect="light" round type="success" class="ml-2 status-tag">
-              <span class="dot"></span> 在线
-            </el-tag>
+        <div class="page-header">
+          <el-button class="hidden-md-and-up mr-2" link @click="historyDrawerVisible = true" style="margin-right: 12px">
+            <el-icon :size="24"><Menu /></el-icon>
+          </el-button>
+          
+          <div class="header-icon">
+            <el-icon><Service /></el-icon>
           </div>
+          <div class="header-content">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h2 class="title">智能健康咨询助手</h2>
+              <el-tag size="small" effect="light" round type="success" class="status-tag">
+                <span class="dot"></span> 在线
+              </el-tag>
+            </div>
+            <p class="subtitle">24小时为您解答健康疑问，提供专业建议</p>
+          </div>
+
           <div class="header-actions">
             <el-tooltip content="清空当前对话" placement="bottom">
               <el-button circle text @click="clearCurrentDialog" class="hover-rotate">
@@ -57,7 +65,7 @@
               </template>
             </el-dropdown>
           </div>
-        </header>
+        </div>
 
         <div class="action-bar">
           <div class="action-left">
@@ -196,7 +204,7 @@
           </div>
 
           <!-- Loading 状态 -->
-          <div v-if="loading" class="message-row ai-row">
+          <div v-if="loading && !streamingAnswerId" class="message-row ai-row">
             <div class="message-wrapper ai slide-in-left">
               <el-avatar :size="40" :icon="ChatDotRound" class="avatar ai-avatar" />
               <div class="bubble ai-bubble loading-bubble glass-bubble">
@@ -261,9 +269,9 @@ import { ElMessage, ElNotification } from 'element-plus'
 import { 
   User, ChatDotRound, Loading, Promotion, 
   Menu, Plus, Delete, Service, Microphone, Clock,
-  CircleCheck, CircleClose
+  CircleCheck, CircleClose, Headset
 } from '@element-plus/icons-vue'
-import { consult, getConsultationHistory, feedbackConsultation as feedbackConsultationApi, getSessionDetail, getConsultationStats, saveSessionMeta } from '@/api/consultation'
+import { consultStream, getConsultationHistory, feedbackConsultation as feedbackConsultationApi, getSessionDetail, getConsultationStats, saveSessionMeta } from '@/api/consultation'
 import dayjs from 'dayjs'
 import * as echarts from 'echarts'
 import { useUserStore } from '@/stores'
@@ -273,6 +281,7 @@ import { info as logInfo, error as logError } from '@/utils/logger'
 const question = ref('')
 const history = ref([])
 const loading = ref(false)
+const streamingAnswerId = ref(null)
 const currentSessionId = ref(null)
 const chatHistoryRef = ref(null)
 const historyDrawerVisible = ref(false)
@@ -489,7 +498,6 @@ const handleSubmit = async () => {
   question.value = ''
   ensureSessionMeta({ title: userQ.slice(0, 20), createdAt: new Date() })
   
-  // Optimistic UI update
   const tempId = Date.now()
   history.value.push({
     id: tempId,
@@ -501,24 +509,74 @@ const handleSubmit = async () => {
   loading.value = true
 
   try {
-    const res = await consult({ 
-      question: userQ,
-      sessionId: currentSessionId.value 
-    })
-    
-    if (res.code === 0) {
-      // Append AI answer
-      const answerMsg = {
-        id: res.data.id || (tempId + 1),
-        answer: res.data.answer,
-        sources: res.data.sources,
-        feedback: -1,
-        createdAt: new Date()
+    const answerMsg = {
+      id: tempId + 1,
+      answer: '',
+      sources: [],
+      feedback: -1,
+      createdAt: new Date()
+    }
+    history.value.push(answerMsg)
+    streamingAnswerId.value = answerMsg.id
+    const typingQueue = []
+    let typewriterTimer = null
+
+    const flushTypewriter = () => {
+      if (typewriterTimer) return
+      typewriterTimer = setInterval(() => {
+        if (typingQueue.length === 0) {
+          clearInterval(typewriterTimer)
+          typewriterTimer = null
+          return
+        }
+        answerMsg.answer += typingQueue.shift()
+        scrollToBottom()
+      }, 20)
+    }
+
+    const onChunk = (chunk) => {
+      if (!chunk) return
+      for (const ch of chunk) {
+        typingQueue.push(ch)
       }
+      flushTypewriter()
+    }
+
+    const onError = (error) => {
+      if (typewriterTimer) {
+        clearInterval(typewriterTimer)
+        typewriterTimer = null
+      }
+      typingQueue.length = 0
+      streamingAnswerId.value = null
+      const msg = String(error?.message || '')
+      if (msg.includes('CUDA') || msg.includes('llama runner')) {
+        ElNotification({
+          title: 'AI服务故障',
+          message: 'GPU计算服务异常（CUDA错误），已通知运维，请稍后再试',
+          type: 'error',
+          duration: 4000
+        })
+      } else {
+        ElMessage.error('网络请求失败，请稍后重试')
+      }
+    }
+
+    const onComplete = async () => {
+      if (typewriterTimer || typingQueue.length) {
+        await new Promise(resolve => {
+          const checker = setInterval(() => {
+            if (!typewriterTimer && typingQueue.length === 0) {
+              clearInterval(checker)
+              resolve()
+            }
+          }, 20)
+        })
+      }
+      streamingAnswerId.value = null
       const lastQIndex = [...history.value].reverse().findIndex(m => !!m.question)
       const lastQ = lastQIndex >= 0 ? history.value[history.value.length - 1 - lastQIndex] : null
       answerMsg.mismatch = !isAnswerMatchingQuestion(answerMsg.answer, lastQ?.question)
-      history.value.push(answerMsg)
       if (enableSessionMetaSave) {
         await saveSessionMeta({ sessionId: currentSessionId.value, title: history.value[0]?.question?.slice(0, 20) || userQ.slice(0, 20) || '新的咨询', type: filters.value.type || 'general' }).catch(() => {})
         loadHistorySessions(true)
@@ -526,22 +584,15 @@ const handleSubmit = async () => {
         ensureSessionMeta({ title: history.value[0]?.question?.slice(0, 20) || userQ.slice(0, 20) || '新的咨询', createdAt: new Date() })
         loadHistorySessions(true)
       }
-    } else {
-      ElMessage.error(res.message || '咨询失败')
-      // Remove user question if failed? Or show error state.
+      if (currentSessionId.value) {
+        await fetchSessionMessages(currentSessionId.value)
+      }
     }
-  } catch (error) {
-    const msg = String(error?.message || '')
-    if (msg.includes('CUDA') || msg.includes('llama runner')) {
-      ElNotification({
-        title: 'AI服务故障',
-        message: 'GPU计算服务异常（CUDA错误），已通知运维，请稍后再试',
-        type: 'error',
-        duration: 4000
-      })
-    } else {
-      ElMessage.error('网络请求失败，请稍后重试')
-    }
+
+    await consultStream({
+      question: userQ,
+      sessionId: currentSessionId.value
+    }, onChunk, onError, onComplete)
   } finally {
     loading.value = false
     scrollToBottom()
@@ -780,38 +831,60 @@ const drawStats = () => {
     }
   }
   
-  .chat-header {
-    height: 60px;
-    padding: 0 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  .page-header {
+    height: 64px;
+    padding: 0 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(255, 255, 255, 0.3);
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    background: rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(10px);
+    z-index: 10;
     
-    .header-left {
+    .header-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, vars.$success-color, color.adjust(vars.$success-color, $lightness: 15%));
       display: flex;
       align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(vars.$success-color, 0.3);
+      margin-right: 12px;
+
+      .el-icon {
+        font-size: 20px;
+        color: #fff;
+      }
+    }
+
+    .header-content {
+      flex: 1;
+      min-width: 0;
       
       .title {
-        font-size: 16px;
-        font-weight: 600;
-        color: vars.$text-primary-color;
-        margin-right: 8px;
+        font-size: 18px;
+        font-weight: 700;
+        color: vars.$text-main-color;
+        margin: 0;
+        @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$success-color));
       }
-      
-      .status-tag {
-        display: flex;
-        align-items: center;
-        .dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background-color: vars.$success-color;
-          margin-right: 4px;
-        }
+
+      .subtitle {
+        font-size: 12px;
+        color: vars.$text-secondary-color;
+        margin: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
+    }
+    
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      margin-left: 16px;
     }
   }
   

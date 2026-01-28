@@ -15,6 +15,7 @@ import com.healthfamily.domain.repository.ProfileRepository;
 import com.healthfamily.domain.repository.UserRepository;
 import com.healthfamily.service.AiRecommendationService;
 import com.healthfamily.service.SecurityService;
+import com.healthfamily.ai.OllamaLegacyClient;
 import com.healthfamily.web.dto.AiRecommendationRequest;
 import com.healthfamily.web.dto.AiRecommendationResponse;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +24,13 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import org.springframework.ai.converter.BeanOutputConverter;
 
 @Slf4j
 @Service
@@ -40,6 +44,15 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private final ProfileRepository profileRepository;
     private final HealthLogRepository healthLogRepository;
     private final SecurityService securityService;
+    private final OllamaLegacyClient ollamaLegacyClient;
+
+    // 定义结构化输出记录
+    record RecommendationResult(
+        String title,
+        String content,
+        String reasoning,
+        String priority
+    ) {}
 
     @Override
     @Transactional
@@ -56,28 +69,45 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         // 获取用户健康数据
         Map<String, Object> healthData = buildHealthDataContext(user, forDate, request.category());
         
+        // 准备结构化输出转换器
+        BeanOutputConverter<RecommendationResult> converter = new BeanOutputConverter<>(RecommendationResult.class);
+        
         // 构建AI提示词
-        String prompt = buildRecommendationPrompt(request.category(), healthData);
+        String promptText = buildRecommendationPrompt(request.category(), healthData) + "\n\n" + converter.getFormat();
         
         // 调用AI生成建议
         ChatClient client = chatClientBuilder.build();
-        Prompt aiPrompt = new Prompt(prompt);
-        var response = client.prompt(aiPrompt).call();
-        String aiResponse = response.content();
-        
-        // 解析AI返回的建议
-        Map<String, Object> recommendation = parseAiResponse(aiResponse);
+        RecommendationResult recommendation;
+        try {
+             recommendation = client.prompt()
+                .user(promptText)
+                .call()
+                .entity(RecommendationResult.class);
+        } catch (WebClientResponseException.NotFound e) {
+            String content = ollamaLegacyClient.generate(promptText, null, null);
+            recommendation = parseRecommendationResult(content);
+        } catch (Exception e) {
+            log.error("AI 生成建议失败", e);
+            // 降级处理
+            recommendation = new RecommendationResult("健康建议", "暂时无法生成建议，请稍后再试。", "系统繁忙", "MEDIUM");
+        }
         
         // 保存建议
+        RecommendationPriority priority = RecommendationPriority.MEDIUM;
+        try {
+            if (recommendation.priority() != null) {
+                priority = RecommendationPriority.valueOf(recommendation.priority().toUpperCase());
+            }
+        } catch (Exception ignored) {}
+
         AiRecommendation aiReco = AiRecommendation.builder()
                 .user(user)
                 .forDate(forDate)
                 .category(request.category())
-                .title((String) recommendation.getOrDefault("title", "健康建议"))
-                .content((String) recommendation.getOrDefault("content", aiResponse))
-                .reasoning((String) recommendation.get("reasoning"))
-                .priority(RecommendationPriority.valueOf(
-                        ((String) recommendation.getOrDefault("priority", "MEDIUM")).toUpperCase()))
+                .title(recommendation.title() != null ? recommendation.title() : "健康建议")
+                .content(recommendation.content() != null ? recommendation.content() : "无内容")
+                .reasoning(recommendation.reasoning())
+                .priority(priority)
                 .dataSources(writeJsonSafely(healthData))
                 .isAccepted(false)
                 .aiModel("qwen2.5:7b")
@@ -159,6 +189,21 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         return sb.toString();
     }
 
+    private RecommendationResult parseRecommendationResult(String content) {
+        try {
+            if (content != null) {
+                int jsonStartIndex = content.indexOf("{");
+                int jsonEndIndex = content.lastIndexOf("}");
+                if (jsonStartIndex != -1 && jsonEndIndex != -1 && jsonEndIndex > jsonStartIndex) {
+                    String json = content.substring(jsonStartIndex, jsonEndIndex + 1);
+                    return objectMapper.readValue(json, RecommendationResult.class);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return new RecommendationResult("健康建议", "暂时无法生成建议，请稍后再试。", "系统繁忙", "MEDIUM");
+    }
+
     private String buildRecommendationPrompt(RecommendationCategory category, Map<String, Object> healthData) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("基于以下用户健康数据，生成一条个性化的").append(category.getDisplayName()).append("建议。\n\n");
@@ -188,34 +233,9 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         prompt.append("2. 建议要具体、可执行\n");
         prompt.append("3. 如果有异常数据，要重点关注\n");
         prompt.append("4. 语气温和、专业\n");
-        prompt.append("5. 返回JSON格式：{\"title\": \"建议标题\", \"content\": \"建议内容\", \"reasoning\": \"生成理由\", \"priority\": \"MEDIUM\"}\n");
+        // JSON格式要求由 Converter 自动添加
         
         return prompt.toString();
-    }
-
-    private Map<String, Object> parseAiResponse(String aiResponse) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("content", aiResponse);
-        result.put("title", "健康建议");
-        result.put("priority", "MEDIUM");
-        
-        // 尝试提取JSON
-        try {
-            int start = aiResponse.indexOf('{');
-            int end = aiResponse.lastIndexOf('}');
-            if (start >= 0 && end > start) {
-                String jsonStr = aiResponse.substring(start, end + 1);
-                Map<String, Object> parsed = objectMapper.readValue(
-                        jsonStr, 
-                        new TypeReference<Map<String, Object>>() {}
-                );
-                result.putAll(parsed);
-            }
-        } catch (Exception e) {
-            log.warn("解析AI返回的JSON失败，使用默认值: {}", e.getMessage());
-        }
-        
-        return result;
     }
 
     @Override

@@ -17,14 +17,17 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         "com.healthfamily.security",
         "com.healthfamily.service",
         "com.healthfamily.web",
-        "com.healthfamily.ai"
+        "com.healthfamily.ai",
+        "com.healthfamily.modules"
 })
 @EnableScheduling
 @EnableJpaRepositories(basePackages = {
-        "com.healthfamily.domain.repository"
+        "com.healthfamily.domain.repository",
+        "com.healthfamily.modules.recommendationv2.repository"
 })
 @EntityScan(basePackages = {
-        "com.healthfamily.domain.entity"
+        "com.healthfamily.domain.entity",
+        "com.healthfamily.modules.recommendationv2.domain"
 })
 @EnableJpaAuditing
 @EnableConfigurationProperties(RecommendationProperties.class)

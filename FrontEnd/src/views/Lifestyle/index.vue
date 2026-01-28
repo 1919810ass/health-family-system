@@ -1,6 +1,14 @@
 <template>
   <div class="lifestyle glass-effect">
-    <el-page-header content="生活方式管理" class="glass-header" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><Sunrise /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">生活方式管理</h2>
+        <p class="subtitle">饮食、运动、睡眠全方位健康管理</p>
+      </div>
+    </div>
 
     <el-tabs class="mt-16 glass-tabs" type="border-card">
       <el-tab-pane label="饮食管理">
@@ -24,8 +32,13 @@
                 <el-form-item label="饮食描述">
                   <el-input v-model="dietForm.description" type="textarea" placeholder="午餐：米饭、青菜、鱼" class="glass-input" :rows="3" />
                 </el-form-item>
+                <el-form-item label="份量/数量">
+                  <el-input v-model="dietForm.quantity" placeholder="例如：200g, 1碗, 半份" class="glass-input" />
+                </el-form-item>
                 <el-form-item>
-                  <el-button type="primary" :loading="dietLoading" @click="ingestDietAction" round>识别并记录</el-button>
+                  <el-button type="primary" :loading="dietLoading || uploadLoading" @click="ingestDietAction" round>
+                    {{ dietLoading ? '正在记录...' : (uploadLoading ? '正在识别图片...' : '识别并记录') }}
+                  </el-button>
                 </el-form-item>
               </el-form>
               <el-table v-if="dietItems.length" :data="dietItems" size="small" class="mt-12 glass-table">
@@ -105,8 +118,17 @@
             <el-card class="glass-card" shadow="hover">
               <template #header><span class="card-title"><el-icon><Moon /></el-icon> 记录睡眠</span></template>
               <el-form :model="sleepForm" label-width="120px">
-                <el-form-item label="睡眠时长(小时)">
-                  <el-input-number v-model="sleepForm.hours" :min="0" :max="16" class="glass-input-number" style="width: 100%" />
+                <el-form-item label="上床时间">
+                   <el-time-picker v-model="sleepForm.bedtime" format="HH:mm" value-format="HH:mm" placeholder="选择时间" class="glass-input" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="起床时间">
+                   <el-time-picker v-model="sleepForm.wakeTime" format="HH:mm" value-format="HH:mm" placeholder="选择时间" class="glass-input" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="入睡耗时(分钟)">
+                   <el-input-number v-model="sleepForm.sleepLatency" :min="0" :max="120" placeholder="上床后多久入睡" class="glass-input-number" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="醒来赖床(分钟)">
+                   <el-input-number v-model="sleepForm.wakeUpLatency" :min="0" :max="120" placeholder="醒来后多久起床" class="glass-input-number" style="width: 100%" />
                 </el-form-item>
                 <el-form-item label="深度睡眠(小时)">
                   <el-input-number v-model="sleepForm.deepHours" :min="0" :max="16" class="glass-input-number" style="width: 100%" />
@@ -114,6 +136,13 @@
                 <el-form-item label="醒来次数">
                   <el-input-number v-model="sleepForm.wakeCount" :min="0" :max="20" class="glass-input-number" style="width: 100%" />
                 </el-form-item>
+                
+                <div v-if="calculatedDuration" style="margin-bottom: 24px; padding: 12px; background: rgba(64, 158, 255, 0.1); border-radius: 8px; text-align: center">
+                   <span style="color: #606266">预计总睡眠时长: </span>
+                   <span style="font-size: 18px; font-weight: bold; color: #409EFF; margin: 0 4px">{{ calculatedDuration }}</span>
+                   <span style="color: #409EFF">小时</span>
+                </div>
+
                 <el-form-item>
                   <el-button type="primary" :loading="sleepLoading" @click="recordSleepAction" round v-particles>保存</el-button>
                   <el-button @click="analyzeSleepAction" :loading="sleepAnalyzeLoading" round class="glass-button">分析睡眠</el-button>
@@ -133,13 +162,15 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, Camera, DataLine, Food, Bicycle, Moon } from '@element-plus/icons-vue'
+import { Plus, Camera, DataLine, Food, Bicycle, Moon, Sunrise } from '@element-plus/icons-vue'
 import { ingestDiet, weeklyDietReport, recommendRecipes, recordExercise, suggestExercise, recordSleep, analyzeSleep, uploadDietImage } from '../../api/lifestyle'
+import dayjs from 'dayjs'
 
-const dietForm = ref({ imageUrl: '', description: '' })
+const dietForm = ref({ imageUrl: '', description: '', quantity: '' })
 const dietLoading = ref(false)
+const uploadLoading = ref(false)
 const dietItems = ref([])
 const dietTotal = ref(0)
 const reportLoading = ref(false)
@@ -161,6 +192,7 @@ const beforeAvatarUpload = (rawFile) => {
 }
 
 const handleUpload = async (options) => {
+  uploadLoading.value = true
   const formData = new FormData()
   formData.append('file', options.file)
   try {
@@ -183,6 +215,8 @@ const handleUpload = async (options) => {
     }
   } catch (e) {
     ElMessage.error('上传失败')
+  } finally {
+    uploadLoading.value = false
   }
 }
 
@@ -191,10 +225,32 @@ const sportLoading = ref(false)
 const sportSuggestLoading = ref(false)
 const sportSuggest = ref('')
 
-const sleepForm = ref({ hours: 7, deepHours: 2, wakeCount: 1 })
+const sleepForm = ref({ hours: 7, deepHours: 2, wakeCount: 1, bedtime: null, wakeTime: null, sleepLatency: 0, wakeUpLatency: 0 })
 const sleepLoading = ref(false)
 const sleepAnalyzeLoading = ref(false)
 const sleepAnalyze = ref('')
+const calculatedDuration = ref(null)
+
+// 自动计算睡眠时长
+watch([() => sleepForm.value.bedtime, () => sleepForm.value.wakeTime], ([bed, wake]) => {
+  if (bed && wake) {
+    const today = dayjs().format('YYYY-MM-DD')
+    let start = dayjs(`${today} ${bed}`)
+    let end = dayjs(`${today} ${wake}`)
+    
+    // 如果起床时间小于上床时间，说明跨天了
+    if (end.isBefore(start)) {
+      end = end.add(1, 'day')
+    }
+    
+    const diffHours = end.diff(start, 'hour', true)
+    const val = Number(diffHours.toFixed(1))
+    calculatedDuration.value = val
+    sleepForm.value.hours = val
+  } else {
+    calculatedDuration.value = null
+  }
+})
 
 const ingestDietAction = async () => {
   dietLoading.value = true
@@ -205,7 +261,8 @@ const ingestDietAction = async () => {
       dietItems.value = res?.data?.items || []
       dietTotal.value = res?.data?.totalCalories || 0
       ElMessage.success('已记录饮食')
-      await loadWeeklyReport()
+      // 移除自动刷新报告，改为用户手动刷新
+      // await loadWeeklyReport()
     } else {
       ElMessage.error(res.message || '识别失败')
     }
@@ -313,26 +370,62 @@ const analyzeSleepAction = async () => {
 }
 </script>
 
-<style lang="scss" scoped>
-@use '@/styles/variables.scss' as vars;
-@use '@/styles/mixins.scss' as mixins;
+<style scoped lang="scss">
+@use 'sass:color';
+@use '@/styles/variables' as vars;
+@use '@/styles/mixins' as mixins;
 
 .lifestyle {
-  padding: 20px;
+  padding: 24px;
   min-height: 100%;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
   
-  &.glass-effect {
-    background: transparent;
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$warning-color, color.adjust(vars.$warning-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$warning-color, 0.3);
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+  }
+
+  .header-content {
+    flex: 1;
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-main-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$warning-color));
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
   }
 }
 
 .glass-header {
   margin-bottom: 24px;
-  animation: fadeInDown 0.6s vars.$ease-spring;
-  
   :deep(.el-page-header__content) {
-    color: vars.$text-main-color;
     font-weight: 600;
+    color: vars.$text-main-color;
   }
 }
 

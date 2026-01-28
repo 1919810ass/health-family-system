@@ -622,6 +622,7 @@ const getStatusTagType = (status) => {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @use '@/styles/variables' as vars;
 @use '@/styles/mixins' as mixins;
 
@@ -642,7 +643,7 @@ const getStatusTagType = (status) => {
     width: 48px;
     height: 48px;
     border-radius: 16px;
-    background: linear-gradient(135deg, vars.$warning-color, lighten(vars.$warning-color, 15%));
+    background: linear-gradient(135deg, vars.$warning-color, color.adjust(vars.$warning-color, $lightness: 15%));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -681,10 +682,11 @@ const getStatusTagType = (status) => {
       height: auto;
       font-weight: 500;
       transition: all 0.3s vars.$ease-spring;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 
       &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
       }
     }
   }
@@ -696,10 +698,13 @@ const getStatusTagType = (status) => {
   border: vars.$glass-border;
   overflow: hidden;
   transition: all 0.3s vars.$ease-spring;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: vars.$shadow-lg;
 
   .tabs-header {
-    padding: 0 20px;
-    border-bottom: 1px solid rgba(vars.$text-primary-color, 0.05);
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(vars.$text-primary-color, 0.06);
+    background: rgba(255, 255, 255, 0.6);
   }
   
   .card-content {
@@ -717,10 +722,15 @@ const getStatusTagType = (status) => {
     font-weight: 500;
     color: vars.$text-secondary-color;
     padding: 16px 0;
+    margin-right: 12px;
+    border-radius: 999px;
+    padding: 8px 16px;
+    transition: all 0.2s;
     
     &.is-active {
       color: vars.$primary-color;
       font-weight: 600;
+      background: rgba(78, 161, 255, 0.12);
     }
   }
 }
@@ -732,19 +742,24 @@ const getStatusTagType = (status) => {
     background: transparent;
     color: vars.$text-secondary-color;
     font-weight: 500;
+    border-bottom: 1px solid rgba(vars.$text-primary-color, 0.08);
   }
   
   :deep(tr) {
     background: transparent;
     
     &:hover td.el-table__cell {
-      background: rgba(vars.$primary-color, 0.05) !important;
+      background: rgba(78, 161, 255, 0.06) !important;
     }
   }
 
   :deep(td.el-table__cell) {
-    border-bottom: 1px solid rgba(vars.$text-primary-color, 0.05);
-    padding: 16px 0;
+    border-bottom: 1px solid rgba(vars.$text-primary-color, 0.06);
+    padding: 18px 0;
+  }
+
+  :deep(.el-table__row) {
+    background: rgba(255, 255, 255, 0.7);
   }
 }
 
@@ -770,6 +785,7 @@ const getStatusTagType = (status) => {
   .title-text {
     font-weight: 600;
     color: vars.$text-primary-color;
+    font-size: 15px;
   }
 }
 
@@ -803,6 +819,10 @@ const getStatusTagType = (status) => {
 .action-buttons {
   display: flex;
   gap: 8px;
+
+  :deep(.el-button) {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  }
 }
 
 .glass-dialog {
@@ -904,4 +924,3 @@ const getStatusTagType = (status) => {
   }
 }
 </style>
-

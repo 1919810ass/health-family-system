@@ -13,6 +13,7 @@ public class UserActivityStatsDto {
     private Long weeklyActiveUsers;
     private Long monthlyActiveUsers;
     private Long onlineUsers;
+    private Long todayVisits;
     private List<Map<String, Object>> onlineUsersList;
     private List<Map<String, Object>> loginFrequency;
     private List<Map<String, Object>> featureUsage;

@@ -188,6 +188,53 @@ CREATE TABLE IF NOT EXISTS alerts (
     FOREIGN KEY (family_id) REFERENCES families(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='告警表';
 
+-- 13. 在线咨询会话表
+CREATE TABLE IF NOT EXISTS consultation_sessions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    patient_user_id BIGINT NOT NULL,
+    family_id BIGINT NOT NULL,
+    doctor_id BIGINT,
+    title VARCHAR(255),
+    status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+    last_message_at DATETIME,
+    unread_count_doctor INT DEFAULT 0,
+    unread_count_patient INT DEFAULT 0,
+    is_ai_triaged TINYINT(1) DEFAULT 0 COMMENT '是否经过AI预问诊',
+    triage_summary TEXT COMMENT 'AI生成的预问诊摘要(SOAP格式)',
+    patient_symptoms TEXT COMMENT '患者的主诉原文',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_user_id) REFERENCES users(id),
+    FOREIGN KEY (family_id) REFERENCES families(id),
+    FOREIGN KEY (doctor_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='在线咨询会话表';
+
+-- 14. AI预问诊对话详情
+CREATE TABLE IF NOT EXISTS consultation_triage_chat (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    session_id BIGINT NOT NULL COMMENT '关联会话ID',
+    sender_role VARCHAR(20) NOT NULL COMMENT '发送者: AI, USER',
+    content TEXT NOT NULL,
+    gmt_create DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_session (session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI预问诊对话详情';
+
+-- 15. 咨询消息表 (补充遗漏的表定义，如果JPA自动生成了可忽略，但为了完整性加上)
+CREATE TABLE IF NOT EXISTS consultation_messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    session_id BIGINT NOT NULL,
+    sender_id BIGINT NOT NULL,
+    sender_type VARCHAR(32) NOT NULL,
+    content TEXT,
+    message_type VARCHAR(32) DEFAULT 'TEXT',
+    template_id VARCHAR(64),
+    read_by_doctor TINYINT(1) DEFAULT 0,
+    read_by_patient TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES consultation_sessions(id),
+    FOREIGN KEY (sender_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='咨询消息表';
+
 -- 初始管理员账号 (admin/123456) - 使用手机号 13800000000
 INSERT INTO users (phone, password_hash, nickname, role, status) 
 VALUES ('13800000000', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOcd7.jRjD.a', '系统管理员', 'ADMIN', 1)

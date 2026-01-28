@@ -1,3 +1,4 @@
+@use 'sass:color';
 @use './variables' as vars;
 @use './mixins';
 
@@ -17,7 +18,7 @@ body,
 h1, h2, h3, h4, h5, h6 {
   color: vars.$text-main-color;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 /* 按钮全局重写 */
@@ -27,11 +28,11 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.5px;
   border: none;
   transition: all 0.3s vars.$ease-spring;
-  box-shadow: vars.$shadow-sm;
+  box-shadow: none; /* Removed default shadow for cleaner look */
   
   &:hover {
     transform: translateY(-2px);
-    box-shadow: vars.$shadow-md;
+    box-shadow: vars.$shadow-sm;
   }
   
   &:active {
@@ -39,48 +40,59 @@ h1, h2, h3, h4, h5, h6 {
   }
   
   &--primary {
-    background: vars.$gradient-primary !important;
+    background: vars.$primary-color !important; /* Solid color per design */
+    color: #fff !important;
     border: none !important;
     
     &:hover {
       opacity: 0.9;
+      background: color.adjust(vars.$primary-color, $lightness: 5%) !important;
     }
   }
   
   &--success {
-    background: vars.$gradient-success !important;
+    background: vars.$success-color !important;
     border: none !important;
   }
 }
 
-/* 卡片全局重写 */
+/* 卡片全局重写 - Clean White Cards */
 .el-card {
-  @include mixins.card;
+  background: #fff;
+  border-radius: vars.$radius-lg;
   border: none;
+  box-shadow: vars.$shadow-md;
   
   &__header {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    padding: 16px 24px;
-    font-weight: 600;
-    font-size: 16px;
-    color: vars.$primary-color;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+    padding: 20px 24px;
+    font-weight: 700;
+    font-size: 18px;
+    color: vars.$text-main-color;
+  }
+
+  &__body {
+    padding: 24px;
   }
 }
 
 /* 表单元素重写 */
 .el-input__wrapper, .el-select__wrapper {
   border-radius: vars.$radius-base !important;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.1) inset !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(0,0,0,0.1); /* Subtle border */
   padding: 8px 12px !important;
   transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.8) !important;
+  background: #F8FAFC !important;
   
   &:hover {
     background: #fff !important;
+    border-color: vars.$primary-color;
   }
   
   &.is-focus {
-    box-shadow: 0 0 0 2px vars.$primary-color inset !important;
+    box-shadow: 0 0 0 2px rgba(vars.$primary-color, 0.2) !important;
+    border-color: vars.$primary-color;
     background: #fff !important;
   }
 }
@@ -88,25 +100,26 @@ h1, h2, h3, h4, h5, h6 {
 /* 弹窗重写 */
 .el-dialog {
   border-radius: vars.$radius-lg !important;
-  @include mixins.glass-effect;
+  background: #fff;
   overflow: hidden;
+  box-shadow: vars.$shadow-xl;
   
   &__header {
     margin-right: 0;
-    padding: 20px;
+    padding: 20px 24px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   }
   
   &__footer {
-    padding: 20px;
+    padding: 20px 24px;
     border-top: 1px solid rgba(0, 0, 0, 0.05);
   }
 }
 
 /* 滚动条美化 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -115,7 +128,7 @@ h1, h2, h3, h4, h5, h6 {
 
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
+  border-radius: 3px;
   
   &:hover {
     background: rgba(0, 0, 0, 0.2);
@@ -170,12 +183,12 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid rgba(123, 97, 255, 0.6);
+  outline: 2px solid rgba(vars.$primary-color, 0.6);
   outline-offset: 2px;
 }
 
 .page-container {
-  padding: vars.$spacing-unit * 3;
+  padding: 24px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -185,4 +198,3 @@ a {
     scroll-behavior: auto !important;
   }
 }
-

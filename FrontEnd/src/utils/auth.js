@@ -1,9 +1,9 @@
-let token = ''
+const TokenKey = 'HealthFamily-Token'
 
-export const getToken = () => token
-export const setToken = (t) => {
-  token = t
+export const getToken = () => localStorage.getItem(TokenKey)
+export const setToken = (token) => {
+  localStorage.setItem(TokenKey, token)
 }
 export const removeToken = () => {
-  token = ''
+  localStorage.removeItem(TokenKey)
 }

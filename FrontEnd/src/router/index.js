@@ -39,7 +39,7 @@ const routes = [
   },
   {
     path: '/',
-    component: () => import('../components/Layout/AppLayout.vue'),
+    component: () => import('../components/Layout/BaseLayout.vue'),
     children: [
       {
         path: '',
@@ -51,6 +51,30 @@ const routes = [
         component: () => import('../views/Home/index.vue'),
         meta: {
           title: '首页',
+        },
+      },
+      {
+        path: '/report',
+        name: 'report',
+        component: () => import('../views/HealthReport/Index.vue'),
+        meta: {
+          title: '智能报告解读',
+        },
+      },
+      {
+        path: '/report/upload',
+        name: 'report-upload',
+        component: () => import('../views/HealthReport/Upload.vue'),
+        meta: {
+          title: '上传报告',
+        },
+      },
+      {
+        path: '/report/detail/:id',
+        name: 'report-detail',
+        component: () => import('../views/HealthReport/Detail.vue'),
+        meta: {
+          title: '报告详情',
         },
       },
       {
@@ -111,6 +135,13 @@ const routes = [
         ]
       },
       {
+        path: '/ai-chat',
+        component: () => import('../views/AiChat/index.vue'),
+        meta: {
+          title: 'AI 健康助手',
+        },
+      },
+      {
         path: '/logs',
         component: () => import('../views/HealthLog/index.vue'),
         meta: {
@@ -157,7 +188,7 @@ const routes = [
       {
         path: '/family-doctor',
         component: () => import('../views/Doctor/index.vue'),
-        meta: { title: '家庭医生对接' },
+        meta: { title: '家庭医生对接', roles: ['FAMILY_ADMIN', 'DOCTOR'] },
       },
       {
         path: '/reminders',
@@ -193,7 +224,7 @@ const routes = [
   },
   {
     path: '/admin',
-    component: () => import('../components/Layout/AdminLayout.vue'),
+    component: () => import('../components/Layout/BaseLayout.vue'),
     meta: { roles: ['ADMIN'] },
     children: [
       {
@@ -334,16 +365,19 @@ const routes = [
   },
   {
     path: '/doctor',
-    component: () => import('../components/Layout/AppLayoutDoctor.vue'),
+    component: () => import('../components/Layout/BaseLayout.vue'),
     meta: { roles: ['DOCTOR'] }, // 医生专用路由组
     children: [
       { path: '', redirect: '/doctor/enhanced-monitoring' },
       { path: 'workbench', component: () => import('../views/Doctor/Workbench.vue'), meta: { title: '医生工作台', roles: ['DOCTOR'] } },
       { path: 'patients', component: () => import('../views/Doctor/Patients.vue'), meta: { title: '患者管理', roles: ['DOCTOR'] } },
+      { path: 'reports', component: () => import('../views/Doctor/Reports.vue'), meta: { title: '体检报告与点评', roles: ['DOCTOR'] } },
+      { path: 'report-generation', component: () => import('../views/Doctor/ReportGeneration.vue'), meta: { title: '智能报告生成', roles: ['DOCTOR'] } },
       { path: 'consultation', component: () => import('../views/Doctor/Consultation.vue'), meta: { title: '在线咨询', roles: ['DOCTOR'] } },
       { path: 'enhanced-monitoring', component: () => import('../views/Doctor/EnhancedMonitoring.vue'), meta: { title: '健康监测与预警', roles: ['DOCTOR'] } },
       { path: 'plans', component: () => import('../views/Doctor/Plans.vue'), meta: { title: '健康计划与随访', roles: ['DOCTOR'] } },
       { path: 'analysis', component: () => import('../views/Doctor/Analysis.vue'), meta: { title: '数据统计与分析', roles: ['DOCTOR'] } },
+      { path: 'ratings', component: () => import('../views/Doctor/Ratings.vue'), meta: { title: '我的评价', roles: ['DOCTOR'] } },
       { path: 'settings', component: () => import('../views/Doctor/Settings.vue'), meta: { title: '医生系统设置', roles: ['DOCTOR'] } },
       { path: 'bind', component: () => import('../views/Doctor/index.vue'), meta: { title: '家庭医生对接', roles: ['DOCTOR'] } },
       { 

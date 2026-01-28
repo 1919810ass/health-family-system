@@ -3,6 +3,7 @@ package com.healthfamily.service.recommendation;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.healthfamily.ai.OllamaLegacyClient;
 import com.healthfamily.config.RecommendationProperties;
 import com.healthfamily.domain.entity.SystemSetting;
 import com.healthfamily.domain.repository.SystemSettingRepository;
@@ -15,6 +16,7 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
@@ -33,6 +35,7 @@ public class RecommendationAiClient {
     private final ObjectMapper objectMapper;
     private final RecommendationProperties properties;
     private final SystemSettingRepository systemSettingRepository;
+    private final OllamaLegacyClient ollamaLegacyClient;
 
     private PromptTemplate promptTemplate;
 
@@ -106,6 +109,23 @@ public class RecommendationAiClient {
             AiRecommendationResult payload = parseResult(content);
             log.debug("成功解析 AI 返回结果");
 
+            return new AiRecommendationResult(
+                    payload.title(),
+                    payload.summary(),
+                    payload.items(),
+                    payload.evidence(),
+                    payload.safety(),
+                    content
+            );
+        } catch (WebClientResponseException.NotFound ex) {
+            Prompt prompt = promptTemplate().create(variables);
+            String legacyPrompt = prompt.getContents();
+            String model = request.modelOverride() != null ? request.modelOverride() : properties.getAi().getModel();
+            String content = ollamaLegacyClient.generate(legacyPrompt, model, null);
+            if (content == null || content.isBlank()) {
+                throw new RecommendationAiException("模型未返回内容");
+            }
+            AiRecommendationResult payload = parseResult(content);
             return new AiRecommendationResult(
                     payload.title(),
                     payload.summary(),

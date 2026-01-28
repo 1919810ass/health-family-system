@@ -1,6 +1,14 @@
 <template>
   <div class="doctor-page">
-    <el-page-header :content="role === 'DOCTOR' ? '家庭健康管理' : '家庭医生对接'" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><FirstAidKit /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">{{ role === 'DOCTOR' ? '家庭健康管理' : '家庭医生对接' }}</h2>
+        <p class="subtitle">{{ role === 'DOCTOR' ? '管理您的签约家庭，提供专业健康服务' : '绑定专属家庭医生，享受贴心健康服务' }}</p>
+      </div>
+    </div>
 
     <div class="main-content mt-4">
       <!-- 1. Patient View: Bind Doctor -->
@@ -139,65 +147,7 @@
               <el-empty v-else description="点击上方按钮生成报告" />
             </el-tab-pane>
 
-            <!-- Tab 2: Online Consultation -->
-            <el-tab-pane label="在线咨询" name="chat">
-              <div class="chat-layout">
-                  <!-- Sidebar: Select Member -->
-                  <div class="chat-sidebar">
-                      <div class="sidebar-header">咨询成员</div>
-                      <div class="member-list">
-                          <div 
-                              v-for="m in members" 
-                              :key="m.userId" 
-                              class="member-item"
-                              :class="{ 'active': currentChatMemberId === m.userId }"
-                              @click="handleChatMemberSelect(m.userId)"
-                          >
-                              <el-avatar :size="32" :src="m.avatar" class="mr-2" />
-                              <div class="member-name">{{ m.nickname }}</div>
-                          </div>
-                      </div>
-                  </div>
 
-                  <!-- Chat Area -->
-                  <div class="chat-main">
-                      <div class="chat-header">
-                          <span class="font-bold">{{ getMemberName(currentChatMemberId) }} 与 {{ doctor.nickname }} 的对话</span>
-                          <el-button size="small" circle @click="refreshMessages"><el-icon><Refresh /></el-icon></el-button>
-                      </div>
-                      
-                      <div class="chat-messages" ref="messagesRef">
-                          <div v-if="loadingMessages" class="loading-spinner"><el-spinner /></div>
-                          <div v-else-if="messages.length === 0" class="empty-chat">
-                              <p>暂无消息，发送一条消息开始咨询</p>
-                          </div>
-                          <div v-for="msg in messages" :key="msg.id" class="message-row" :class="{ 'message-right': msg.senderId === currentUserId }">
-                              <div class="message-bubble" 
-                                   :class="msg.senderId === currentUserId ? 'bubble-me' : 'bubble-other'">
-                                  <div class="message-text">{{ msg.content }}</div>
-                                  <div class="message-time">
-                                      {{ formatTimeShort(msg.createdAt) }}
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-                      
-                      <div class="chat-input-area">
-                          <el-input
-                              v-model="inputMessage"
-                              type="textarea"
-                              :rows="3"
-                              placeholder="请输入咨询内容..."
-                              @keyup.enter.ctrl="sendMsg"
-                          />
-                          <div class="chat-actions">
-                              <span class="text-xs text-gray">Ctrl + Enter 发送</span>
-                              <el-button type="primary" :loading="sending" @click="sendMsg" :disabled="!inputMessage.trim()">发送</el-button>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-            </el-tab-pane>
           </el-tabs>
         </div>
       </template>
@@ -309,10 +259,7 @@
                 <el-empty v-else description="点击上方按钮生成报告" />
               </el-tab-pane>
 
-              <!-- Tab 2: Online Consultation (Doctor Side) - REMOVED per user request -->
-              <!-- <el-tab-pane label="患者咨询" name="chat"> -->
-              <!-- ... content removed ... -->
-              <!-- </el-tab-pane> -->
+
             </el-tabs>
           </div>
           
@@ -326,16 +273,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MagicStick, Refresh } from '@element-plus/icons-vue'
-import { bindFamilyDoctor, getFamilyDoctor, getDoctorView, unbindFamilyDoctor, getFamilyMembers, getDoctorFamilies } from '../../api/family'
-import { getOrCreateSession, getMessages, sendMessage, markRead } from '../../api/consultation'
+import { MagicStick, Refresh, FirstAidKit } from '@element-plus/icons-vue'
+import { bindFamilyDoctor, getFamilyDoctor, getDoctorView, unbindFamilyDoctor, getDoctorFamilies } from '../../api/family'
+import { listFamilies } from '../../api/user'
+import { useFamilyStore } from '../../stores/family'
 import request from '../../utils/request'
 import dayjs from 'dayjs'
 
 const route = useRoute()
+const familyStore = useFamilyStore()
 const familyId = ref(localStorage.getItem('current_family_id'))
 const checkingBind = ref(true)
 const bindLoading = ref(false)
@@ -359,17 +308,7 @@ const rules = {
   doctorUserId: [{ required: true, message: '请输入医生用户ID', trigger: 'blur' }],
 }
 
-// Chat
-const members = ref([])
-const currentChatMemberId = ref(null)
-const currentSessionId = ref(null)
-const messages = ref([])
-const inputMessage = ref('')
-const sending = ref(false)
-const loadingMessages = ref(false)
-const messagesRef = ref(null)
 const currentUserId = ref(null)
-let pollTimer = null
 
 // Initialize
 onMounted(async () => {
@@ -388,10 +327,28 @@ onMounted(async () => {
       await loadBoundFamilies()
       checkingBind.value = false
     } else {
+      // 优先从 store 获取家庭ID，如果没有则从 localStorage 获取
+      if (!familyId.value && familyStore.current?.id) {
+        familyId.value = String(familyStore.current.id)
+      }
+
+      // 如果还是没有家庭ID，尝试从 API 加载家庭列表
+      if (!familyId.value) {
+        try {
+          const res = await listFamilies()
+          if (res.data && res.data.length > 0) {
+            const firstFamily = res.data[0]
+            familyId.value = String(firstFamily.id)
+            familyStore.setCurrent(firstFamily) // 也会同步到 localStorage
+          }
+        } catch (e) {
+          console.error('Failed to load families', e)
+        }
+      }
+
       if (familyId.value) {
          await checkDoctor()
          if (doctor.value) {
-           await loadMembers()
            // If bound, load report automatically if not exists
            loadView(false) 
          }
@@ -404,9 +361,7 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
-})
+
 
 const loadBoundFamilies = async () => {
   try {
@@ -423,12 +378,8 @@ const loadBoundFamilies = async () => {
 const onDoctorFamilyChange = async (val) => {
   familyId.value = String(val) // Update context
   doctorView.value = null
-  members.value = []
-  currentChatMemberId.value = null
-  messages.value = []
   
   if (val) {
-    await loadMembers()
     if (activeTab.value === 'report') {
       loadView(false)
     }
@@ -451,7 +402,6 @@ const bind = async () => {
     await bindFamilyDoctor(familyId.value, form.value)
     await checkDoctor()
     ElMessage.success('绑定成功')
-    await loadMembers()
   } catch (e) {
     ElMessage.error('绑定失败：' + (e.response?.data?.message || '医生不存在'))
   } finally {
@@ -484,105 +434,63 @@ const loadView = async (useAi) => {
   }
 }
 
-// Chat Logic
-const loadMembers = async () => {
-    if (!familyId.value) return
-    try {
-        const res = await getFamilyMembers(familyId.value)
-        members.value = res.data
-        
-        // If doctor view, don't auto select current user (doctor is not in family list usually)
-        // Auto select the first member
-        if (members.value.length > 0) {
-            currentChatMemberId.value = members.value[0].userId
-        }
-    } catch {}
-}
-
-const handleChatMemberSelect = (userId) => {
-    currentChatMemberId.value = userId
-}
-
-watch([activeTab, currentChatMemberId], async ([tab, memberId]) => {
-    // For Doctor: check selectedFamilyId
-    // For Patient: check doctor.value
-    const isReady = (role.value === 'DOCTOR' && selectedFamilyId.value) || (role.value !== 'DOCTOR' && doctor.value)
-    
-    if (tab === 'chat' && memberId && isReady) {
-        await loadSessionAndMessages(memberId)
-    } else {
-        if (pollTimer) clearInterval(pollTimer)
-    }
-})
-
-const loadSessionAndMessages = async (patientId) => {
-    loadingMessages.value = true
-    if (pollTimer) clearInterval(pollTimer)
-    
-    try {
-        const res = await getOrCreateSession({ 
-            patientUserId: patientId, 
-            familyId: familyId.value 
-        })
-        currentSessionId.value = res.data.id
-        await refreshMessages()
-        
-        // Start polling
-        pollTimer = setInterval(refreshMessages, 5000)
-    } catch (e) {
-        ElMessage.error('无法连接到咨询服务')
-    } finally {
-        loadingMessages.value = false
-    }
-}
-
-const refreshMessages = async () => {
-    if (!currentSessionId.value) return
-    try {
-        const res = await getMessages(currentSessionId.value)
-        messages.value = res.data
-        scrollToBottom()
-    } catch {}
-}
-
-const sendMsg = async () => {
-    if (!inputMessage.value.trim() || !currentSessionId.value) return
-    sending.value = true
-    try {
-        await sendMessage({
-            sessionId: currentSessionId.value,
-            content: inputMessage.value,
-            type: 'TEXT'
-        })
-        inputMessage.value = ''
-        await refreshMessages()
-    } catch (e) {
-        ElMessage.error('发送失败')
-    } finally {
-        sending.value = false
-    }
-}
-
-const scrollToBottom = () => {
-    nextTick(() => {
-        if (messagesRef.value) {
-            messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-        }
-    })
-}
-
-const getMemberName = (id) => {
-    const m = members.value.find(m => m.userId === id)
-    return m ? m.nickname : '成员'
-}
-
 const formatTime = (t) => dayjs(t).format('YYYY-MM-DD HH:mm')
 const formatTimeShort = (t) => dayjs(t).format('MM-DD HH:mm')
 </script>
 
-<style scoped>
-.doctor-page { padding: 16px; }
-.doctor-dashboard { max-width: 1200px; margin: 0 auto; }
+<style scoped lang="scss">
+@use 'sass:color';
+@use '@/styles/variables' as vars;
+@use '@/styles/mixins' as mixins;
+
+.doctor-page { 
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
+  
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$primary-color, color.adjust(vars.$primary-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$primary-color, 0.3);
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+  }
+
+  .header-content {
+    flex: 1;
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-main-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$primary-color));
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
+  }
+}
+
+.doctor-dashboard { margin: 0 auto; }
 .doctor-profile { display: flex; align-items: center; }
 .report-content { margin-top: 16px; }
 .summary-alert :deep(.el-alert__content) { font-size: 14px; line-height: 1.6; }
@@ -606,42 +514,103 @@ const formatTimeShort = (t) => dayjs(t).format('MM-DD HH:mm')
 .text-center { text-align: center; }
 
 /* Report Styles */
-.section-title { padding-left: 8px; border-left-width: 4px; border-left-style: solid; }
-.warning-border { border-left-color: #f56c6c; }
-.risk-border { border-left-color: #e6a23c; }
-.info-border { border-left-color: #409eff; }
+.section-title { 
+  padding-left: 12px; 
+  border-left-width: 4px; 
+  border-left-style: solid;
+  font-size: 16px;
+  font-weight: 700;
+  color: vars.$text-main-color;
+  margin-top: 24px;
+}
+.warning-border { border-left-color: vars.$danger-color; }
+.risk-border { border-left-color: vars.$warning-color; }
+.info-border { border-left-color: vars.$primary-color; }
+
+.report-actions {
+  .el-button {
+    border-radius: 20px;
+    padding-left: 20px;
+    padding-right: 20px;
+    background-color: vars.$primary-color;
+    border-color: vars.$primary-color;
+    font-weight: 500;
+    
+    &:hover {
+      background-color: color.adjust(vars.$primary-color, $lightness: 5%);
+      border-color: color.adjust(vars.$primary-color, $lightness: 5%);
+    }
+  }
+}
+
+.summary-alert {
+  background-color: #f0f9eb;
+  border: 1px solid #e1f3d8;
+  
+  :deep(.el-alert__title) {
+    color: vars.$success-color;
+    font-weight: 500;
+  }
+  
+  :deep(.el-alert__icon) {
+    color: vars.$success-color;
+  }
+}
+
+.member-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(vars.$primary-color, 0.1);
+  }
+}
 
 .risk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
-.telemetry-card { height: 100%; }
-.telemetry-count { font-size: 24px; font-weight: bold; color: #409eff; text-align: center; margin: 8px 0; }
 
-/* Chat Styles */
-.chat-layout { display: flex; height: 600px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; }
+.telemetry-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  height: 100%;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(vars.$primary-color, 0.1);
+  }
 
-.chat-sidebar { width: 260px; border-right: 1px solid #dcdfe6; background: #f5f7fa; display: flex; flex-direction: column; }
-.sidebar-header { padding: 12px; border-bottom: 1px solid #ebeef5; font-weight: bold; background: #fff; }
-.member-list { flex: 1; overflow-y: auto; }
-.member-item { padding: 12px; display: flex; align-items: center; cursor: pointer; transition: background 0.3s; }
-.member-item:hover { background: #e6e8eb; }
-.member-item.active { background: #ecf5ff; border-left: 4px solid #409eff; }
-.member-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  :deep(.el-card__header) {
+    border-bottom: none;
+    padding-bottom: 0;
+    text-align: center;
+    font-size: 16px;
+  }
+}
 
-.chat-main { flex: 1; display: flex; flex-direction: column; }
-.chat-header { padding: 12px; border-bottom: 1px solid #ebeef5; display: flex; justify-content: space-between; align-items: center; background: #fff; }
-.chat-messages { flex: 1; overflow-y: auto; padding: 16px; background: #f5f7fa; display: flex; flex-direction: column; }
-.loading-spinner { text-align: center; padding: 16px; }
-.empty-chat { text-align: center; color: #909399; padding-top: 40px; }
+.telemetry-count { 
+  font-size: 36px; 
+  font-weight: 700; 
+  color: vars.$primary-color; 
+  text-align: center; 
+  margin: 12px 0; 
+}
 
-.message-row { margin-bottom: 16px; display: flex; width: 100%; }
-.message-right { justify-content: flex-end; }
-.message-bubble { max-width: 70%; padding: 10px 14px; border-radius: 8px; position: relative; word-break: break-word; }
-.bubble-me { background: #409eff; color: #fff; border-top-right-radius: 2px; }
-.bubble-other { background: #fff; color: #303133; border: 1px solid #ebeef5; border-top-left-radius: 2px; }
-.message-text { white-space: pre-wrap; line-height: 1.5; }
-.message-time { font-size: 12px; margin-top: 4px; opacity: 0.8; }
-.bubble-other .message-time { color: #909399; }
-.bubble-me .message-time { color: #d9ecff; text-align: right; }
+/* Animations */
+.section {
+  opacity: 0;
+  animation: fadeInUp 0.5s ease-out forwards;
+}
 
-.chat-input-area { padding: 16px; border-top: 1px solid #ebeef5; background: #fff; }
-.chat-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+@for $i from 1 through 5 {
+  .section:nth-child(#{$i}) {
+    animation-delay: #{$i * 0.1}s;
+  }
+}
+
+
+
 </style>

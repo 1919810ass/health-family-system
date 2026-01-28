@@ -10,6 +10,10 @@ export const getPatientDetail = (familyId, patientUserId) => request.get(`/docto
 export const togglePatientImportant = (familyId, patientUserId, isImportant) => request.post(`/doctor/families/${familyId}/patients/${patientUserId}/toggle-important`, { isImportant })
 export const updatePatientTags = (familyId, patientUserId, tags) => request.post(`/doctor/families/${familyId}/patients/${patientUserId}/tags`, tags)
 
+export const getDoctorReports = (patientUserId) => request.get('/doctor/reports', { params: { userId: patientUserId } })
+export const getDoctorReportDetail = (reportId) => request.get(`/doctor/reports/${reportId}`)
+export const commentDoctorReport = (reportId, comment) => request.post(`/doctor/reports/${reportId}/comment`, { comment })
+
 // 病历记录相关API
 export const listDoctorNotes = (familyId, memberId) => request.get(`/doctor/families/${familyId}/members/${memberId}/notes`)
 export const getDoctorNote = (noteId) => request.get(`/doctor/notes/${noteId}`)
@@ -76,6 +80,33 @@ export const getOrCreateDoctorSession = () => {
 export const getDoctorSettings = () => request.get('/doctor/settings')
 export const updateDoctorSettings = (data) => request.put('/doctor/settings', data)
 
+// 评价查看
+export const getMyRatings = () => request.get('/families/doctor/ratings')
+
 // 阈值管理
 export const getPatientThresholds = (userId) => request.get(`/doctor/thresholds/${userId}`)
 export const savePatientThreshold = (userId, data) => request.post(`/doctor/thresholds/${userId}`, data)
+
+// 报告生成（后端）
+export const downloadReportTemplate = () => request.get('/doctor/report-generation/template', {
+  responseType: 'blob',
+  headers: { Accept: 'application/octet-stream' }
+})
+export const generateReportDocx = (payload) => request.post('/doctor/report-generation/docx', payload, {
+  responseType: 'blob',
+  headers: { Accept: 'application/octet-stream' }
+})
+export const generateReportPdf = (payload) => request.post('/doctor/report-generation/pdf', payload, {
+  responseType: 'blob',
+  headers: { Accept: 'application/pdf' }
+})
+export const generateBatchReportZip = (payload) => request.post('/doctor/report-generation/batch-docx', payload, {
+  responseType: 'blob',
+  headers: { Accept: 'application/zip' }
+})
+
+// 报告生成预览（JSON）
+export const generateReportPreview = (payload) => request.post('/doctor/report-generation/preview', payload)
+
+// 系统监控
+export const getSystemMetrics = () => request.get('/monitor/metrics')

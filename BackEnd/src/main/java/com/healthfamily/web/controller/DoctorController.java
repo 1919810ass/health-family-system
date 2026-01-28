@@ -69,5 +69,21 @@ public class DoctorController {
         return Result.success();
     }
 
+    @PostMapping("/rate/{doctorId}")
+    public Result<Void> rateDoctor(@AuthenticationPrincipal UserPrincipal principal,
+                                   @PathVariable("doctorId") Long doctorId,
+                                   @RequestBody java.util.Map<String, Object> body) {
+        Long userId = principal.getUserId();
+        Integer rating = (Integer) body.get("rating");
+        String comment = (String) body.get("comment");
+        doctorService.rateDoctor(userId, doctorId, rating, comment);
+        return Result.success();
+    }
+    
+    @GetMapping("/doctor/ratings")
+    public Result<java.util.List<com.healthfamily.web.dto.DoctorRatingResponse>> getMyRatings(@AuthenticationPrincipal UserPrincipal principal) {
+        return Result.success(doctorService.getDoctorRatings(principal.getUserId()));
+    }
+
     // 病历记录相关API
 }

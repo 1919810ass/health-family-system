@@ -3,6 +3,8 @@ package com.healthfamily.security;
 import com.healthfamily.domain.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -10,12 +12,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.filter.GenericFilterBean;
 
 import java.io.IOException;
 
 @Component
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
+public class JwtAuthenticationFilter extends GenericFilterBean {
 
     private static final String BEARER_PREFIX = "Bearer ";
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
@@ -29,10 +31,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-        String path = request.getRequestURI();
+    public void doFilter(ServletRequest request,
+                         ServletResponse response,
+                         FilterChain filterChain) throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        String path = httpRequest.getRequestURI();
         
         // 检查是否为公共路径，如果是则直接跳过JWT验证
         if (isPublicPath(path)) {
@@ -40,7 +43,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         
-        String token = resolveToken(request);
+        String token = resolveToken(httpRequest);
         // 只有当请求头中包含有效token时才进行验证，否则继续执行过滤器链
         if (token != null && jwtUtil.validateToken(token)) {
             var claims = jwtUtil.parseToken(token);
@@ -56,7 +59,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                         null,
                                         principal.getAuthorities()
                                 );
-                                authentication.setDetails(new org.springframework.security.web.authentication.WebAuthenticationDetailsSource().buildDetails(request));
+                                authentication.setDetails(new org.springframework.security.web.authentication.WebAuthenticationDetailsSource().buildDetails(httpRequest));
                                 org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(authentication);
                             });
                 } catch (NumberFormatException ex) {

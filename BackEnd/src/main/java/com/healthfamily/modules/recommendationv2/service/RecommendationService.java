@@ -1,11 +1,11 @@
 package com.healthfamily.modules.recommendationv2.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.healthfamily.modules.recommendationv2.domain.Recommendation;
+import com.healthfamily.modules.recommendationv2.domain.RecommendationV2;
 import com.healthfamily.modules.recommendationv2.dto.EvidenceDto;
 import com.healthfamily.modules.recommendationv2.dto.RecommendationItemDto;
 import com.healthfamily.modules.recommendationv2.dto.RecommendationResponse;
-import com.healthfamily.modules.recommendationv2.repository.RecommendationRepository;
+import com.healthfamily.modules.recommendationv2.repository.RecommendationV2Repository;
 import com.healthfamily.modules.recommendationv2.service.model.CandidateItem;
 import com.healthfamily.modules.recommendationv2.service.model.LogsSummary;
 import com.healthfamily.modules.recommendationv2.service.model.Preferences;
@@ -21,7 +21,7 @@ import java.util.*;
 public class RecommendationService {
   private final RuleEngine ruleEngine;
   private final DocRagService ragService;
-  private final RecommendationRepository repository;
+  private final RecommendationV2Repository repository;
   private final com.healthfamily.modules.recommendationv2.repository.SuggestionFeedbackRepository feedbackRepository;
   private final com.healthfamily.domain.repository.ProfileRepository profileRepository;
   private final com.healthfamily.domain.repository.HealthLogRepository healthLogRepository;
@@ -33,13 +33,13 @@ public class RecommendationService {
 
   public RecommendationService(RuleEngine ruleEngine,
                                DocRagService ragService,
-                               RecommendationRepository repository,
+                               RecommendationV2Repository repository,
                                com.healthfamily.modules.recommendationv2.repository.SuggestionFeedbackRepository feedbackRepository,
                                com.healthfamily.domain.repository.ProfileRepository profileRepository,
                                com.healthfamily.domain.repository.HealthLogRepository healthLogRepository,
                                com.healthfamily.domain.repository.ConstitutionAssessmentRepository constitutionRepository,
-                               @Value("${recommendation.timeoutMs}") int timeoutMs,
-                               @Value("${ai.enabled}") boolean aiEnabled) {
+                               @Value("${recommendation.ai.timeoutMs:120000}") int timeoutMs,
+                               @Value("${ai.enabled:true}") boolean aiEnabled) {
     this.ruleEngine = ruleEngine;
     this.ragService = ragService;
     this.repository = repository;
@@ -57,7 +57,7 @@ public class RecommendationService {
     LogsSummary summary = buildLogsSummary(userId, date, scope);
     Preferences pref = buildPreferences(userId);
     var constitution = constitutionProcessor.load(userId, 5);
-    List<CandidateItem> candidates = ruleEngine.generateByCategory(profile, summary, pref, maxItems, com.healthfamily.modules.recommendationv2.domain.Rule.Category.DIET);
+    List<CandidateItem> candidates = ruleEngine.generateByCategory(profile, summary, pref, maxItems, com.healthfamily.modules.recommendationv2.domain.RuleV2.Category.DIET);
     List<Map<String,Object>> cMaps = new ArrayList<>();
     for (CandidateItem c : candidates) {
       Map<String,Object> m = new HashMap<>();
@@ -108,7 +108,7 @@ public class RecommendationService {
         if (res.categoryMismatch) mismatch++;
       }
     }
-    Recommendation rec = new Recommendation();
+    RecommendationV2 rec = new RecommendationV2();
     rec.setUserId(userId);
     rec.setDate(date);
     try {

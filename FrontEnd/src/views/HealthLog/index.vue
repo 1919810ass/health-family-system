@@ -1,6 +1,14 @@
 <template>
   <div class="page-container">
-    <el-page-header content="健康日志" icon="" class="mb-24" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><Notebook /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">健康日志</h2>
+        <p class="subtitle">记录每日健康数据，追踪身体变化趋势</p>
+      </div>
+    </div>
 
     <el-card class="glass-card">
       <!-- 类型切换 -->
@@ -129,7 +137,49 @@
               </div>
             </el-form-item>
             <el-form-item v-else label="内容">
-              <el-input v-model="addForm.content" type="textarea" :rows="4" placeholder="请输入记录内容" />
+                <div v-if="activeTab === 'sleep'" style="width: 100%; margin-bottom: 12px">
+                  <div style="display: flex; gap: 12px; margin-bottom: 12px">
+                    <div style="flex: 1">
+                      <div style="font-size: 13px; color: #606266; margin-bottom: 6px; font-weight: 500">上床时间</div>
+                      <el-time-picker v-model="addForm.bedtime" format="HH:mm" value-format="HH:mm" placeholder="HH:mm" style="width: 100%" />
+                    </div>
+                    <div style="flex: 1">
+                      <div style="font-size: 13px; color: #606266; margin-bottom: 6px; font-weight: 500">起床时间</div>
+                      <el-time-picker v-model="addForm.wakeTime" format="HH:mm" value-format="HH:mm" placeholder="HH:mm" style="width: 100%" />
+                    </div>
+                  </div>
+                  
+                  <div style="background: #f5f7fa; border-radius: 8px; padding: 12px; margin-bottom: 12px">
+                    <div style="font-size: 13px; color: #606266; margin-bottom: 8px; font-weight: 500">睡眠质量</div>
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px">
+                      <div style="flex: 1">
+                        <div style="font-size: 12px; color: #909399; margin-bottom: 4px">深度睡眠(小时)</div>
+                        <el-input-number v-model="addForm.deepSleep" :min="0" :max="16" :precision="1" :controls="true" style="width: 100%" />
+                      </div>
+                      <div style="flex: 1">
+                        <div style="font-size: 12px; color: #909399; margin-bottom: 4px">醒来次数</div>
+                        <el-input-number v-model="addForm.wakeCount" :min="0" :max="50" :controls="true" style="width: 100%" />
+                      </div>
+                    </div>
+                    <div style="display: flex; gap: 12px">
+                      <div style="flex: 1">
+                        <div style="font-size: 12px; color: #909399; margin-bottom: 4px">入睡耗时(分钟)</div>
+                        <el-input-number v-model="addForm.sleepLatency" :min="0" :max="120" style="width: 100%" />
+                      </div>
+                      <div style="flex: 1">
+                        <div style="font-size: 12px; color: #909399; margin-bottom: 4px">醒来赖床(分钟)</div>
+                        <el-input-number v-model="addForm.wakeUpLatency" :min="0" :max="120" style="width: 100%" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="calculatedDuration" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 12px; background: rgba(64, 158, 255, 0.1); border-radius: 4px">
+                     <span style="font-size: 13px; color: #606266">预计总睡眠时长:</span>
+                     <span style="font-size: 16px; font-weight: bold; color: #409EFF">{{ calculatedDuration }}</span>
+                     <span style="font-size: 12px; color: #409EFF">小时</span>
+                  </div>
+                </div>
+              <el-input v-model="addForm.content" type="textarea" :rows="4" :placeholder="activeTab === 'sleep' ? '可补充就寝/起床时间，如：23:00睡，7:00起' : '请输入记录内容'" />
               <div v-if="activeTab !== 'vital'" style="margin-top: 8px; display: flex; gap: 8px">
                 <el-button size="small" type="primary" :loading="optLoading" @click="optimizeAny">优化输入内容</el-button>
                 <el-button size="small" @click="clearOptimizedAny" :disabled="!hasOptimized">清空优化</el-button>
@@ -247,7 +297,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Microphone, UploadFilled, Delete, Plus, Connection } from '@element-plus/icons-vue'
+import { Check, Microphone, UploadFilled, Delete, Plus, Connection, Notebook } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { useLogStore } from '../../stores'
 import { getLogs, createLog, getStatistics, parseVoiceInput, parseOcrData, syncDeviceData, optimizeDietText, optimizeInput, deleteLog } from '../../api/log'
@@ -313,9 +363,34 @@ const dietItems = ref([])
 const dietTotal = ref(null)
 const optLoading = ref(false)
 const optimizedData = ref(null)
+const calculatedDuration = ref(null)
 const hasOptimized = computed(() => {
   if (activeTab.value === 'diet') return dietItems.value.length > 0
   return !!optimizedData.value
+})
+
+// 自动计算睡眠时长
+watch([() => addForm.value.bedtime, () => addForm.value.wakeTime], ([bed, wake]) => {
+  if (bed && wake && activeTab.value === 'sleep') {
+    const today = dayjs().format('YYYY-MM-DD')
+    let start = dayjs(`${today} ${bed}`)
+    let end = dayjs(`${today} ${wake}`)
+    
+    // 如果起床时间小于上床时间，说明跨天了
+    if (end.isBefore(start)) {
+      end = end.add(1, 'day')
+    }
+    
+    const diffHours = end.diff(start, 'hour', true)
+    calculatedDuration.value = Number(diffHours.toFixed(1))
+    
+    // 如果没有优化数据，且没有手动输入内容，自动更新到 content 中（可选）
+    // 这里我们更新 optimizedData 结构，以便后续保存时使用
+    if (!optimizedData.value) optimizedData.value = {}
+    optimizedData.value.durationHours = calculatedDuration.value
+  } else {
+    calculatedDuration.value = null
+  }
 })
 
 const trendRef = ref()
@@ -424,8 +499,47 @@ async function loadLogs() {
         
         // 后端返回的 content 已经是 Map，不需要再解析
         if (l.content && typeof l.content === 'object') {
-          time = l.content.time || time
+          // 优先使用 content 中的时间，否则使用创建时间，最后默认 --:--
+          time = l.content.time
+          if (!time && l.createdAt) {
+             time = dayjs(l.createdAt).format('HH:mm')
+          }
+          time = time || '--:--'
+
           content = l.content.note || l.content.text || l.content.content || ''
+          
+          // 特殊处理饮食记录
+          if (!content && l.content.items && Array.isArray(l.content.items)) {
+             const itemsStr = l.content.items.map(item => {
+               const parts = [item.name, item.quantity, item.unit].filter(v => v != null && v !== '')
+               let str = parts.join('')
+               if (item.calories) str += `(${item.calories}千卡)`
+               return str
+             }).join('、')
+             content = itemsStr
+             if (l.content.totalCalories) {
+               content += `；总热量：${l.content.totalCalories}千卡`
+             }
+          }
+          
+          // 特殊处理睡眠记录
+          if (l.type === 'SLEEP') {
+             const parts = []
+             if (l.content.bedtime && l.content.wakeTime) {
+                 parts.push(`${l.content.bedtime}-${l.content.wakeTime}`)
+             }
+             if (l.content.durationHours != null && (!content || !content.includes('小时'))) {
+                 parts.push(`时长 ${l.content.durationHours}小时`)
+             }
+             if (l.content.deepSleep != null) parts.push(`深度睡眠 ${l.content.deepSleep}小时`)
+             if (l.content.wakeCount != null) parts.push(`醒来 ${l.content.wakeCount}次`)
+             if (l.content.sleepLatency != null) parts.push(`入睡耗时 ${l.content.sleepLatency}分`)
+             if (l.content.wakeUpLatency != null) parts.push(`赖床 ${l.content.wakeUpLatency}分`)
+             
+             if (content) parts.push(content)
+             content = parts.join('；')
+          }
+
           // 如果没有找到内容，尝试序列化整个对象
           if (!content) {
             try {
@@ -435,6 +549,8 @@ async function loadLogs() {
               content = String(l.content)
             }
           }
+        } else if (l.createdAt) {
+           time = dayjs(l.createdAt).format('HH:mm')
         }
         
         return {
@@ -592,7 +708,14 @@ function handleAdd() {
     vitalType: '',
     systolic: null,
     diastolic: null,
-    value: null
+    value: null,
+    // 睡眠相关
+    deepSleep: null,
+    wakeCount: null,
+    bedtime: null,
+    wakeTime: null,
+    sleepLatency: null,
+    wakeUpLatency: null
   }
   voiceText.value = ''
   parsedVoiceData.value = null
@@ -1029,6 +1152,15 @@ async function handleSave() {
     if (activeTab.value === 'diet' && dietItems.value.length) {
       content.items = dietItems.value
       if (dietTotal.value !== null) content.totalCalories = dietTotal.value
+    } else if (activeTab.value === 'sleep') {
+      if (addForm.value.deepSleep != null) content.deepSleep = addForm.value.deepSleep
+      if (addForm.value.wakeCount != null) content.wakeCount = addForm.value.wakeCount
+      if (addForm.value.bedtime) content.bedtime = addForm.value.bedtime
+      if (addForm.value.wakeTime) content.wakeTime = addForm.value.wakeTime
+      if (addForm.value.sleepLatency != null) content.sleepLatency = addForm.value.sleepLatency
+      if (addForm.value.wakeUpLatency != null) content.wakeUpLatency = addForm.value.wakeUpLatency
+      // 使用计算出的时长
+      if (calculatedDuration.value != null) content.durationHours = calculatedDuration.value
     }
     
     await createLog({
@@ -1090,13 +1222,23 @@ function drawTrend() {
     chartInstance = null
   }
   
+  // 单位映射
+  const unitMap = {
+    diet: '千卡',
+    sleep: '小时',
+    sport: '分钟',
+    mood: '级',
+    vital: '' // 体征单位不固定，视具体情况而定
+  }
+  const unit = unitMap[activeTab.value] || ''
+
   if (!trends.value || !trends.value.length) {
     // 如果没有数据，显示空图表
     chartInstance = echarts.init(trendRef.value)
     chartInstance.setOption({
       grid: { left: 40, right: 20, top: 20, bottom: 40 },
       xAxis: { type: 'category', data: [] },
-      yAxis: { type: 'value', min: 0, max: 1 },
+      yAxis: { type: 'value', min: 0 },
       series: [{
         data: [],
         type: 'line',
@@ -1119,37 +1261,60 @@ function drawTrend() {
   
   try {
     chartInstance = echarts.init(trendRef.value)
-  const dates = trends.value.map(t => t.date)
-  const values = trends.value.map(t => t.value)
+    const dates = trends.value.map(t => t.date)
+    const values = trends.value.map(t => t.value)
     
+    // 计算 Y 轴最大值，避免太贴顶
+    const maxValue = Math.max(...values)
+    const yMax = maxValue > 0 ? null : 5 // 如果全是0，默认给个5的范围
+
     chartInstance.setOption({
-    grid: { left: 40, right: 20, top: 20, bottom: 40 },
+      grid: { left: 50, right: 20, top: 30, bottom: 20, containLabel: true },
       xAxis: { 
         type: 'category', 
         data: dates,
-        boundaryGap: false
+        boundaryGap: false,
+        axisLine: { lineStyle: { color: '#ccc' } },
+        axisLabel: { color: '#666' }
       },
       yAxis: { 
         type: 'value',
         min: 0,
-        max: 1
+        max: yMax, // 让echarts自动计算，或者给个默认值
+        name: unit ? `(${unit})` : '',
+        nameTextStyle: { align: 'right', padding: [0, 10, 0, 0] },
+        splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
       },
-    series: [{
-      data: values,
-      type: 'line',
-      smooth: true,
-        areaStyle: { opacity: 0.2 },
+      series: [{
+        name: activeTabName.value,
+        data: values,
+        type: 'line',
+        smooth: true,
+        areaStyle: { 
+          opacity: 0.2,
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#409EFF' },
+            { offset: 1, color: 'rgba(64, 158, 255, 0.1)' }
+          ])
+        },
+        itemStyle: { color: '#409EFF' },
         symbol: 'circle',
         symbolSize: 6,
         lineStyle: {
-          width: 2
+          width: 3,
+          shadowColor: 'rgba(64, 158, 255, 0.3)',
+          shadowBlur: 10
         }
       }],
       tooltip: {
         trigger: 'axis',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderColor: '#e4e7ed',
+        textStyle: { color: '#303133' },
         formatter: (params) => {
           const param = params[0]
-          return `${param.name}<br/>${param.seriesName}: ${param.value}`
+          return `<div style="font-weight:bold;margin-bottom:4px">${param.name}</div>
+                  <div>${param.seriesName}: <span style="color:#409EFF;font-weight:bold">${param.value}</span> ${unit}</div>`
         }
       }
     })
@@ -1158,14 +1323,55 @@ function drawTrend() {
   }
 }
 </script>
-
 <style scoped lang="scss">
+@use 'sass:color';
 @use '@/styles/variables' as vars;
 @use '@/styles/mixins' as mixins;
 
 .page-container {
   min-height: 100%;
-  /* padding is handled by global style, but we might need some specific adjustments if any */
+  padding: 24px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
+  
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$primary-color, color.adjust(vars.$primary-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$primary-color, 0.3);
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+  }
+
+  .header-content {
+    flex: 1;
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-main-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$primary-color));
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
+  }
 }
 
 .mb-24 { margin-bottom: 24px; }

@@ -7,16 +7,22 @@
       <el-avatar :src="previewUrl || store.profile?.avatar" size="large" class="avatar-preview" />
       <el-upload
         class="ml-16"
-        action="/api/user/avatar"
+        action="#"
+        :auto-upload="false"
         :show-file-list="false"
         :accept="'image/*'"
-        :before-upload="beforeUpload"
-        :http-request="doUpload"
         :on-change="onFileChange"
       >
         <el-button type="primary" :loading="loading" v-particles>选择图片并上传</el-button>
       </el-upload>
     </div>
+
+    <!-- 头像裁剪组件 -->
+    <AvatarCropper
+      v-model:visible="cropperVisible"
+      :file="selectedFile"
+      @confirm="handleCropConfirm"
+    />
   </el-card>
 </template>
 
@@ -24,26 +30,41 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../../../stores/user'
+import AvatarCropper from '@/components/Common/AvatarCropper.vue'
 
 const store = useUserStore()
 const loading = ref(false)
 const previewUrl = ref('')
+const cropperVisible = ref(false)
+const selectedFile = ref(null)
 
-const beforeUpload = (file) => {
-  console.log('[Avatar] beforeUpload', file?.name, file?.size)
+const onFileChange = (uploadFile) => {
+  const file = uploadFile.raw
+  if (!file) return
+  
+  console.log('[Avatar] file selected', file.name, file.size)
   const isImage = /\.(png|jpg|jpeg|webp)$/i.test(file.name)
   const isLt2M = file.size / 1024 / 1024 < 2
-  if (!isImage) ElMessage.error('仅支持 png/jpg/jpeg/webp')
-  if (!isLt2M) ElMessage.error('图片大小不超过 2MB')
-  return isImage && isLt2M
+  
+  if (!isImage) {
+    ElMessage.error('仅支持 png/jpg/jpeg/webp')
+    return
+  }
+  if (!isLt2M) {
+    ElMessage.error('图片大小不超过 2MB')
+    return
+  }
+
+  selectedFile.value = file
+  cropperVisible.value = true
 }
 
-const doUpload = async ({ file }) => {
+const handleCropConfirm = async (croppedFile) => {
   try {
-    console.log('[Avatar] doUpload start')
+    console.log('[Avatar] upload start')
     loading.value = true
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', croppedFile)
     const url = await store.updateAvatar(formData)
     console.log('[Avatar] uploaded url', url)
     if (url) {
@@ -55,11 +76,8 @@ const doUpload = async ({ file }) => {
     ElMessage.error('上传失败')
   } finally {
     loading.value = false
+    selectedFile.value = null
   }
-}
-
-const onFileChange = (file) => {
-  console.log('[Avatar] file selected', file?.name)
 }
 </script>
 

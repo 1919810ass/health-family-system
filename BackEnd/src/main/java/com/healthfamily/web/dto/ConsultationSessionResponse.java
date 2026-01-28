@@ -34,7 +34,11 @@ public record ConsultationSessionResponse(
         LocalDateTime createdAt,
         
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        
+        Boolean isAiTriaged,
+        String triageSummary,
+        String patientSymptoms
 ) {
 }
 

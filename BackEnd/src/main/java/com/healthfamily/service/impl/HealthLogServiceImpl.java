@@ -223,11 +223,13 @@ public class HealthLogServiceImpl implements HealthLogService {
             if (log.getLogDate().isBefore(start) || log.getLogDate().isAfter(end)) {
                 continue;
             }
-            String type = log.getType().name();
+            String typeStr = log.getType().name();
+            double value = extractValue(log);
+            
             typeDateMap
-                    .computeIfAbsent(type, key -> new HashMap<>())
+                    .computeIfAbsent(typeStr, key -> new HashMap<>())
                     .computeIfAbsent(log.getLogDate(), key -> new Aggregation())
-                    .accumulate(log.getScore());
+                    .accumulate(value, log.getType());
         }
 
         Map<String, List<HealthLogStatisticsResponse.TrendValue>> series = new HashMap<>();
@@ -236,7 +238,7 @@ public class HealthLogServiceImpl implements HealthLogService {
                     .sorted(Map.Entry.comparingByKey())
                     .map(entry -> new HealthLogStatisticsResponse.TrendValue(
                             entry.getKey(),
-                            entry.getValue().average(),
+                            entry.getValue().getResult(),
                             entry.getValue().count
                     ))
                     .collect(Collectors.toList());
@@ -244,6 +246,88 @@ public class HealthLogServiceImpl implements HealthLogService {
         });
 
         return new HealthLogStatisticsResponse.TrendRange(label, series);
+    }
+
+    private double extractValue(HealthLog log) {
+        try {
+            Map<String, Object> content = fromJson(log.getContentJson());
+            if (content.isEmpty()) return 0.0;
+
+            switch (log.getType()) {
+                case DIET:
+                    // 优先取 totalCalories
+                    if (content.containsKey("totalCalories")) {
+                        return Double.parseDouble(content.get("totalCalories").toString());
+                    }
+                    // 其次遍历 items 累加 calories
+                    if (content.containsKey("items")) {
+                        Object itemsObj = content.get("items");
+                        if (itemsObj instanceof java.util.List) {
+                            java.util.List<?> items = (java.util.List<?>) itemsObj;
+                            double total = 0;
+                            for (Object itemObj : items) {
+                                if (itemObj instanceof Map) {
+                                    Map<?, ?> item = (Map<?, ?>) itemObj;
+                                    if (item.containsKey("calories")) {
+                                        total += Double.parseDouble(item.get("calories").toString());
+                                    }
+                                }
+                            }
+                            return total;
+                        }
+                    }
+                    return 0.0;
+                case SLEEP:
+                    // durationHours
+                    if (content.containsKey("durationHours")) {
+                        return Double.parseDouble(content.get("durationHours").toString());
+                    }
+                    // 如果没有 durationHours，尝试通过 bedtime 和 wakeTime 计算
+                    if (content.containsKey("bedtime") && content.containsKey("wakeTime")) {
+                         String bed = content.get("bedtime").toString();
+                         String wake = content.get("wakeTime").toString();
+                         try {
+                             java.time.LocalTime bedTime = java.time.LocalTime.parse(bed);
+                             java.time.LocalTime wakeTime = java.time.LocalTime.parse(wake);
+                             // 简单计算跨天
+                             long minutes = java.time.temporal.ChronoUnit.MINUTES.between(bedTime, wakeTime);
+                             if (minutes < 0) {
+                                 minutes += 24 * 60;
+                             }
+                             double hours = minutes / 60.0;
+                             return Math.round(hours * 10.0) / 10.0;
+                         } catch (Exception ignore) {}
+                    }
+                    return 0.0;
+                case SPORT:
+                    // durationMinutes
+                    if (content.containsKey("durationMinutes")) {
+                        return Double.parseDouble(content.get("durationMinutes").toString());
+                    }
+                    return 0.0;
+                case MOOD:
+                    // level
+                    if (content.containsKey("level")) {
+                        return Double.parseDouble(content.get("level").toString());
+                    }
+                    return 0.0;
+                case VITALS:
+                    // value (数值类型)
+                    if (content.containsKey("value") && content.get("value") instanceof Number) {
+                        return Double.parseDouble(content.get("value").toString());
+                    }
+                    // 血压: systolic (仅取收缩压作为趋势展示)
+                    if (content.containsKey("systolic")) {
+                        return Double.parseDouble(content.get("systolic").toString());
+                    }
+                    return 0.0;
+                default:
+                    return 0.0;
+            }
+        } catch (Exception e) {
+            // 解析失败或转换失败，忽略该条记录的数值
+            return 0.0;
+        }
     }
 
     private boolean withinRange(LocalDate date, LocalDate start, LocalDate end) {
@@ -480,22 +564,30 @@ public class HealthLogServiceImpl implements HealthLogService {
 
     private static final class Aggregation {
         private long count = 0;
-        private double totalScore = 0;
-        private long scoreCount = 0;
+        private double totalValue = 0;
+        private long valueCount = 0;
+        private HealthLogType type;
 
-        private void accumulate(BigDecimal score) {
+        private void accumulate(double value, HealthLogType type) {
+            this.type = type;
             count++;
-            if (score != null) {
-                totalScore += score.doubleValue();
-                scoreCount++;
-            }
+            // 只有当 value > 0 时才计入统计（避免无效记录拉低平均值，或者 0 值的处理）
+            // 对于饮食、运动、睡眠，0值求和无影响。对于情绪、体征，0值可能有问题（除非真的有0强度情绪）
+            // 这里简单处理：总是累加
+            totalValue += value;
+            valueCount++;
         }
 
-        private Double average() {
-            if (scoreCount == 0) {
-                return null;
+        private Double getResult() {
+            if (valueCount == 0) return 0.0;
+            
+            // 饮食、运动、睡眠：求和
+            if (type == HealthLogType.DIET || type == HealthLogType.SPORT || type == HealthLogType.SLEEP) {
+                return Math.round(totalValue * 100d) / 100d;
             }
-            double avg = totalScore / scoreCount;
+            
+            // 情绪、体征：求平均
+            double avg = totalValue / valueCount;
             return Math.round(avg * 100d) / 100d;
         }
     }

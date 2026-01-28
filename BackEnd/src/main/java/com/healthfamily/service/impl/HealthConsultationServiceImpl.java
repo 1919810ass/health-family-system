@@ -10,6 +10,7 @@ import com.healthfamily.domain.repository.ProfileRepository;
 import com.healthfamily.domain.repository.UserRepository;
 import com.healthfamily.service.HealthConsultationService;
 import com.healthfamily.service.HealthDataAiService;
+import com.healthfamily.ai.OllamaLegacyClient;
 import com.healthfamily.web.dto.ConsultationRequest;
 import com.healthfamily.web.dto.ConsultationResponse;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 
@@ -37,6 +40,7 @@ public class HealthConsultationServiceImpl implements HealthConsultationService 
     private final ProfileRepository profileRepository;
     private final HealthDataAiService healthDataAiService;
     private final com.healthfamily.service.HealthAiToolService toolService;
+    private final OllamaLegacyClient ollamaLegacyClient;
 
     @Override
     @Transactional
@@ -73,10 +77,8 @@ public class HealthConsultationServiceImpl implements HealthConsultationService 
             answer = consultWithTools(request.question(), userContext, conversationHistory, toolsUsed, sources);
         } else {
             // 普通对话
-            ChatClient client = chatClientBuilder.build();
-            Prompt prompt = new Prompt(systemPrompt + "\n\n用户问题：" + userPrompt);
-            var response = client.prompt(prompt).call();
-            answer = response.content();
+            String promptText = systemPrompt + "\n\n用户问题：" + userPrompt;
+            answer = callTextWithFallback(promptText);
             
             // 提取知识来源
             sources = extractSources(answer);
@@ -97,6 +99,130 @@ public class HealthConsultationServiceImpl implements HealthConsultationService 
         consultation = consultationRepository.save(consultation);
 
         return toResponse(consultation);
+    }
+
+    @Override
+    public Flux<String> consultStream(Long userId, ConsultationRequest request) {
+        User user = loadUser(userId);
+        String sessionId = request.sessionId();
+        if (sessionId == null || sessionId.isEmpty()) {
+            sessionId = UUID.randomUUID().toString();
+        }
+
+        Map<String, Object> userContext = buildUserContext(user);
+        List<HealthConsultation> history = consultationRepository
+                .findByUser_IdAndSessionIdOrderByCreatedAtAsc(userId, sessionId);
+        String conversationHistory = buildConversationHistory(history);
+        String systemPrompt = buildSystemPrompt(userContext);
+        String userPrompt = buildUserPrompt(request.question(), conversationHistory, userContext);
+
+        List<String> toolsUsed = new ArrayList<>();
+        List<String> sources = new ArrayList<>();
+        String promptText;
+
+        if (needsToolCall(request.question())) {
+            StringBuilder toolAnswer = new StringBuilder();
+            String lowerQuestion = request.question().toLowerCase();
+            if (lowerQuestion.contains("药品") || lowerQuestion.contains("药")) {
+                String drugName = extractDrugName(request.question());
+                if (drugName != null) {
+                    Map<String, Object> drugInfo = toolService.queryDrugInfo(drugName);
+                    toolsUsed.add("queryDrugInfo");
+                    toolAnswer.append("根据药品信息库查询，").append(drugName).append("的信息如下：\n");
+                    toolAnswer.append("适应症：").append(drugInfo.get("indications")).append("\n");
+                    toolAnswer.append("用法用量：").append(drugInfo.get("dosage")).append("\n");
+                    if (drugInfo.containsKey("contraindications")) {
+                        toolAnswer.append("禁忌：").append(drugInfo.get("contraindications")).append("\n");
+                    }
+                    sources.add("药品知识库");
+                }
+            }
+            if (lowerQuestion.contains("医院") || lowerQuestion.contains("科室")) {
+                String location = extractLocation(request.question());
+                String department = extractDepartment(request.question());
+                Map<String, Object> hospitalInfo = toolService.getNearbyHospitals(
+                        location != null ? location : "当前位置",
+                        department != null ? department : "");
+                toolsUsed.add("getNearbyHospitals");
+                toolAnswer.append("为您查询到以下医院信息：\n");
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> hospitals = (List<Map<String, Object>>) hospitalInfo.get("hospitals");
+                for (Map<String, Object> hospital : hospitals) {
+                    toolAnswer.append(hospital.get("name")).append(" - ");
+                    toolAnswer.append(hospital.get("address")).append("，距离").append(hospital.get("distance")).append("\n");
+                }
+                sources.add("医院数据库");
+            }
+            if (lowerQuestion.contains("知识") || lowerQuestion.contains("指南") ||
+                lowerQuestion.contains("怎么办") || lowerQuestion.contains("如何")) {
+                String keyword = extractKeyword(request.question());
+                Map<String, Object> knowledge = toolService.queryHealthKnowledge(keyword, null);
+                toolsUsed.add("queryHealthKnowledge");
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> documents = (List<Map<String, Object>>) knowledge.get("documents");
+                if (!documents.isEmpty()) {
+                    toolAnswer.append("根据健康知识库，为您找到以下相关信息：\n");
+                    for (int i = 0; i < Math.min(3, documents.size()); i++) {
+                        Map<String, Object> doc = documents.get(i);
+                        toolAnswer.append(doc.get("title")).append("：").append(doc.get("content")).append("\n");
+                    }
+                    sources.add("健康知识库");
+                }
+            }
+            if (toolAnswer.length() == 0) {
+                promptText = systemPrompt + "\n\n用户问题：" + userPrompt;
+            } else {
+                promptText = "基于以下信息，为用户提供一个简洁、专业的回答：\n" +
+                        toolAnswer + "\n\n用户问题：" + request.question();
+            }
+        } else {
+            promptText = systemPrompt + "\n\n用户问题：" + userPrompt;
+        }
+
+        StringBuilder answerBuilder = new StringBuilder();
+        String finalSessionId = sessionId;
+        return callStreamWithFallback(promptText)
+                .doOnNext(chunk -> {
+                    if (chunk != null) {
+                        answerBuilder.append(chunk);
+                    }
+                })
+                .doOnComplete(() -> {
+                    String answer = answerBuilder.toString();
+                    List<String> finalSources = sources.isEmpty() ? extractSources(answer) : sources;
+                    HealthConsultation consultation = HealthConsultation.builder()
+                            .user(user)
+                            .sessionId(finalSessionId)
+                            .question(request.question())
+                            .answer(answer)
+                            .contextJson(writeJsonSafely(userContext))
+                            .toolsUsed(toolsUsed.isEmpty() ? null : writeJsonSafely(toolsUsed))
+                            .sources(finalSources.isEmpty() ? null : writeJsonSafely(finalSources))
+                            .feedback(-1)
+                            .build();
+                    consultationRepository.save(consultation);
+                });
+    }
+
+    private String callTextWithFallback(String prompt) {
+        try {
+            ChatClient client = chatClientBuilder.build();
+            Prompt promptObj = new Prompt(prompt);
+            var response = client.prompt(promptObj).call();
+            return response.content();
+        } catch (WebClientResponseException.NotFound ex) {
+            return ollamaLegacyClient.generate(prompt, null, null);
+        }
+    }
+
+    private Flux<String> callStreamWithFallback(String prompt) {
+        Flux<String> stream = chatClientBuilder.build()
+                .prompt()
+                .user(prompt)
+                .stream()
+                .content();
+        return stream.onErrorResume(WebClientResponseException.NotFound.class,
+                ex -> ollamaLegacyClient.generateStream(prompt, null, null));
     }
 
     private Map<String, Object> buildUserContext(User user) {

@@ -1,6 +1,15 @@
 <template>
   <div class="page-container">
-    <el-page-header content="体质测评" icon="" class="mb-24" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><DataAnalysis /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">体质测评</h2>
+        <p class="subtitle">基于中医体质辨识，了解您的身体状况</p>
+      </div>
+    </div>
+    
     <el-card v-if="!schema" v-loading="loadingSchema" element-loading-text="加载问卷中..." class="glass-card">
       <el-empty description="暂无测评问卷" />
     </el-card>
@@ -75,7 +84,7 @@ import * as echarts from 'echarts'
 import { useAssessmentStore } from '../../stores'
 import { submitAssessment, getResult, getHistory } from '../../api/assessment'
 import { formatDate } from '../../utils/request'
-import { ChatDotRound } from '@element-plus/icons-vue'
+import { ChatDotRound, DataAnalysis } from '@element-plus/icons-vue'
 import { TCM_QUESTIONS, QUESTION_OPTIONS, calculateScore } from '../../utils/tcm-questionnaire'
 import { getConstitutionName } from '../../utils/tcm-constants'
 
@@ -345,13 +354,55 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 
 <style scoped lang="scss">
 @use "sass:map";
+@use "sass:color";
 @use '../../styles/variables' as vars;
 @use '../../styles/mixins' as mixins;
 
 .page-container {
   min-height: 100%;
+  padding: 24px;
 }
 
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
+  
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$warning-color, color.adjust(vars.$warning-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$warning-color, 0.3);
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+  }
+
+  .header-content {
+    flex: 1;
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-main-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$warning-color));
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
+  }
+}
 .mb-24 { margin-bottom: 24px; }
 
 .glass-card {

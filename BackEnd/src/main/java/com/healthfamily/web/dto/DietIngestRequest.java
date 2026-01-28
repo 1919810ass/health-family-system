@@ -8,6 +8,8 @@ public record DietIngestRequest(
         @Size(max = 512, message = "图片URL过长")
         String imageUrl,
         @Size(max = 1000, message = "描述过长")
-        String description
+        String description,
+        @Size(max = 100, message = "份量描述过长")
+        String quantity
 ) {}
 

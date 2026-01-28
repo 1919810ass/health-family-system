@@ -216,8 +216,7 @@ import {
   getSessionMessages,
   sendMessage as apiSendMessage,
   markMessagesAsRead,
-  closeSession as apiCloseSession,
-  getOrCreateSession
+  closeSession as apiCloseSession
 } from '../../api/consultation'
 import { createDoctorNote } from '../../api/doctor'
 import { getDoctorView } from '../../api/family'

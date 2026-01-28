@@ -13,5 +13,10 @@ public record SleepRecordRequest(
         Double hours,
         Double deepHours,
         Integer wakeCount,
-        String note
+        String note,
+        // 新增字段
+        String bedtime,       // 上床时间 HH:mm
+        String wakeTime,      // 起床时间 HH:mm
+        Integer sleepLatency, // 上床后多少时间入睡 (分钟)
+        Integer wakeUpLatency // 醒来后多长时间起床 (分钟)
 ) {}

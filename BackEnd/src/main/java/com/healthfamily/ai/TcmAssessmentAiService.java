@@ -13,12 +13,12 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.model.ModelResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,15 +28,53 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import reactor.core.publisher.Flux;
+
+import org.springframework.ai.converter.BeanOutputConverter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Service
 @RequiredArgsConstructor
 public class TcmAssessmentAiService {
 
-    private final ChatModel chatModel;
+    private final ChatClient.Builder chatClientBuilder;
     private final UserRepository userRepository;
     private final ConstitutionAssessmentRepository assessmentRepository;
     private final ObjectMapper objectMapper;
+    private final OllamaLegacyClient ollamaLegacyClient;
+
+    // 定义结构化输出 Record
+    
+    // 1. 个性化方案
+    record PlanItem(
+        String title,
+        String content,
+        String difficulty, // EASY/MEDIUM/HARD
+        List<String> tags,
+        List<String> contraindications
+    ) {}
+
+    record PersonalizedPlanResult(
+        Map<String, List<PlanItem>> planItems,
+        List<String> priorityRecommendations,
+        Map<String, String> seasonalRecommendations
+    ) {}
+
+    // 2. 最终评估结果
+    record AssessmentResult(
+        String primaryType,
+        Map<String, Double> scores,
+        Double confidence,
+        String summary,
+        List<String> recommendations
+    ) {}
+    
+    // 3. 趋势洞察
+    record TrendInsightResult(
+        String summary,
+        List<String> evidence,
+        List<String> suggestions
+    ) {}
 
     // 中医九种体质特征
     private static final Map<String, String> CONSTITUTION_DESCRIPTIONS = Map.of(
@@ -70,11 +108,7 @@ public class TcmAssessmentAiService {
         initialPrompt += "\n请以友好、专业的中医师身份开始询问用户的身体状况，从一般性问题开始，逐步深入。";
 
         // 生成初始问题
-        String initialQuestion = ChatClient.create(chatModel)
-                .prompt()
-                .user(initialPrompt)
-                .call()
-                .content();
+        String initialQuestion = callTextWithFallback(initialPrompt);
 
         return Map.of(
             "sessionId", generateSessionId(),
@@ -88,6 +122,8 @@ public class TcmAssessmentAiService {
      * 生成个性化中医养生方案
      */
     public Map<String, Object> generatePersonalizedPlan(Long userId, String primaryConstitution, List<TcmKnowledgeBase> knowledgeList) {
+        BeanOutputConverter<PersonalizedPlanResult> converter = new BeanOutputConverter<>(PersonalizedPlanResult.class);
+
         String prompt = "你是中医养生专家。请根据用户的主导体质，生成个性化的养生方案。\n\n" +
                 "用户主导体质：" + getConstitutionName(primaryConstitution) + "\n\n" +
                 "参考知识库内容：\n";
@@ -96,24 +132,15 @@ public class TcmAssessmentAiService {
             prompt += "- " + kb.getType().name() + ": " + kb.getTitle() + "\n";
         }
         
-        prompt += "\n请生成一个详细的个性化养生方案，返回JSON格式，包含以下字段：\n" +
-                "planItems（Map<String, List<PlanItem>>，key为分类如DIET/TEA/ACUPUNCTURE/EXERCISE/EMOTION/LIFESTYLE），\n" +
-                "PlanItem包含字段：title（标题），content（详细内容，100字以内），difficulty（难度：EASY/MEDIUM/HARD），tags（标签列表），contraindications（禁忌列表）。\n" +
-                "priorityRecommendations（List<String>，3-5条调理优先级建议），\n" +
-                "seasonalRecommendations（Map<String, String>，四季养生建议，key为春季/夏季/秋季/冬季）。\n\n" +
-                "请确保内容专业、实用，且针对性强。";
+        prompt += "\n请生成一个详细的个性化养生方案，确保内容专业、实用，且针对性强。\n" +
+                  converter.getFormat();
 
         try {
-            String resultJson = ChatClient.create(chatModel)
-                    .prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-            
-            String jsonStr = extractJsonFromText(resultJson);
-            return objectMapper.readValue(jsonStr, new TypeReference<Map<String, Object>>() {});
+            String content = callTextWithFallback(prompt);
+            String json = extractJson(content);
+            PersonalizedPlanResult result = objectMapper.readValue(json, PersonalizedPlanResult.class);
+            return objectMapper.convertValue(result, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
-            // 降级处理：返回空结构，由外层逻辑填充默认值
             return new HashMap<>();
         }
     }
@@ -150,11 +177,7 @@ public class TcmAssessmentAiService {
                 "问题应具体、有针对性，涵盖中医体质辨识的关键维度。" +
                 "请直接返回问题内容，不要包含其他说明。";
 
-        String nextQuestion = ChatClient.create(chatModel)
-                .prompt()
-                .user(prompt)
-                .call()
-                .content();
+        String nextQuestion = callTextWithFallback(prompt);
 
         // 判断是否需要结束对话
         boolean shouldEnd = shouldEndAssessment(sessionId, userAnswer);
@@ -177,6 +200,8 @@ public class TcmAssessmentAiService {
      * 生成最终体质评估结果
      */
     public Map<String, Object> generateFinalAssessment(Long userId, String sessionId, String finalAnswers) {
+        BeanOutputConverter<AssessmentResult> converter = new BeanOutputConverter<>(AssessmentResult.class);
+
         String prompt = "你是中医体质辨识专家。根据以下用户回答，分析其体质类型。\n\n" +
                 "中医九种体质类型特征：\n";
         
@@ -185,27 +210,17 @@ public class TcmAssessmentAiService {
         }
 
         prompt += "\n用户回答汇总：" + finalAnswers + "\n\n" +
-                "请分析用户的体质类型，并以JSON格式返回结果，包含以下字段：" +
-                "primaryType（主导体质类型代码，如BALANCED、QI_DEFICIENCY等），" +
-                "scores（各体质类型得分，格式为Map<String, Double>），" +
-                "confidence（置信度，0-1之间的数值），" +
-                "summary（体质分析总结），" +
-                "recommendations（个性化建议列表）";
-
-        String resultJson = ChatClient.create(chatModel)
-                .prompt()
-                .user(prompt)
-                .call()
-                .content();
+                "请分析用户的体质类型。\n" + 
+                converter.getFormat();
 
         // 解析AI返回的JSON结果
         Map<String, Object> aiResult;
         try {
-            // 提取JSON部分（如果AI返回了其他内容）
-            String jsonStr = extractJsonFromText(resultJson);
-            aiResult = objectMapper.readValue(jsonStr, new TypeReference<Map<String, Object>>() {});
+            String content = callTextWithFallback(prompt);
+            String json = extractJson(content);
+            AssessmentResult result = objectMapper.readValue(json, AssessmentResult.class);
+            aiResult = objectMapper.convertValue(result, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
-            // 如果解析失败，返回默认结果
             aiResult = createDefaultResult(finalAnswers);
         }
 
@@ -242,14 +257,7 @@ public class TcmAssessmentAiService {
         return assessmentRepository.save(assessment);
     }
 
-    private String extractJsonFromText(String text) {
-        int start = text.indexOf('{');
-        int end = text.lastIndexOf('}');
-        if (start != -1 && end != -1 && end > start) {
-            return text.substring(start, end + 1);
-        }
-        return text;
-    }
+    // extractJsonFromText 已被 BeanOutputConverter 替代，移除该方法
 
     private Map<String, Object> createDefaultResult(String answers) {
         Map<String, Object> result = new HashMap<>();
@@ -332,30 +340,75 @@ public class TcmAssessmentAiService {
      * 生成体质趋势洞察
      */
     public Map<String, Object> generateTrendInsights(Long userId, Map<String, String> trends, String currentPrimaryType) {
+        BeanOutputConverter<TrendInsightResult> converter = new BeanOutputConverter<>(TrendInsightResult.class);
+
         String prompt = "你是中医体质辨识专家。请根据用户的体质趋势变化，生成健康洞察。\n\n" +
                 "当前主导体质：" + getConstitutionName(currentPrimaryType) + "\n" +
                 "近期趋势：" + trends.toString() + "\n\n" +
-                "请返回JSON格式结果，包含以下字段：\n" +
-                "summary（一句话总结趋势），\n" +
-                "evidence（List<String>，3条判断依据），\n" +
-                "suggestions（List<String>，3条具体可执行建议）。";
+                "请生成健康洞察。\n" + 
+                converter.getFormat();
 
         try {
-            String resultJson = ChatClient.create(chatModel)
-                    .prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-            
-            String jsonStr = extractJsonFromText(resultJson);
-            return objectMapper.readValue(jsonStr, new TypeReference<Map<String, Object>>() {});
+            String content = callTextWithFallback(prompt);
+            String json = extractJson(content);
+            TrendInsightResult result = objectMapper.readValue(json, TrendInsightResult.class);
+            return objectMapper.convertValue(result, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
-            // 降级处理
             Map<String, Object> fallback = new HashMap<>();
             fallback.put("summary", "体质整体" + (trends.containsValue("上升") ? "有波动" : "稳定"));
             fallback.put("evidence", List.of("基于近期测评数据分析"));
             fallback.put("suggestions", List.of("保持规律作息", "注意饮食均衡"));
             return fallback;
         }
+    }
+
+    /**
+     * 生成体质趋势洞察 (流式)
+     */
+    public Flux<String> generateTrendInsightsStream(Long userId, Map<String, String> trends, String currentPrimaryType) {
+        String prompt = "你是中医体质辨识专家。请根据用户的体质趋势变化，生成健康洞察。\n\n" +
+                "当前主导体质：" + getConstitutionName(currentPrimaryType) + "\n" +
+                "近期趋势：" + trends.toString() + "\n\n" +
+                "请以Markdown格式返回分析报告，包含以下部分：\n" +
+                "### 📊 趋势总结\n(一句话总结)\n\n" +
+                "### 🔍 判断依据\n(列出关键变化点)\n\n" +
+                "### 💡 调理建议\n(3条具体建议)";
+
+        return callStreamWithFallback(prompt);
+    }
+
+    private String callTextWithFallback(String prompt) {
+        try {
+            return chatClientBuilder.build()
+                    .prompt()
+                    .user(prompt)
+                    .call()
+                    .content();
+        } catch (WebClientResponseException.NotFound ex) {
+            return ollamaLegacyClient.generate(prompt, null, null);
+        }
+    }
+
+    private Flux<String> callStreamWithFallback(String prompt) {
+        Flux<String> stream = chatClientBuilder.build()
+                .prompt()
+                .user(prompt)
+                .stream()
+                .content();
+        return stream.onErrorResume(WebClientResponseException.NotFound.class,
+                ex -> ollamaLegacyClient.generateStream(prompt, null, null));
+    }
+
+    private String extractJson(String content) {
+        if (content == null) {
+            return "{}";
+        }
+        String trimmed = content.trim();
+        int start = trimmed.indexOf('{');
+        int end = trimmed.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            return trimmed.substring(start, end + 1);
+        }
+        return trimmed;
     }
 }

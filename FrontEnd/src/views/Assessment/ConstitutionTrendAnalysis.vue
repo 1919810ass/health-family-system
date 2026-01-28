@@ -23,30 +23,16 @@
           />
         </div>
 
-        <!-- AI 洞察分析 -->
-        <div v-if="insights" class="ai-insights mb-24">
+        <!-- AI 洞察 -->
+        <div v-if="trendData.hasData" class="ai-insights mb-24">
           <div class="insights-header">
             <el-icon class="ai-icon"><MagicStick /></el-icon>
-            <h3>AI 健康洞察</h3>
+            <h3>AI 智能健康洞察</h3>
           </div>
-          <el-card shadow="hover" class="insight-card">
-            <div class="insight-summary mb-16">
-              <strong>{{ getChineseSummary(insights.summary) }}</strong>
-            </div>
-            <div class="insight-grid">
-              <div class="insight-col">
-                <h4><el-icon><List /></el-icon> 关键依据</h4>
-                <ul>
-                  <li v-for="(ev, idx) in insights.evidence" :key="idx">{{ getChineseContent(ev) }}</li>
-                </ul>
-              </div>
-              <div class="insight-col">
-                <h4><el-icon><TrendCharts /></el-icon> 改进建议</h4>
-                <ul>
-                  <li v-for="(sug, idx) in insights.suggestions" :key="idx">{{ sug }}</li>
-                </ul>
-              </div>
-            </div>
+          
+          <el-card class="insight-card">
+             <div class="streaming-content markdown-body" v-html="renderMarkdown(streamingInsights)"></div>
+             <div v-if="isStreaming" class="typing-cursor"></div>
           </el-card>
         </div>
         
@@ -98,10 +84,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as assessmentApi from '@/api/assessment'
+import { getToken } from '@/utils/auth'
+import MarkdownIt from 'markdown-it'
 import * as echarts from 'echarts'
 import dayjs from 'dayjs'
 import { getConstitutionName, getConstitutionColor } from '@/utils/tcm-constants'
@@ -110,9 +98,59 @@ import { MagicStick, List, TrendCharts } from '@element-plus/icons-vue'
 const router = useRouter()
 const loading = ref(false)
 const trendData = ref(null)
+const streamingInsights = ref('')
+const isStreaming = ref(false)
+const md = new MarkdownIt()
+
+const renderMarkdown = (text) => {
+  return md.render(text || '')
+}
 
 const goBack = () => {
   router.go(-1)
+}
+
+const loadInsightsStream = async () => {
+  try {
+    isStreaming.value = true
+    streamingInsights.value = ''
+    
+    const token = getToken()
+    const headers = { 'Accept': 'text/event-stream' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    
+    // Dev fallback
+    if (!token) {
+       const devUserId = localStorage.getItem('dev_user_id') || '4'
+       headers['X-User-Id'] = devUserId
+    }
+
+    const response = await fetch('/api/tcm-assessment/trend/stream?lookbackDays=90', { headers })
+    
+    if (!response.ok) throw new Error(response.statusText)
+    
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      const chunk = decoder.decode(value, { stream: true })
+      const lines = chunk.split('\n')
+      
+      for (const line of lines) {
+        if (line.startsWith('data:')) {
+          const data = line.substring(5).trim()
+          if (data) streamingInsights.value += data
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Stream error', e)
+  } finally {
+    isStreaming.value = false
+  }
 }
 
 const loadTrendData = async () => {
@@ -120,6 +158,11 @@ const loadTrendData = async () => {
     loading.value = true
     const response = await assessmentApi.getConstitutionTrend(90) // 获取最近90天的趋势
     trendData.value = response.data
+    
+    // Start streaming insights after data load
+    if (trendData.value && trendData.value.hasData) {
+        loadInsightsStream()
+    }
   } catch (error) {
     ElMessage.error('获取体质趋势数据失败: ' + error.message)
   } finally {
@@ -309,51 +352,43 @@ onMounted(() => {
     border: vars.$glass-border;
     border-radius: vars.$radius-md;
     transition: all 0.3s vars.$ease-spring;
+    min-height: 120px;
     
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: vars.$shadow-md;
-    }
-    
-    .insight-summary {
-      font-size: 15px;
-      color: vars.$text-main-color;
-      padding-bottom: 12px;
-      border-bottom: 1px dashed rgba(0,0,0,0.1);
-    }
-    
-    .insight-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-top: 12px;
-      
-      .insight-col {
-        h4 {
-          display: flex;
-          align-items: center;
-          color: vars.$text-secondary-color;
-          margin-bottom: 8px;
-          font-size: 14px;
-          
-          .el-icon {
-            margin-right: 4px;
-          }
+    .streaming-content {
+        padding: 16px;
+        font-size: 14px;
+        line-height: 1.6;
+        color: vars.$text-main-color;
+        
+        :deep(h3) {
+            margin-top: 16px;
+            margin-bottom: 8px;
+            font-size: 16px;
+            color: vars.$primary-color;
+            &:first-child { margin-top: 0; }
         }
         
-        ul {
-          padding-left: 20px;
-          margin: 0;
-          color: vars.$text-regular-color;
-          font-size: 13px;
-          
-          li {
-            margin-bottom: 4px;
-          }
-        }
-      }
+        :deep(p) { margin-bottom: 8px; }
+        :deep(ul) { padding-left: 20px; margin-bottom: 8px; }
+        :deep(li) { margin-bottom: 4px; }
+        :deep(strong) { color: vars.$warning-color; }
+    }
+    
+    .typing-cursor {
+        display: inline-block;
+        width: 8px;
+        height: 16px;
+        background-color: vars.$primary-color;
+        animation: blink 1s infinite;
+        vertical-align: middle;
+        margin-left: 4px;
     }
   }
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
 }
 
 .trend-charts {

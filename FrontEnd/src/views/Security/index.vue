@@ -1,6 +1,14 @@
 <template>
   <div class="security">
-    <el-page-header content="数据安全与隐私" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><Lock /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">数据安全与隐私</h2>
+        <p class="subtitle">全面掌控您的数据权限，保障隐私安全</p>
+      </div>
+    </div>
 
     <!-- 1. 隐私控制中心 -->
     <el-card class="mt-16" v-loading="loadingPrivacy">
@@ -134,7 +142,7 @@ import { exportData, deleteData, getPrivacySettings, updatePrivacySettings, getS
 import { getFamilyDoctor, getFamilyMembers, getFamilies } from '../../api/family'
 import { useFamilyStore } from '../../stores/family'
 import { weeklyDietReport } from '../../api/lifestyle'
-import { UserFilled } from '@element-plus/icons-vue'
+import { UserFilled, Lock } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
 const familyStore = useFamilyStore()
@@ -428,6 +436,7 @@ const formatDate = (date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
 <style scoped lang="scss">
 @use '@/styles/variables' as vars;
 @use '@/styles/mixins' as mixins;
+@use 'sass:color';
 
 .security {
   padding: 24px;
@@ -435,10 +444,47 @@ const formatDate = (date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
   margin: 0 auto;
   min-height: 100%;
   background: transparent;
+}
 
-  :deep(.el-page-header__content) {
-    color: vars.$text-main-color;
-    font-weight: 600;
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
+  
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$primary-color, color.adjust(vars.$primary-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$primary-color, 0.3);
+    flex-shrink: 0;
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+  }
+
+  .header-content {
+    flex: 1;
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-main-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$primary-color));
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
   }
 }
 

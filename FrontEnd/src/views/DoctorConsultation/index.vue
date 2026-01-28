@@ -1,6 +1,14 @@
 <template>
   <div class="patient-consultation-page">
-    <el-page-header content="在线咨询" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><ChatDotRound /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">在线咨询</h2>
+        <p class="subtitle">与家庭医生实时沟通，获取专业健康指导</p>
+      </div>
+    </div>
 
     <!-- 医生信息卡片 -->
     <div class="doctor-info-section">
@@ -79,18 +87,23 @@
               v-for="msg in messages"
               :key="msg.id"
               class="message-item"
-              :class="{ 'is-patient': msg.senderType === 'PATIENT' || msg.senderType === 'MEMBER', 'is-doctor': msg.senderType === 'DOCTOR' }"
+              :class="{ 
+                'is-patient': msg.senderType === 'PATIENT' || msg.senderType === 'MEMBER', 
+                'is-doctor': msg.senderType === 'DOCTOR',
+                'is-ai': msg.senderType === 'AI'
+              }"
           >
             <el-avatar
-                :src="(msg.senderType === 'PATIENT' || msg.senderType === 'MEMBER') ? currentUserAvatar : boundDoctor.avatar"
+                :src="(msg.senderType === 'PATIENT' || msg.senderType === 'MEMBER') ? currentUserAvatar : (msg.senderType === 'AI' ? 'https://api.dicebear.com/7.x/bottts/svg?seed=HealthAI' : boundDoctor.avatar)"
                 :size="32"
                 class="message-avatar"
             >
-              {{ (msg.senderType === 'PATIENT' || msg.senderType === 'MEMBER') ? '我' : boundDoctor.nickname?.charAt(0) }}
+              {{ (msg.senderType === 'PATIENT' || msg.senderType === 'MEMBER') ? '我' : (msg.senderType === 'AI' ? 'AI' : boundDoctor.nickname?.charAt(0)) }}
             </el-avatar>
             <div class="message-content">
               <div class="message-bubble">
-                {{ msg.content }}
+                <span v-if="msg.senderType === 'AI'" v-html="msg.content.replace(/\n/g, '<br>')"></span>
+                <span v-else>{{ msg.content }}</span>
               </div>
               <div class="message-time">{{ formatTime(msg.createdAt) }}</div>
             </div>
@@ -155,15 +168,18 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Close, Promotion, InfoFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '../../stores/user'
 import {
-  listSessionsForPatient,
   getOrCreateSession,
   getSession,
   getSessionMessages,
   sendMessage as apiSendMessage,
-  closeSession as apiCloseSession
+  closeSession as apiCloseSession,
+  triageChat,
+  finishTriage,
+  markMessagesAsRead
 } from '../../api/consultation'
 import { getOrCreateDoctorSession } from '../../api/doctor'
 import dayjs from 'dayjs'
+// import TriageChatWindow from './components/TriageChatWindow.vue' // No longer needed
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -273,7 +289,10 @@ const startConsultation = async () => {
     }
 
     // 获取或创建会话
-    const result = await getOrCreateSession(currentUserId, familyId)
+    const result = await getOrCreateSession({
+      patientUserId: currentUserId,
+      familyId: familyId
+    })
     if (result.data) {
       currentSession.value = result.data
       messages.value = []
@@ -302,11 +321,67 @@ const loadMessages = async () => {
     const result = await getSessionMessages(currentSession.value.id)
     if (result.data && Array.isArray(result.data)) {
       messages.value = result.data
+      
+      // 标记消息为已读
+      try {
+        await markMessagesAsRead(currentSession.value.id)
+        // 通知布局更新未读计数
+        window.dispatchEvent(new CustomEvent('hf-consultation-read'))
+      } catch (e) {
+        console.error('Failed to mark messages as read', e)
+      }
     }
   } catch (error) {
     console.error('Failed to load messages:', error)
   } finally {
     loading.value = false
+  }
+}
+
+// AI 预问诊介入处理
+const handleAiIntervention = async (content) => {
+  try {
+    const res = await triageChat({
+      sessionId: currentSession.value.id,
+      userMessage: content
+    })
+    
+    const reply = res.data ? res.data : res
+    const replyText = (typeof reply === 'string') ? reply : (reply.data || JSON.stringify(reply))
+    
+    messages.value.push({
+      id: Date.now(),
+      content: replyText,
+      senderType: 'AI',
+      createdAt: new Date().toISOString()
+    })
+    
+    await nextTick(() => {
+      if (messagesRef.value) {
+        messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+      }
+    })
+    
+    if (replyText.includes('生成病历摘要') || replyText.includes('结束提问')) {
+      const finishRes = await finishTriage({ sessionId: currentSession.value.id })
+      const summaryData = finishRes.data ? finishRes.data : finishRes
+      const summaryText = (typeof summaryData === 'string') ? summaryData : (summaryData.data || JSON.stringify(summaryData))
+      
+      messages.value.push({
+        id: Date.now() + 1,
+        content: '**预问诊总结**\n\n' + summaryText,
+        senderType: 'AI',
+        createdAt: new Date().toISOString()
+      })
+      
+      currentSession.value.isAiTriaged = true
+      ElMessage.success('预问诊已完成，医生会尽快回复您')
+      
+      // 重新加载以确保同步
+      await loadMessages()
+    }
+  } catch (error) {
+    console.error('AI Triage error:', error)
   }
 }
 
@@ -338,6 +413,8 @@ const sendMessage = async () => {
         senderType: 'PATIENT',
         createdAt: new Date().toISOString()
       })
+      
+      const userContent = inputMessage.value.trim()
       inputMessage.value = ''
 
       await nextTick(() => {
@@ -345,6 +422,13 @@ const sendMessage = async () => {
           messagesRef.value.scrollTop = messagesRef.value.scrollHeight
         }
       })
+      
+      // AI 预问诊逻辑：如果未完成预问诊，且医生未回复，AI介入
+      if (!currentSession.value.isAiTriaged) {
+          setTimeout(() => {
+            handleAiIntervention(userContent)
+          }, 2000)
+      }
     }
   } catch (error) {
     console.error('Failed to send message:', error)
@@ -376,6 +460,21 @@ const endConsultation = async () => {
       ElMessage.error('关闭会话失败')
     }
   }
+}
+
+// 预问诊完成处理
+const handleTriageComplete = async (summary) => {
+  console.log('Triage complete, summary:', summary)
+  
+  if (currentSession.value) {
+    // 更新本地状态，切换到主聊天界面
+    currentSession.value.isAiTriaged = true
+  }
+  
+  ElMessage.success('预问诊已完成，已转接医生')
+  
+  // 重新加载消息，以显示预问诊总结（如果后端已生成）
+  await loadMessages()
 }
 
 // 格式化时间
@@ -422,6 +521,7 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @use '@/styles/variables' as vars;
 @use '@/styles/mixins' as mixins;
 
@@ -430,17 +530,44 @@ onMounted(async () => {
   background: transparent;
   min-height: calc(100vh - 60px);
 
-  :deep(.el-page-header) {
+  .page-header {
+    display: flex;
+    align-items: center;
     margin-bottom: 24px;
-
-    .el-page-header__content {
-      font-size: 20px;
-      font-weight: 600;
-      color: vars.$text-main-color;
-    }
+    animation: fadeInDown 0.6s vars.$ease-spring;
+    gap: 16px;
     
-    .el-page-header__left {
-      color: vars.$text-main-color;
+    .header-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, vars.$primary-color, color.adjust(vars.$primary-color, $lightness: 15%));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(vars.$primary-color, 0.3);
+
+      .el-icon {
+        font-size: 24px;
+        color: #fff;
+      }
+    }
+
+    .header-content {
+      flex: 1;
+      .title {
+        font-size: 24px;
+        font-weight: 700;
+        color: vars.$text-main-color;
+        margin: 0 0 4px 0;
+        @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$primary-color));
+      }
+
+      .subtitle {
+        font-size: 14px;
+        color: vars.$text-secondary-color;
+        margin: 0;
+      }
     }
   }
 }
@@ -698,6 +825,46 @@ onMounted(async () => {
             box-shadow: vars.$shadow-sm;
             font-size: 14px;
             line-height: 1.5;
+          }
+
+          .message-time {
+            font-size: 12px;
+            color: vars.$text-secondary-color;
+            margin-top: 6px;
+            padding-left: 4px;
+          }
+        }
+      }
+
+      &.is-ai {
+        .message-avatar {
+          flex-shrink: 0;
+          border: 2px solid rgba(vars.$primary-color, 0.3);
+          box-shadow: vars.$shadow-sm;
+          background: #fff;
+        }
+
+        .message-content {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          max-width: 70%;
+
+          .message-bubble {
+            background: #fdf6ec;
+            color: vars.$text-main-color;
+            padding: 12px 18px;
+            border-radius: 16px 16px 16px 4px;
+            word-wrap: break-word;
+            word-break: break-all;
+            border: 1px solid rgba(vars.$warning-color, 0.2);
+            box-shadow: vars.$shadow-sm;
+            font-size: 14px;
+            line-height: 1.5;
+            
+            :deep(strong) {
+                color: vars.$primary-color;
+            }
           }
 
           .message-time {

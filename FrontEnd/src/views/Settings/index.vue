@@ -1,6 +1,15 @@
 <template>
   <div class="page-container">
-    <el-page-header content="系统设置" icon="" class="page-header" />
+    <div class="page-header">
+      <div class="header-icon">
+        <el-icon><Setting /></el-icon>
+      </div>
+      <div class="header-content">
+        <h2 class="title">系统设置</h2>
+        <p class="subtitle">个性化您的应用体验与偏好</p>
+      </div>
+    </div>
+
     <div class="grid mt-24">
       <div class="grid-item" style="--delay: 0.1s"><ProfileCard /></div>
       <div class="grid-item" style="--delay: 0.2s"><AvatarCard /></div>
@@ -12,6 +21,7 @@
 </template>
 
 <script setup>
+import { Setting } from '@element-plus/icons-vue'
 import ProfileCard from './components/ProfileCard.vue'
 import AvatarCard from './components/AvatarCard.vue'
 import HealthProfileCard from './components/HealthProfileCard.vue'
@@ -28,14 +38,55 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @use '@/styles/variables' as vars;
+@use '@/styles/mixins' as mixins;
 
 .page-container {
   padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .page-header {
-  animation: fadeInDown 0.6s vars.$ease-spring backwards;
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: fadeInDown 0.6s vars.$ease-spring;
+  gap: 16px;
+  
+  .header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, vars.$info-color, color.adjust(vars.$info-color, $lightness: 15%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(vars.$info-color, 0.3);
+
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+  }
+
+  .header-content {
+    flex: 1;
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: vars.$text-main-color;
+      margin: 0 0 4px 0;
+      @include mixins.text-gradient(linear-gradient(to right, vars.$text-main-color, vars.$info-color));
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: vars.$text-secondary-color;
+      margin: 0;
+    }
+  }
 }
 
 .mt-24 { margin-top: 24px }

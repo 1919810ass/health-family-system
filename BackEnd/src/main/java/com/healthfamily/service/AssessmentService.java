@@ -8,6 +8,8 @@ import com.healthfamily.web.dto.FamilyMemberLatestResponse;
 import com.healthfamily.web.dto.TcmPersonalizedPlanResponse;
 import com.healthfamily.web.dto.ConstitutionTrendResponse;
 import com.healthfamily.web.dto.FamilyTcmHealthOverviewResponse;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
@@ -36,5 +38,9 @@ public interface AssessmentService {
     Map<String, Object> processAiAnswer(Long userId, String sessionId, String userAnswer);
     
     Map<String, Object> generateFinalAiAssessment(Long userId, String sessionId, String finalAnswers);
+    /**
+     * 获取体质趋势洞察流
+     */
+    Flux<ServerSentEvent<String>> getTrendInsightsStream(Long userId, int lookbackDays);
 }
 

@@ -96,6 +96,7 @@ public class DoctorServiceImpl implements DoctorService {
     private final HealthPlanRepository healthPlanRepository;
     private final com.healthfamily.domain.repository.ConsultationSessionRepository consultationSessionRepository;
     private final DoctorProfileRepository doctorProfileRepository;
+    private final com.healthfamily.domain.repository.DoctorRatingRepository doctorRatingRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
     private final ChatModel chatModel;
@@ -117,7 +118,58 @@ public class DoctorServiceImpl implements DoctorService {
 
         FamilyDoctor fd = FamilyDoctor.builder().family(family).doctor(doctor).build();
         familyDoctorRepository.save(fd);
-        return new FamilyDoctorResponse(doctor.getId(), doctor.getNickname(), doctor.getPhone(), readAvatar(doctor.getId()));
+        
+        // Update Service Count
+        DoctorProfile profile = doctorProfileRepository.findById(doctor.getId()).orElseGet(() -> {
+             DoctorProfile p = new DoctorProfile();
+             p.setDoctor(doctor);
+             p.setCertificationStatus("APPROVED");
+             p.setRating(java.math.BigDecimal.ZERO);
+             p.setRatingCount(0);
+             p.setServiceCount(0);
+             return p;
+        });
+        
+        if (profile.getServiceCount() == null) {
+            profile.setServiceCount(0);
+        }
+        // Recalculate real count to ensure consistency
+        int realCount = familyDoctorRepository.findByDoctor(doctor).size();
+        profile.setServiceCount(realCount);
+        doctorProfileRepository.save(profile);
+        
+        String title = null;
+        String hospital = null;
+        String department = null;
+        String bio = null;
+        Double rating = 5.0;
+        Integer serviceCount = 0;
+        
+        if (profile != null) {
+            title = profile.getTitle();
+            hospital = profile.getHospital();
+            department = profile.getDepartment();
+            bio = profile.getBio();
+            if (profile.getRating() != null) {
+                rating = profile.getRating().doubleValue();
+            }
+            if (profile.getServiceCount() != null) {
+                serviceCount = profile.getServiceCount();
+            }
+        }
+        
+        return new FamilyDoctorResponse(
+            doctor.getId(), 
+            doctor.getNickname(), 
+            doctor.getPhone(), 
+            readAvatar(doctor.getId()),
+            title,
+            hospital,
+            department,
+            bio,
+            rating,
+            serviceCount
+        );
     }
 
     @Override
@@ -128,7 +180,18 @@ public class DoctorServiceImpl implements DoctorService {
         if (list.isEmpty()) {
             throw new BusinessException(40403, "未绑定医生");
         }
+        
+        // Get doctor before deleting binding
+        User doctor = list.get(0).getDoctor();
+        
         familyDoctorRepository.deleteAll(list);
+        
+        // Update service count
+        doctorProfileRepository.findByDoctorId(doctor.getId()).ifPresent(profile -> {
+            int count = familyDoctorRepository.findByDoctor(doctor).size();
+            profile.setServiceCount(count);
+            doctorProfileRepository.save(profile);
+        });
     }
 
     @Override
@@ -231,7 +294,67 @@ public class DoctorServiceImpl implements DoctorService {
             return null;
         }
         FamilyDoctor fd = list.get(0);
-        return new FamilyDoctorResponse(fd.getDoctor().getId(), fd.getDoctor().getNickname(), fd.getDoctor().getPhone(), readAvatar(fd.getDoctor().getId()));
+        Long doctorId = fd.getDoctor().getId();
+        
+        // Use findById for standard PK lookup
+        DoctorProfile profile = doctorProfileRepository.findById(doctorId).orElse(null);
+        
+        // Calculate real service count from binding table
+        int realServiceCount = familyDoctorRepository.findByDoctor(fd.getDoctor()).size();
+        // Safety check: since we found 'fd', count must be at least 1
+        if (realServiceCount == 0) {
+            realServiceCount = 1;
+        }
+        
+        // Auto-fix profile if count mismatches
+        if (profile != null && (profile.getServiceCount() == null || profile.getServiceCount() != realServiceCount)) {
+            profile.setServiceCount(realServiceCount);
+            doctorProfileRepository.save(profile);
+        }
+        
+        String title = null;
+        String hospital = null;
+        String department = null;
+        String bio = null;
+        Double rating = 5.0;
+        Integer serviceCount = realServiceCount; // Use real count
+        
+        if (profile != null) {
+            title = profile.getTitle();
+            hospital = profile.getHospital();
+            department = profile.getDepartment();
+            bio = profile.getBio();
+            if (profile.getRating() != null) {
+                // Ensure 1 decimal place for consistency
+                rating = profile.getRating().setScale(1, java.math.RoundingMode.HALF_UP).doubleValue();
+            }
+        } else {
+             // Try to find by doctorId via query method as fallback (should be same)
+             profile = doctorProfileRepository.findByDoctorId(doctorId).orElse(null);
+             if (profile != null) {
+                if (profile.getRating() != null) {
+                    rating = profile.getRating().setScale(1, java.math.RoundingMode.HALF_UP).doubleValue();
+                }
+                // Fix count on fallback profile too
+                if (profile.getServiceCount() == null || profile.getServiceCount() != realServiceCount) {
+                    profile.setServiceCount(realServiceCount);
+                    doctorProfileRepository.save(profile);
+                }
+             }
+        }
+
+        return new FamilyDoctorResponse(
+            doctorId, 
+            fd.getDoctor().getNickname(), 
+            fd.getDoctor().getPhone(), 
+            readAvatar(doctorId),
+            title,
+            hospital,
+            department,
+            bio,
+            rating,
+            serviceCount
+        );
     }
 
     @Override
@@ -241,10 +364,17 @@ public class DoctorServiceImpl implements DoctorService {
                 .orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         User requester = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
 
-        boolean isMember = familyMemberRepository.findByFamilyAndUser(family, requester).isPresent();
+        Optional<com.healthfamily.domain.entity.FamilyMember> memberRecord = familyMemberRepository.findByFamilyAndUser(family, requester);
+        boolean isMember = memberRecord.isPresent();
         boolean isDoctor = familyDoctorRepository.findByFamily(family).stream()
                 .anyMatch(fd -> Objects.equals(fd.getDoctor().getId(), requesterId));
-        if (!isMember && !isDoctor) {
+        boolean isFamilyAdmin = false;
+        if (isMember) {
+            com.healthfamily.domain.entity.FamilyMember member = memberRecord.get();
+            isFamilyAdmin = Boolean.TRUE.equals(member.getAdmin()) || member.getRole() == com.healthfamily.domain.constant.MemberRole.ADMIN
+                    || requester.getRole() == com.healthfamily.domain.constant.UserRole.FAMILY_ADMIN;
+        }
+        if (!isDoctor && !isFamilyAdmin) {
             throw new BusinessException(40301, "无权限访问医生视图");
         }
 
@@ -254,17 +384,26 @@ public class DoctorServiceImpl implements DoctorService {
         List<com.healthfamily.domain.entity.FamilyMember> members = familyMemberRepository.findByFamily(family);
 
         Map<String, Object> telemetry = new HashMap<>();
-        StringBuilder plain = new StringBuilder();
+        int totalMembers = 0;
+        int sharedMembers = 0;
+        int totalLogs = 0;
         List<User> viewableUsers = new ArrayList<>();
 
         for (com.healthfamily.domain.entity.FamilyMember m : members) {
             User u = m.getUser();
             if (u == null) continue; // 跳过用户不存在的成员
-            if (!canViewMemberData(u.getId())) continue;
-            viewableUsers.add(u);
+            totalMembers++;
+            boolean canView = Objects.equals(requesterId, u.getId()) || canViewMemberData(u.getId(), isDoctor);
+            if (canView) {
+                viewableUsers.add(u);
+                sharedMembers++;
+            }
             
-            List<HealthLog> logs = healthLogRepository.findByUser_IdAndTypeOrderByLogDateDesc(u.getId(), com.healthfamily.domain.constant.HealthLogType.VITALS)
-                    .stream().filter(l -> !l.getLogDate().isBefore(start)).collect(Collectors.toList());
+            List<HealthLog> logs = canView
+                    ? healthLogRepository.findByUser_IdAndTypeOrderByLogDateDesc(u.getId(), com.healthfamily.domain.constant.HealthLogType.VITALS)
+                        .stream().filter(l -> !l.getLogDate().isBefore(start)).collect(Collectors.toList())
+                    : java.util.Collections.emptyList();
+            totalLogs += logs.size();
             
             // 重新检测异常并收集数据
             List<Map<String, Object>> userTelemetry = new ArrayList<>();
@@ -274,31 +413,27 @@ public class DoctorServiceImpl implements DoctorService {
                 
                 content.put("date", l.getLogDate().toString());
                 content.put("isAbnormal", isAbnormal);
+                content.put("userId", u.getId());
                 userTelemetry.add(content);
-                
-                plain.append(String.format("%s %s: %s (%s)\n", 
-                    l.getLogDate(), u.getNickname(), buildLogSummary(content), isAbnormal ? "异常" : "正常"));
             }
-            telemetry.put(u.getNickname(), Map.of(
-                    "count", logs.size(),
-                    "items", userTelemetry
-            ));
-        }
-
-        // 根据useAi参数决定是否使用AI生成医生视图摘要
-        String summary;
-        if (Boolean.TRUE.equals(useAi)) {
-            // 使用AI生成摘要
-            String promptText = "请基于以下家庭成员近7日体征数据，生成医生视图摘要，包含重点关注项、建议复诊时间、用药提醒的概览，控制在200字内。\n" + plain;
-            try {
-                Prompt prompt = new Prompt(new UserMessage(promptText));
-                summary = chatModel.call(prompt).getResult().getOutput().getContent();
-            } catch (Exception e) {
-                summary = "成员近7日体征记录已汇总，无明显异常。建议持续监测并按需复诊。";
+            String displayName = u.getNickname();
+            if (displayName == null || displayName.isBlank()) {
+                displayName = u.getPhone();
             }
-        } else {
-            // 不使用AI，返回默认摘要
-            summary = "成员近7日体征记录已汇总，请点击'AI生成摘要'按钮获取智能分析。";
+            if (displayName == null || displayName.isBlank()) {
+                displayName = "成员" + u.getId();
+            }
+            String key = displayName;
+            if (telemetry.containsKey(key)) {
+                key = displayName + "(" + u.getId() + ")";
+            }
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("count", logs.size());
+            entry.put("items", userTelemetry);
+            entry.put("userId", u.getId());
+            entry.put("displayName", displayName);
+            entry.put("shared", canView);
+            telemetry.put(key, entry);
         }
 
         // 计算待办事项统计
@@ -455,6 +590,41 @@ public class DoctorServiceImpl implements DoctorService {
         });
         highRiskMembers = highRiskMembers.stream().limit(10).collect(Collectors.toList());
 
+        String summary;
+        if (Boolean.TRUE.equals(useAi)) {
+            int unsharedMembers = Math.max(0, totalMembers - sharedMembers);
+            StringBuilder sb = new StringBuilder();
+            sb.append("本周家庭成员").append(totalMembers).append("人，开启数据共享").append(sharedMembers).append("人");
+            if (unsharedMembers > 0) sb.append("，未共享").append(unsharedMembers).append("人");
+            sb.append("。近7日体征记录").append(totalLogs).append("条");
+            if (!abnormalEvents.isEmpty()) {
+                sb.append("，异常事件").append(abnormalEvents.size()).append("条");
+            } else {
+                sb.append("，未检测到明显异常");
+            }
+            if (!highRiskMembers.isEmpty()) {
+                List<String> names = highRiskMembers.stream()
+                        .map(HighRiskMemberDto::nickname)
+                        .filter(Objects::nonNull)
+                        .limit(3)
+                        .collect(Collectors.toList());
+                if (!names.isEmpty()) {
+                    sb.append("。重点关注：").append(String.join("、", names));
+                }
+            }
+            if (todayFollowupsCount > 0) {
+                sb.append("。今日待随访").append(todayFollowupsCount).append("项");
+            }
+            if (!abnormalEvents.isEmpty() || !highRiskMembers.isEmpty()) {
+                sb.append("。建议优先复核异常指标并安排复诊");
+            } else {
+                sb.append("。建议保持规律监测，持续观察指标变化");
+            }
+            summary = sb.toString();
+        } else {
+            summary = "成员近7日体征记录已汇总，请点击'AI生成摘要'按钮获取智能分析。";
+        }
+
         return new DoctorViewResponse(
                 familyId,
                 summary,
@@ -488,6 +658,20 @@ public class DoctorServiceImpl implements DoctorService {
             try {
                 Map<?, ?> map = objectMapper.readValue(prefs, Map.class);
                 Object share = map.get("shareToFamily");
+                return share instanceof Boolean ? (Boolean) share : false;
+            } catch (Exception e) {
+                return false;
+            }
+        }).orElse(false);
+    }
+
+    private boolean canViewMemberData(Long targetUserId, boolean forDoctor) {
+        return profileRepository.findById(targetUserId).map(p -> {
+            String prefs = p.getPreferences();
+            if (prefs == null || prefs.isBlank()) return false;
+            try {
+                Map<?, ?> map = objectMapper.readValue(prefs, Map.class);
+                Object share = map.get(forDoctor ? "shareToDoctor" : "shareToFamily");
                 return share instanceof Boolean ? (Boolean) share : false;
             } catch (Exception e) {
                 return false;
@@ -2678,6 +2862,93 @@ public class DoctorServiceImpl implements DoctorService {
         doctorProfileRepository.save(profile);
         
         return savedUser;
+    }
+
+    @Override
+    @Transactional
+    public void rateDoctor(Long userId, Long doctorId, Integer rating, String comment) {
+        // 1. 校验评分
+        if (rating == null || rating < 1 || rating > 5) {
+            throw new BusinessException(400, "评分必须在1-5之间");
+        }
+
+        // 2. 校验用户和医生是否存在
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
+        
+        if (doctor.getRole() != com.healthfamily.domain.constant.UserRole.DOCTOR) {
+            throw new BusinessException(400, "被评价用户不是医生");
+        }
+
+        // 3. 校验是否有权评价 (必须是已签约或曾经签约/咨询过的关系)
+        // 简化逻辑：只要是系统用户且医生存在，即可评价 (实际业务可能需要检查 FamilyDoctor 关系)
+        // 严格模式：
+        // boolean hasRelation = familyDoctorRepository.existsByDoctorAndFamily_Members_User(doctor, user);
+        // 这里采用宽松模式，假设前端入口已控制
+
+        // 4. 保存评价
+        com.healthfamily.domain.entity.DoctorRating ratingEntity = com.healthfamily.domain.entity.DoctorRating.builder()
+                .doctorId(doctorId)
+                .userId(userId)
+                .rating(rating)
+                .comment(comment)
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        doctorRatingRepository.save(ratingEntity);
+
+        // 5. 更新医生平均分
+        updateDoctorAverageRating(doctorId);
+    }
+
+    private void updateDoctorAverageRating(Long doctorId) {
+        DoctorProfile profile = doctorProfileRepository.findById(doctorId).orElseGet(() -> {
+            User doctor = userRepository.findById(doctorId).orElse(null);
+            if (doctor == null) return null;
+            
+            DoctorProfile newProfile = new DoctorProfile();
+            newProfile.setDoctor(doctor);
+            newProfile.setCertificationStatus("APPROVED"); // 默认状态，或者根据业务逻辑设置
+            newProfile.setRating(BigDecimal.ZERO);
+            newProfile.setRatingCount(0);
+            newProfile.setServiceCount(0);
+            return newProfile;
+        });
+        
+        if (profile == null) return;
+
+        List<com.healthfamily.domain.entity.DoctorRating> ratings = doctorRatingRepository.findByDoctorId(doctorId);
+        if (ratings.isEmpty()) {
+            profile.setRating(BigDecimal.ZERO);
+            profile.setRatingCount(0);
+        } else {
+            double avg = ratings.stream().mapToInt(com.healthfamily.domain.entity.DoctorRating::getRating).average().orElse(0.0);
+            profile.setRating(BigDecimal.valueOf(avg));
+            profile.setRatingCount(ratings.size());
+        }
+        doctorProfileRepository.save(profile);
+    }
+
+    @Override
+    public List<com.healthfamily.web.dto.DoctorRatingResponse> getDoctorRatings(Long doctorId) {
+        return doctorRatingRepository.findByDoctorId(doctorId).stream()
+            .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+            .map(r -> {
+                User u = userRepository.findById(r.getUserId()).orElse(null);
+                String name = u != null ? u.getNickname() : "未知用户";
+                String avatar = readAvatar(r.getUserId());
+                return new com.healthfamily.web.dto.DoctorRatingResponse(
+                    r.getId(),
+                    name,
+                    avatar,
+                    r.getRating(),
+                    r.getComment(),
+                    r.getCreatedAt()
+                );
+            })
+            .collect(Collectors.toList());
     }
 
     private boolean checkAnomaly(Long userId, Map<String, Object> content) {

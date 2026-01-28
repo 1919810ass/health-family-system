@@ -1,5 +1,14 @@
+---
+alwaysApply: false
+---
 # 家庭健康管理系统 - 前端开发规范 (Vue3 + Element Plus)
 
+# 基础交互规范
+- **语言偏好**：始终使用中文进行回复 (Always respond in Chinese)。
+- **安全警告**：在执行或建议任何涉及修改、删除、重置 SQL 数据库或涉及敏感数据表结构的操作前，必须显著提醒用户风险并获得显式确认。
+# 运行环境规范
+- **操作系统**：Windows 11
+- **终端指令**：所有生成的终端命令必须适配 Windows 11。
 ## 技术栈
 - **框架**：Vue 3.x (Composition API)
 - **UI库**：Element Plus 2.x

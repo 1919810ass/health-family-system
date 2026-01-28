@@ -66,6 +66,15 @@ public class SecurityConfig {
                         .requestMatchers("/api/reminders/*/status").hasAnyRole("ADMIN", "FAMILY_ADMIN", "DOCTOR", "MEMBER")
                         .requestMatchers("/api/reminders").hasAnyRole("ADMIN", "FAMILY_ADMIN", "DOCTOR", "MEMBER")
                         .requestMatchers("/api/reminders/**").hasAnyRole("ADMIN", "FAMILY_ADMIN", "DOCTOR")
+                        // 养生建议接口
+                        .requestMatchers("/api/wellness/**").permitAll()
+                        // 静态资源文件 (图片上传后的访问路径)
+                        .requestMatchers("/api/lifestyle/files/**").permitAll()
+                        .requestMatchers("/api/files/**").permitAll()
+                        // 中医体质评估接口 (允许Header认证 bypass)
+                        .requestMatchers("/api/tcm-assessment/**").permitAll()
+                        // AI 聊天接口，需要认证
+                        .requestMatchers("/api/ai/chat/**").authenticated()
                         // 其他需要认证的API接口
                         .requestMatchers("/api/**").authenticated()
                         // 其他所有请求需要认证

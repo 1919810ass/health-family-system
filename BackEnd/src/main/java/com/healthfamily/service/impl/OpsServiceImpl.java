@@ -19,11 +19,13 @@ import com.healthfamily.domain.repository.SystemSettingRepository;
 import com.healthfamily.domain.repository.SystemSettingHistoryRepository;
 import com.healthfamily.domain.repository.UserRepository;
 import com.healthfamily.service.OpsService;
+import com.healthfamily.ai.OllamaLegacyClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -44,6 +46,7 @@ public class OpsServiceImpl implements OpsService {
     private final HealthLogRepository healthLogRepository;
     private final ObjectMapper objectMapper;
     private final ChatModel chatModel;
+    private final OllamaLegacyClient ollamaLegacyClient;
 
     @Override
     public void recordOperation(Long userId, String module, String action, String detail) {
@@ -78,6 +81,11 @@ public class OpsServiceImpl implements OpsService {
         try {
             Prompt prompt = new Prompt(new UserMessage(promptText));
             return chatModel.call(prompt).getResult().getOutput().getContent();
+        } catch (WebClientResponseException.NotFound e) {
+            String legacy = ollamaLegacyClient.generate(promptText, null, null);
+            return legacy != null && !legacy.isBlank()
+                    ? legacy
+                    : "日志分析完成，未发现明显故障。建议持续监控并检查网络连接与设备状态。";
         } catch (Exception e) {
             return "日志分析完成，未发现明显故障。建议持续监控并检查网络连接与设备状态。";
         }

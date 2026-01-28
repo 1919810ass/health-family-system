@@ -2,8 +2,8 @@ package com.healthfamily.modules.recommendationv2.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.healthfamily.modules.recommendationv2.domain.Rule;
-import com.healthfamily.modules.recommendationv2.repository.RuleRepository;
+import com.healthfamily.modules.recommendationv2.domain.RuleV2;
+import com.healthfamily.modules.recommendationv2.repository.RuleV2Repository;
 import com.healthfamily.modules.recommendationv2.service.model.CandidateItem;
 import com.healthfamily.modules.recommendationv2.service.model.LogsSummary;
 import com.healthfamily.modules.recommendationv2.service.model.Preferences;
@@ -16,14 +16,14 @@ import java.util.stream.Collectors;
 
 @Service
 public class RuleEngine {
-  private final RuleRepository ruleRepository;
+  private final RuleV2Repository ruleRepository;
   private final ObjectMapper mapper = new ObjectMapper();
   private final double lambdaPenalty;
   private final double lambdaPrefer;
   private final double lambdaDistance;
   private final double lambdaAdherence;
 
-  public RuleEngine(RuleRepository ruleRepository,
+  public RuleEngine(RuleV2Repository ruleRepository,
                     @Value("${recommendation.lambda.penaltyContra}") double lambdaPenalty,
                     @Value("${recommendation.lambda.preferMatch}") double lambdaPrefer,
                     @Value("${recommendation.lambda.distance}") double lambdaDistance,
@@ -36,14 +36,14 @@ public class RuleEngine {
   }
 
   public List<CandidateItem> generate(UserProfile profile, LogsSummary summary, Preferences preferences, int maxItems) {
-    List<Rule> rules = new ArrayList<>();
-    rules.addAll(ruleRepository.findByCategoryAndStatus(Rule.Category.DIET, Rule.Status.ENABLED));
-    rules.addAll(ruleRepository.findByCategoryAndStatus(Rule.Category.SLEEP, Rule.Status.ENABLED));
-    rules.addAll(ruleRepository.findByCategoryAndStatus(Rule.Category.SPORT, Rule.Status.ENABLED));
-    rules.addAll(ruleRepository.findByCategoryAndStatus(Rule.Category.MOOD, Rule.Status.ENABLED));
-    rules.addAll(ruleRepository.findByCategoryAndStatus(Rule.Category.VITALS, Rule.Status.ENABLED));
+    List<RuleV2> rules = new ArrayList<>();
+    rules.addAll(ruleRepository.findByCategoryAndStatus(RuleV2.Category.DIET, RuleV2.Status.ENABLED));
+    rules.addAll(ruleRepository.findByCategoryAndStatus(RuleV2.Category.SLEEP, RuleV2.Status.ENABLED));
+    rules.addAll(ruleRepository.findByCategoryAndStatus(RuleV2.Category.SPORT, RuleV2.Status.ENABLED));
+    rules.addAll(ruleRepository.findByCategoryAndStatus(RuleV2.Category.MOOD, RuleV2.Status.ENABLED));
+    rules.addAll(ruleRepository.findByCategoryAndStatus(RuleV2.Category.VITALS, RuleV2.Status.ENABLED));
     List<CandidateItem> items = new ArrayList<>();
-    for (Rule r : rules) {
+    for (RuleV2 r : rules) {
       try {
         JsonNode cond = mapper.readTree(r.getConditionJson());
         if (!matches(cond, profile, summary)) continue;
@@ -73,11 +73,11 @@ public class RuleEngine {
     return dedup;
   }
 
-  public List<CandidateItem> generateByCategory(UserProfile profile, LogsSummary summary, Preferences preferences, int maxItems, Rule.Category category) {
-    List<Rule> rules = new ArrayList<>();
-    rules.addAll(ruleRepository.findByCategoryAndStatus(category, Rule.Status.ENABLED));
+  public List<CandidateItem> generateByCategory(UserProfile profile, LogsSummary summary, Preferences preferences, int maxItems, RuleV2.Category category) {
+    List<RuleV2> rules = new ArrayList<>();
+    rules.addAll(ruleRepository.findByCategoryAndStatus(category, RuleV2.Status.ENABLED));
     List<CandidateItem> items = new ArrayList<>();
-    for (Rule r : rules) {
+    for (RuleV2 r : rules) {
       try {
         JsonNode cond = mapper.readTree(r.getConditionJson());
         if (!matches(cond, profile, summary)) continue;

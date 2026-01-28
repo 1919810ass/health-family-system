@@ -183,7 +183,8 @@ import {
   User, House, DataAnalysis, Monitor, Setting, CaretTop, CaretBottom,
   UserFilled, Tickets, ChatLineRound, View, Refresh, Lightning, ArrowRight
 } from '@element-plus/icons-vue'
-import { fetchLogs, fetchLoginLogs } from '../../api/ops' // 使用现有的ops API
+import { fetchLoginLogs } from '../../api/ops'
+import { getDataReports, getUserActivityStats } from '../../api/admin'
 
 const router = useRouter()
 
@@ -191,48 +192,48 @@ const router = useRouter()
 const metrics = ref([
   {
     title: '总用户数',
-    value: '1,234',
-    trend: 5.2,
+    value: '0',
+    trend: 0,
     trendText: '较上周',
     icon: User,
     color: '#409EFF'
   },
   {
     title: '活跃用户',
-    value: '892',
-    trend: 3.1,
+    value: '0',
+    trend: 0,
     trendText: '较上周',
     icon: UserFilled,
     color: '#67C23A'
   },
   {
     title: '家庭总数',
-    value: '345',
-    trend: 8.7,
+    value: '0',
+    trend: 0,
     trendText: '较上周',
     icon: House,
     color: '#E6A23C'
   },
   {
     title: '健康日志',
-    value: '2,456',
-    trend: 12.3,
+    value: '0',
+    trend: 0,
     trendText: '较上周',
     icon: Tickets,
     color: '#F56C6C'
   },
   {
     title: '医生数量',
-    value: '42',
-    trend: 2.5,
+    value: '0',
+    trend: 0,
     trendText: '较上周',
     icon: ChatLineRound,
     color: '#909399'
   },
   {
     title: '今日访问',
-    value: '1,876',
-    trend: -1.2,
+    value: '0',
+    trend: 0,
     trendText: '较上周',
     icon: View,
     color: '#409EFF'
@@ -268,17 +269,80 @@ onMounted(async () => {
 
 // 加载仪表板数据
 const loadDashboardData = async () => {
+  loading.value.activities = true
   try {
-    // 这里可以调用实际的API来获取仪表板数据
-    // 目前使用模拟数据
-    loading.value.activities = true
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    loading.value.activities = false
+    const [reportRes, activityRes] = await Promise.all([
+      getDataReports(),
+      getUserActivityStats()
+    ])
+    const report = reportRes?.data || {}
+    const activity = activityRes?.data || {}
+    const dailyActive = activity.dailyActiveUsers || 0
+    const weeklyActive = activity.weeklyActiveUsers || dailyActive || 0
+    const todayVisits = activity.todayVisits || 0
+
+    metrics.value = [
+      {
+        title: '总用户数',
+        value: formatNumber(report.totalUsers || 0),
+        trend: 0,
+        trendText: '较上周',
+        icon: User,
+        color: '#409EFF'
+      },
+      {
+        title: '活跃用户',
+        value: formatNumber(weeklyActive),
+        trend: 0,
+        trendText: '较上周',
+        icon: UserFilled,
+        color: '#67C23A'
+      },
+      {
+        title: '家庭总数',
+        value: formatNumber(report.totalFamilies || 0),
+        trend: 0,
+        trendText: '较上周',
+        icon: House,
+        color: '#E6A23C'
+      },
+      {
+        title: '健康日志',
+        value: formatNumber(report.totalHealthLogs || 0),
+        trend: 0,
+        trendText: '较上周',
+        icon: Tickets,
+        color: '#F56C6C'
+      },
+      {
+        title: '医生数量',
+        value: formatNumber(report.totalDoctors || 0),
+        trend: 0,
+        trendText: '较上周',
+        icon: ChatLineRound,
+        color: '#909399'
+      },
+      {
+        title: '今日访问',
+        value: formatNumber(todayVisits),
+        trend: 0,
+        trendText: '较上周',
+        icon: View,
+        color: '#409EFF'
+      }
+    ]
   } catch (error) {
     ElMessage.error('加载仪表板数据失败')
+  } finally {
     loading.value.activities = false
   }
+}
+
+const formatNumber = (value) => {
+  if (value === null || value === undefined) return '0'
+  const num = Number(value)
+  if (Number.isNaN(num)) return String(value)
+  return num.toLocaleString()
 }
 
 // 跳转到指定页面
@@ -289,33 +353,32 @@ const goTo = (path) => {
 // 加载登录日志
 const loadLoginLogs = async () => {
   try {
-    loading.value.activities = true;
+    loading.value.activities = true
     const response = await fetchLoginLogs({
       page: currentPage.value - 1,
       size: pageSize.value
-    });
+    })
     
-    loginLogs.value = response.data.content || [];
-    totalLogs.value = response.data.totalElements || 0;
+    loginLogs.value = response.data.content || []
+    totalLogs.value = response.data.totalElements || 0
   } catch (error) {
-    ElMessage.error('加载登录日志失败');
-    console.error('加载登录日志失败:', error);
+    ElMessage.error('加载登录日志失败')
   } finally {
-    loading.value.activities = false;
+    loading.value.activities = false
   }
 }
 
 // 处理分页大小变化
 const handleSizeChange = (size) => {
-  pageSize.value = size;
+  pageSize.value = size
   currentPage.value = 1; // 重置到第一页
-  loadLoginLogs();
+  loadLoginLogs()
 }
 
 // 处理当前页变化
 const handleCurrentChange = (page) => {
-  currentPage.value = page;
-  loadLoginLogs();
+  currentPage.value = page
+  loadLoginLogs()
 }
 
 // 根据角色获取标签类型
@@ -604,6 +667,62 @@ const formatRole = (role) => {
             transform: translateX(4px);
           }
         }
+      }
+
+      :deep(.action-btn.el-button--success.is-plain) {
+        background: #22c55e;
+        color: #ffffff;
+      }
+
+      :deep(.action-btn.el-button--success.is-plain .el-icon),
+      :deep(.action-btn.el-button--success.is-plain .arrow) {
+        color: #ffffff;
+      }
+
+      :deep(.action-btn.el-button--success.is-plain:hover) {
+        background: #16a34a;
+      }
+
+      :deep(.action-btn.el-button--primary.is-plain) {
+        background: #3b82f6;
+        color: #ffffff;
+      }
+
+      :deep(.action-btn.el-button--primary.is-plain .el-icon),
+      :deep(.action-btn.el-button--primary.is-plain .arrow) {
+        color: #ffffff;
+      }
+
+      :deep(.action-btn.el-button--primary.is-plain:hover) {
+        background: #2563eb;
+      }
+
+      :deep(.action-btn.el-button--warning.is-plain) {
+        background: #f59e0b;
+        color: #ffffff;
+      }
+
+      :deep(.action-btn.el-button--warning.is-plain .el-icon),
+      :deep(.action-btn.el-button--warning.is-plain .arrow) {
+        color: #ffffff;
+      }
+
+      :deep(.action-btn.el-button--warning.is-plain:hover) {
+        background: #d97706;
+      }
+
+      :deep(.action-btn.el-button--info.is-plain) {
+        background: #64748b;
+        color: #ffffff;
+      }
+
+      :deep(.action-btn.el-button--info.is-plain .el-icon),
+      :deep(.action-btn.el-button--info.is-plain .arrow) {
+        color: #ffffff;
+      }
+
+      :deep(.action-btn.el-button--info.is-plain:hover) {
+        background: #475569;
       }
     }
   }

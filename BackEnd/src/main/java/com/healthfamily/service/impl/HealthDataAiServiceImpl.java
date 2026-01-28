@@ -10,12 +10,14 @@ import com.healthfamily.domain.repository.HealthThresholdRepository;
 import com.healthfamily.domain.repository.ProfileRepository;
 import com.healthfamily.domain.repository.UserRepository;
 import com.healthfamily.service.HealthDataAiService;
+import com.healthfamily.ai.OllamaLegacyClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -35,6 +37,7 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
     private final ProfileRepository profileRepository;
     private final HealthThresholdRepository thresholdRepository;
     private final UserRepository userRepository;
+    private final OllamaLegacyClient ollamaLegacyClient;
 
     // 数据范围定义（正常值范围）
     private static final Map<String, Range> NORMAL_RANGES = Map.of(
@@ -366,10 +369,7 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
                     }
                     """;
 
-            Prompt aiPrompt = new Prompt(prompt);
-            ChatClient client = chatClientBuilder.build();
-            var response = client.prompt(aiPrompt).call();
-            String content = response.content();
+            String content = callChatWithFallback(prompt);
             
             if (content == null || content.isEmpty()) {
                 return Map.of("error", "AI未返回内容");
@@ -427,9 +427,7 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
                     }
                     如果是血压，value请保持"120/80"格式；其他数值保持数字。
                     """, text);
-            ChatClient client = chatClientBuilder.build();
-            var resp = client.prompt(new Prompt(prompt)).call();
-            String json = extractJsonFromResponse(resp.content());
+            String json = extractJsonFromResponse(callChatWithFallback(prompt));
             return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             // 降级处理：尝试使用简单正则提取（仅支持单一数据，或尽力解析）
@@ -453,9 +451,7 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
                       "quality": "优/良/一般/差"
                     }
                     """, text);
-            ChatClient client = chatClientBuilder.build();
-            var resp = client.prompt(new Prompt(prompt)).call();
-            String json = extractJsonFromResponse(resp.content());
+            String json = extractJsonFromResponse(callChatWithFallback(prompt));
             return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             Map<String, Object> r = new HashMap<>();
@@ -490,9 +486,7 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
                       "distanceKm": 可选数值
                     }
                     """, text);
-            ChatClient client = chatClientBuilder.build();
-            var resp = client.prompt(new Prompt(prompt)).call();
-            String json = extractJsonFromResponse(resp.content());
+            String json = extractJsonFromResponse(callChatWithFallback(prompt));
             return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             Map<String, Object> r = new HashMap<>();
@@ -522,9 +516,7 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
                       "note": "触发事件或描述"
                     }
                     """, text);
-            ChatClient client = chatClientBuilder.build();
-            var resp = client.prompt(new Prompt(prompt)).call();
-            String json = extractJsonFromResponse(resp.content());
+            String json = extractJsonFromResponse(callChatWithFallback(prompt));
             return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             Map<String, Object> r = new HashMap<>();
@@ -567,10 +559,7 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
                     }
                     """, voiceText);
 
-            Prompt aiPrompt = new Prompt(prompt);
-            ChatClient client = chatClientBuilder.build();
-            var response = client.prompt(aiPrompt).call();
-            String content = response.content();
+            String content = callChatWithFallback(prompt);
             
             if (content == null || content.isEmpty()) {
                 // 如果AI解析失败，尝试简单的正则匹配
@@ -625,9 +614,7 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
                       "totalCalories": 数值
                     }
                     """, text);
-            ChatClient client = chatClientBuilder.build();
-            var response = client.prompt(new Prompt(prompt)).call();
-            String content = response.content();
+            String content = callChatWithFallback(prompt);
             String json = extractJsonFromResponse(content);
             Map<String, Object> data = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
             Object itemsObj = data.getOrDefault("items", List.of());
@@ -792,6 +779,16 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
             return content.substring(start, end + 1);
         }
         return content;
+    }
+
+    private String callChatWithFallback(String prompt) {
+        try {
+            ChatClient client = chatClientBuilder.build();
+            var response = client.prompt(new Prompt(prompt)).call();
+            return response.content();
+        } catch (WebClientResponseException.NotFound ex) {
+            return ollamaLegacyClient.generate(prompt, null, null);
+        }
     }
 
     private static class Range {

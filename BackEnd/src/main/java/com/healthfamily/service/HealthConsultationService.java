@@ -4,6 +4,7 @@ import com.healthfamily.web.dto.ConsultationRequest;
 import com.healthfamily.web.dto.ConsultationResponse;
 
 import java.util.List;
+import reactor.core.publisher.Flux;
 
 /**
  * 智能健康咨询服务
@@ -17,6 +18,8 @@ public interface HealthConsultationService {
      * @return 咨询响应
      */
     ConsultationResponse consult(Long userId, ConsultationRequest request);
+
+    Flux<String> consultStream(Long userId, ConsultationRequest request);
 
     /**
      * 获取咨询历史

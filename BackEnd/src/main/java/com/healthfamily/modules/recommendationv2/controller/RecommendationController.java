@@ -1,11 +1,11 @@
 package com.healthfamily.modules.recommendationv2.controller;
 
 import com.healthfamily.modules.recommendationv2.api.ApiResponse;
-import com.healthfamily.modules.recommendationv2.domain.Recommendation;
+import com.healthfamily.modules.recommendationv2.domain.RecommendationV2;
 import com.healthfamily.modules.recommendationv2.domain.SuggestionFeedback;
 import com.healthfamily.modules.recommendationv2.dto.GenerateParams;
 import com.healthfamily.modules.recommendationv2.dto.RecommendationResponse;
-import com.healthfamily.modules.recommendationv2.repository.RecommendationRepository;
+import com.healthfamily.modules.recommendationv2.repository.RecommendationV2Repository;
 import com.healthfamily.modules.recommendationv2.repository.SuggestionFeedbackRepository;
 import com.healthfamily.modules.recommendationv2.service.RecommendationService;
 import jakarta.validation.Valid;
@@ -22,10 +22,10 @@ import java.util.Optional;
 @RequestMapping("/api/recommendations/v2")
 public class RecommendationController {
   private final RecommendationService service;
-  private final RecommendationRepository repository;
+  private final RecommendationV2Repository repository;
   private final SuggestionFeedbackRepository feedbackRepository;
 
-  public RecommendationController(RecommendationService service, RecommendationRepository repository, SuggestionFeedbackRepository feedbackRepository) {
+  public RecommendationController(RecommendationService service, RecommendationV2Repository repository, SuggestionFeedbackRepository feedbackRepository) {
     this.service = service;
     this.repository = repository;
     this.feedbackRepository = feedbackRepository;
@@ -46,9 +46,9 @@ public class RecommendationController {
   public ApiResponse<Map<String,Object>> get(@PathVariable("date") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
                                               @RequestHeader(value = "X-User-Id", required = false) Long userId) {
     Long uid = userId != null ? userId : 1L;
-    Optional<Recommendation> opt = repository.findByUserIdAndDate(uid, Date.valueOf(date));
+    Optional<RecommendationV2> opt = repository.findByUserIdAndDate(uid, Date.valueOf(date));
     if (opt.isEmpty()) return ApiResponse.error(404, "not_found");
-    Recommendation r = opt.get();
+    RecommendationV2 r = opt.get();
     Map<String,Object> m = new HashMap<>();
     m.put("id", r.getId());
     m.put("itemsJson", r.getItemsJson());

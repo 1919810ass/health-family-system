@@ -1,13 +1,13 @@
 package com.healthfamily.modules.recommendationv2.service.model;
 
-import com.healthfamily.modules.recommendationv2.domain.Rule;
+import com.healthfamily.modules.recommendationv2.domain.RuleV2;
 import java.util.List;
 
 public class CandidateItem {
   private String id;
   private String title;
   private String content;
-  private Rule.Category category;
+  private RuleV2.Category category;
   private double score;
   private List<String> steps;
   private List<String> sourceTags;
@@ -20,8 +20,8 @@ public class CandidateItem {
   public void setTitle(String title) { this.title = title; }
   public String getContent() { return content; }
   public void setContent(String content) { this.content = content; }
-  public Rule.Category getCategory() { return category; }
-  public void setCategory(Rule.Category category) { this.category = category; }
+  public RuleV2.Category getCategory() { return category; }
+  public void setCategory(RuleV2.Category category) { this.category = category; }
   public double getScore() { return score; }
   public void setScore(double score) { this.score = score; }
   public List<String> getSteps() { return steps; }
