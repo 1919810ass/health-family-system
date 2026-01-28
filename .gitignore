@@ -1,7 +1,23 @@
-node_modules/ 
-target/ 
-.idea/ 
-.vscode/ 
-uploads/ 
-*.class 
-.env 
+# Ignore everything in the root by default
+/*
+
+# Explicitly allow these directories
+!/BackEnd/
+!/FrontEnd/
+!/Old/
+!/.gitignore
+
+# Ignore standard cache and temp files (even inside allowed directories)
+.env
+.DS_Store
+Thumbs.db
+*.log
+.tools/
+tmp/
+temp/
+node_modules/
+target/
+.idea/
+.vscode/
+uploads/
+*.class
