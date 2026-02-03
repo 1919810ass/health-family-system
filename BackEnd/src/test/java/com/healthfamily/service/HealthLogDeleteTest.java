@@ -2,6 +2,7 @@ package com.healthfamily.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthfamily.common.exception.BusinessException;
+import com.healthfamily.domain.constant.UserRole;
 import com.healthfamily.domain.entity.HealthLog;
 import com.healthfamily.domain.entity.User;
 import com.healthfamily.domain.repository.HealthLogRepository;
@@ -44,7 +45,13 @@ class HealthLogDeleteTest {
 
     @BeforeEach
     void setUp() {
-        user = User.builder().id(1L).username("testuser").build();
+        user = User.builder()
+                .id(1L)
+                .phone("13800000000")
+                .nickname("testuser")
+                .role(UserRole.MEMBER)
+                .status(1)
+                .build();
         healthLog = HealthLog.builder().id(100L).user(user).build();
     }
 

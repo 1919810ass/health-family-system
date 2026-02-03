@@ -9,6 +9,7 @@ import com.healthfamily.domain.entity.User;
 import com.healthfamily.domain.repository.FamilyRepository;
 import com.healthfamily.domain.repository.HealthLogRepository;
 import com.healthfamily.domain.repository.UserRepository;
+import com.healthfamily.service.HealthLogService;
 import com.healthfamily.service.LifestyleService;
 import com.healthfamily.web.dto.*;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +47,7 @@ public class LifestyleServiceImpl implements LifestyleService {
     private final FamilyRepository familyRepository;
     private final HealthLogRepository healthLogRepository;
     private final com.healthfamily.service.FoodRecognitionService foodRecognitionService;
+    private final HealthLogService healthLogService;
 
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
@@ -240,7 +244,29 @@ public class LifestyleServiceImpl implements LifestyleService {
         content.put("durationMinutes", request.durationMinutes());
         content.put("distanceKm", request.distanceKm());
         content.put("steps", request.steps());
-        content.put("note", request.note());
+        String note = request.note();
+        if (note == null || note.isBlank()) {
+            List<String> parts = new ArrayList<>();
+            String t = request.type() != null ? request.type().trim() : "";
+            if (!t.isBlank()) {
+                String lower = t.toLowerCase();
+                t = switch (lower) {
+                    case "run" -> "跑步";
+                    case "walk" -> "步行";
+                    case "swim" -> "游泳";
+                    case "bike", "cycling" -> "骑行";
+                    default -> t;
+                };
+                parts.add(t);
+            }
+            if (request.durationMinutes() != null) parts.add("时长 " + request.durationMinutes() + "分钟");
+            if (request.distanceKm() != null) parts.add("距离 " + request.distanceKm() + "公里");
+            if (request.steps() != null) parts.add("步数 " + request.steps());
+            note = String.join("；", parts);
+        } else {
+            note = note.trim();
+        }
+        content.put("note", note);
 
         HealthLog log = HealthLog.builder()
                 .user(user)
@@ -315,6 +341,149 @@ public class LifestyleServiceImpl implements LifestyleService {
         } catch (Exception e) {
             return "<p>深度睡眠不足可能影响免疫力，建议规律作息与睡前减少刺激。</p>";
         }
+    }
+
+    @Override
+    @Transactional
+    public void recordMood(Long requesterId, MoodRecordRequest request) {
+        User user = userRepository.findById(request.userId() != null ? request.userId() : requesterId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        String time = resolveTime(request.time());
+        Map<String, Object> content = new HashMap<>();
+        content.put("time", time);
+        if (request.emotion() != null && !request.emotion().isBlank()) {
+            content.put("emotion", request.emotion().trim());
+        }
+        content.put("level", request.level());
+        if (request.stress() != null) {
+            content.put("stress", request.stress());
+        }
+        if (request.energy() != null) {
+            content.put("energy", request.energy());
+        }
+
+        String note = request.note();
+        if (note == null || note.isBlank()) {
+            note = buildMoodNote(request);
+        }
+        content.put("note", note);
+
+        healthLogService.createLog(
+                user.getId(),
+                new HealthLogRequest(LocalDate.now(), HealthLogType.MOOD, content, null)
+        );
+    }
+
+    @Override
+    @Transactional
+    public void recordVitals(Long requesterId, VitalsRecordRequest request) {
+        User user = userRepository.findById(request.userId() != null ? request.userId() : requesterId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        String time = resolveTime(request.time());
+        String type = request.type() != null ? request.type().trim() : "";
+        Map<String, Object> content = new HashMap<>();
+        content.put("time", time);
+        content.put("type", type);
+
+        switch (type) {
+            case "血压" -> {
+                if (request.systolic() == null || request.diastolic() == null) {
+                    throw new RuntimeException("血压数据不完整");
+                }
+                String unit = (request.unit() == null || request.unit().isBlank()) ? "mmHg" : request.unit().trim();
+                content.put("systolic", request.systolic());
+                content.put("diastolic", request.diastolic());
+                content.put("unit", unit);
+                content.put("value", null);
+                content.put("note", defaultIfBlank(request.note(), "血压 " + request.systolic() + "/" + request.diastolic() + " " + unit));
+            }
+            case "血糖" -> {
+                if (request.value() == null) {
+                    throw new RuntimeException("体征数值不能为空");
+                }
+                String unit = (request.unit() == null || request.unit().isBlank()) ? "mmol/L" : request.unit().trim();
+                content.put("bloodSugar", request.value());
+                content.put("value", request.value());
+                content.put("unit", unit);
+                content.put("note", defaultIfBlank(request.note(), "血糖 " + request.value() + " " + unit));
+            }
+            case "体温" -> {
+                if (request.value() == null) {
+                    throw new RuntimeException("体征数值不能为空");
+                }
+                String unit = (request.unit() == null || request.unit().isBlank()) ? "°C" : request.unit().trim();
+                content.put("temperature", request.value());
+                content.put("value", request.value());
+                content.put("unit", unit);
+                content.put("note", defaultIfBlank(request.note(), "体温 " + request.value() + " " + unit));
+            }
+            case "心率" -> {
+                if (request.value() == null) {
+                    throw new RuntimeException("体征数值不能为空");
+                }
+                String unit = (request.unit() == null || request.unit().isBlank()) ? "bpm" : request.unit().trim();
+                content.put("heartRate", request.value());
+                content.put("value", request.value());
+                content.put("unit", unit);
+                content.put("note", defaultIfBlank(request.note(), "心率 " + request.value() + " " + unit));
+            }
+            case "体重" -> {
+                if (request.value() == null) {
+                    throw new RuntimeException("体征数值不能为空");
+                }
+                String unit = (request.unit() == null || request.unit().isBlank()) ? "kg" : request.unit().trim();
+                content.put("weight", request.value());
+                content.put("value", request.value());
+                content.put("unit", unit);
+                content.put("note", defaultIfBlank(request.note(), "体重 " + request.value() + " " + unit));
+            }
+            default -> {
+                if (request.value() == null) {
+                    throw new RuntimeException("体征数值不能为空");
+                }
+                String unit = request.unit() != null ? request.unit().trim() : "";
+                content.put("value", request.value());
+                if (!unit.isBlank()) {
+                    content.put("unit", unit);
+                }
+                content.put("note", defaultIfBlank(request.note(), type + " " + request.value() + (unit.isBlank() ? "" : (" " + unit))));
+            }
+        }
+
+        healthLogService.createLog(
+                user.getId(),
+                new HealthLogRequest(LocalDate.now(), HealthLogType.VITALS, content, null)
+        );
+    }
+
+    private String resolveTime(String time) {
+        if (time != null && !time.isBlank()) {
+            return time.trim();
+        }
+        return LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+    }
+
+    private String buildMoodNote(MoodRecordRequest request) {
+        List<String> parts = new ArrayList<>();
+        if (request.emotion() != null && !request.emotion().isBlank()) {
+            parts.add("情绪" + request.emotion().trim());
+        }
+        parts.add("强度" + request.level() + "/5");
+        if (request.stress() != null) {
+            parts.add("压力" + request.stress() + "/10");
+        }
+        if (request.energy() != null) {
+            parts.add("精力" + request.energy() + "/10");
+        }
+        return String.join("；", parts);
+    }
+
+    private String defaultIfBlank(String value, String defaultValue) {
+        if (value == null) return defaultValue;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? defaultValue : trimmed;
     }
 
     private double extractCalories(String json) {

@@ -1,6 +1,11 @@
 <template>
   <div class="page-container" v-loading="loading">
     <div class="page-header">
+      <el-tooltip content="返回" placement="bottom">
+        <el-button circle text class="back-btn" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+        </el-button>
+      </el-tooltip>
       <div class="header-icon">
         <el-icon><Document /></el-icon>
       </div>
@@ -78,14 +83,15 @@
 
 <script setup>
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getReportDetail, getReportStatus } from '@/api/report'
-import { Document } from '@element-plus/icons-vue'
+import { Document, ArrowLeft } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
 const report = ref(null)
@@ -103,6 +109,14 @@ let pollInterval = null
 const progressValue = ref(0)
 let progressTimer = null
 const progressStageText = ref('AI正在努力分析您的报告，请稍候...')
+
+const goBack = () => {
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
+  router.push('/report')
+}
 
 const ocrData = computed(() => {
     if (!report.value || !report.value.ocrData) return null
@@ -327,6 +341,24 @@ watch(statusValue, (status) => {
 @use 'sass:color';
 @use '@/styles/variables' as vars;
 @use '@/styles/mixins' as mixins;
+
+.page-header {
+  .back-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    transition: transform 0.25s vars.$ease-spring, background 0.25s vars.$ease-spring;
+    flex-shrink: 0;
+
+    &:hover {
+      transform: translateX(-2px);
+      background: rgba(255, 255, 255, 0.85);
+    }
+  }
+}
 
 .page-container {
   padding: 24px;

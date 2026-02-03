@@ -3,6 +3,7 @@ package com.healthfamily.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthfamily.common.exception.BusinessException;
 import com.healthfamily.domain.constant.HealthLogType;
+import com.healthfamily.domain.constant.UserRole;
 import com.healthfamily.domain.entity.HealthLog;
 import com.healthfamily.domain.entity.User;
 import com.healthfamily.domain.repository.HealthLogRepository;
@@ -13,7 +14,6 @@ import com.healthfamily.web.dto.HealthLogResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,19 +36,22 @@ class HealthLogCreateTest {
     private UserRepository userRepository;
 
     @Mock
-    private ObjectMapper objectMapper;
-
-    @Mock
     private HealthDataAiService healthDataAiService;
 
-    @InjectMocks
     private HealthLogServiceImpl healthLogService;
 
     private User user;
 
     @BeforeEach
     void setUp() {
-        user = User.builder().id(1L).username("testuser").build();
+        user = User.builder()
+                .id(1L)
+                .phone("13800000000")
+                .nickname("testuser")
+                .role(UserRole.MEMBER)
+                .status(1)
+                .build();
+        healthLogService = new HealthLogServiceImpl(healthLogRepository, userRepository, new ObjectMapper(), healthDataAiService);
     }
 
     @Test
@@ -71,7 +74,7 @@ class HealthLogCreateTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         
         // Mock cleanAndNormalize
-        when(healthDataAiService.cleanAndNormalize(any(), any())).thenReturn(Map.of("value", 120.0));
+        when(healthDataAiService.cleanAndNormalize(any(), any())).thenReturn(new HashMap<>(Map.of("value", 120.0)));
         
         // Mock detectAnomaly throwing exception
         when(healthDataAiService.detectAnomaly(any(), any(), any(), any()))
@@ -105,7 +108,7 @@ class HealthLogCreateTest {
         );
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(healthDataAiService.cleanAndNormalize(any(), any())).thenReturn(Map.of("value", 120.0));
+        when(healthDataAiService.cleanAndNormalize(any(), any())).thenReturn(new HashMap<>(Map.of("value", 120.0)));
         when(healthDataAiService.detectAnomaly(any(), any(), any(), any()))
                 .thenReturn(new HealthDataAiService.AnomalyResult(false, "", "LOW", ""));
         when(healthLogRepository.save(any())).thenAnswer(invocation -> {

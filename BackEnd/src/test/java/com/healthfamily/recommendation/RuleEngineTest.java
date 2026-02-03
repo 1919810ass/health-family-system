@@ -30,7 +30,6 @@ public class RuleEngineTest {
     Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.SPORT, RuleV2.Status.ENABLED)).thenReturn(List.of());
     Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.MOOD, RuleV2.Status.ENABLED)).thenReturn(List.of());
     Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.VITALS, RuleV2.Status.ENABLED)).thenReturn(List.of());
-    Mockito.when(repo.findByCategoryAndStatus(RuleV2.Category.TCM, RuleV2.Status.ENABLED)).thenReturn(List.of());
     RuleEngine engine = new RuleEngine(repo, 0.7, 0.5, 0.2, 0.3);
     UserProfile p = new UserProfile();
     p.setTcmTags(java.util.List.of("Qi-deficiency"));

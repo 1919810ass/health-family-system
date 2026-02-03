@@ -31,6 +31,7 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
     private final FamilyRepository familyRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final HealthLogRepository healthLogRepository;
+    private final com.healthfamily.domain.repository.FamilyInteractionRepository familyInteractionRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ObjectMapper objectMapper;
@@ -247,6 +248,68 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
         return new com.healthfamily.web.dto.HomeEventsResponse(familyId, items);
     }
 
+    @Override
+    @Transactional
+    public void sendInteraction(Long requesterId, com.healthfamily.web.dto.SendInteractionRequest request) {
+        User sender = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
+        User target = userRepository.findById(request.getTargetUserId()).orElseThrow(() -> new BusinessException(40401, "目标用户不存在"));
+        Family family = familyRepository.findById(request.getFamilyId()).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
+
+        familyMemberRepository.findByFamilyAndUser(family, sender).orElseThrow(() -> new BusinessException(40301, "无权访问该家庭"));
+        familyMemberRepository.findByFamilyAndUser(family, target).orElseThrow(() -> new BusinessException(40301, "目标用户不在该家庭中"));
+
+        if (requesterId.equals(request.getTargetUserId())) {
+            throw new BusinessException(40001, "不能对自己进行互动");
+        }
+
+        com.healthfamily.domain.entity.FamilyInteraction interaction = com.healthfamily.domain.entity.FamilyInteraction.builder()
+                .senderId(requesterId)
+                .targetUserId(request.getTargetUserId())
+                .familyId(request.getFamilyId())
+                .type(request.getType())
+                .content(request.getContent())
+                .createdAt(java.time.LocalDateTime.now())
+                .isRead(false)
+                .build();
+
+        familyInteractionRepository.save(interaction);
+    }
+
+    @Override
+    public List<com.healthfamily.web.dto.FamilyInteractionDto> getRecentInteractions(Long requesterId, Long familyId) {
+        Family family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
+        User requester = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
+        familyMemberRepository.findByFamilyAndUser(family, requester).orElseThrow(() -> new BusinessException(40301, "无权访问该家庭"));
+
+        // 获取最近7天的互动
+        java.time.LocalDateTime start = java.time.LocalDateTime.now().minusDays(7);
+        List<com.healthfamily.domain.entity.FamilyInteraction> interactions = familyInteractionRepository.findByFamilyIdAndCreatedAtAfter(familyId, start);
+
+        // 按时间倒序
+        interactions.sort(Comparator.comparing(com.healthfamily.domain.entity.FamilyInteraction::getCreatedAt).reversed());
+
+        return interactions.stream().map(i -> {
+            User sender = userRepository.findById(i.getSenderId()).orElse(null);
+            User target = userRepository.findById(i.getTargetUserId()).orElse(null);
+
+            String senderName = sender != null ? sender.getNickname() : "未知用户";
+            String senderAvatar = sender != null ? readAvatar(sender.getId()) : null;
+            String targetName = target != null ? target.getNickname() : "未知用户";
+
+            return com.healthfamily.web.dto.FamilyInteractionDto.builder()
+                    .id(i.getId())
+                    .senderId(i.getSenderId())
+                    .senderName(senderName)
+                    .senderAvatar(senderAvatar)
+                    .targetUserId(i.getTargetUserId())
+                    .targetUserName(targetName)
+                    .type(i.getType())
+                    .content(i.getContent())
+                    .createdAt(i.getCreatedAt())
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
     private List<MetricDetail> getRecentMetrics(Long userId) {
         List<HealthLog> logs = healthLogRepository.findByUser_IdAndTypeOrderByLogDateDesc(
                 userId, com.healthfamily.domain.constant.HealthLogType.VITALS);
@@ -339,18 +402,8 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
     }
 
     private boolean canViewMemberData(Long requesterId, Long targetUserId) {
-        if (Objects.equals(requesterId, targetUserId)) return true;
-        Optional<Profile> profile = profileRepository.findById(targetUserId);
-        if (profile.isEmpty()) return false;
-        String prefs = profile.get().getPreferences();
-        if (prefs == null || prefs.isBlank()) return false;
-        try {
-            Map<?, ?> map = objectMapper.readValue(prefs, Map.class);
-            Object share = map.get("shareToFamily");
-            return share instanceof Boolean ? (Boolean) share : false;
-        } catch (Exception e) {
-            return false;
-        }
+        // 家庭健康协作模块要求全员可见，因此默认允许查看同一家庭内的成员数据
+        return true;
     }
 
     private String buildSummary(Map<String, Object> content, Boolean abnormal, String typeName) {

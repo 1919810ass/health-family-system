@@ -101,6 +101,22 @@ public class LifestyleController {
         return Result.success();
     }
 
+    @PostMapping("/mood/record")
+    public Result<Void> recordMood(@AuthenticationPrincipal UserPrincipal principal,
+                                   @RequestBody @Valid MoodRecordRequest request) {
+        Long userId = principal.getUserId();
+        lifestyleService.recordMood(userId, request);
+        return Result.success();
+    }
+
+    @PostMapping("/vitals/record")
+    public Result<Void> recordVitals(@AuthenticationPrincipal UserPrincipal principal,
+                                     @RequestBody @Valid VitalsRecordRequest request) {
+        Long userId = principal.getUserId();
+        lifestyleService.recordVitals(userId, request);
+        return Result.success();
+    }
+
     @GetMapping("/sleep/analyze")
     public Result<String> analyzeSleep(@AuthenticationPrincipal UserPrincipal principal) {
         Long userId = principal.getUserId();

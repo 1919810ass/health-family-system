@@ -90,6 +90,7 @@ import { ElMessage } from 'element-plus'
 import * as assessmentApi from '@/api/assessment'
 import { getToken } from '@/utils/auth'
 import MarkdownIt from 'markdown-it'
+import DOMPurify from 'dompurify'
 import * as echarts from 'echarts'
 import dayjs from 'dayjs'
 import { getConstitutionName, getConstitutionColor } from '@/utils/tcm-constants'
@@ -100,10 +101,50 @@ const loading = ref(false)
 const trendData = ref(null)
 const streamingInsights = ref('')
 const isStreaming = ref(false)
-const md = new MarkdownIt()
+const md = new MarkdownIt({
+  html: true,
+  breaks: true,
+  linkify: true
+})
+
+const replaceConstitutionCodes = (text) => {
+  if (!text) return ''
+  let result = text
+  const codes = [
+    'BALANCED', 'QI_DEFICIENCY', 'YANG_DEFICIENCY', 'YIN_DEFICIENCY', 
+    'PHLEGM_DAMPNESS', 'DAMP_HEAT', 'BLOOD_STASIS', 'QI_STAGNATION', 'SPECIAL_DIATHESIS'
+  ]
+  codes.forEach(code => {
+    const name = getConstitutionName(code)
+    result = result.replace(new RegExp(code, 'g'), name)
+  })
+  return result
+}
 
 const renderMarkdown = (text) => {
-  return md.render(text || '')
+  if (!text) return ''
+  // 1. Replace constitution codes with Chinese names
+  let processed = replaceConstitutionCodes(text)
+  
+  // 2. Pre-processing for Markdown structure
+  
+  // Ensure headers have a newline before them (unless at start) and a space after #
+  // First, ensure space after #: "###Title" -> "### Title"
+  processed = processed.replace(/(#{1,6})([^#\s])/g, '$1 $2')
+  // Second, ensure newline before headers: "End### Title" -> "End\n\n### Title"
+  processed = processed.replace(/([^\n])\s*(#{1,6}\s)/g, '$1\n\n$2')
+  
+  // Ensure lists have a newline before them
+  // "Text1. Item" -> "Text\n1. Item"
+  processed = processed.replace(/([^\n])\s*(\d+\.\s)/g, '$1\n$2')
+  // "Text- Item" -> "Text\n- Item"
+  processed = processed.replace(/([^\n])\s*(-\s)/g, '$1\n$2')
+  
+  // 3. Render Markdown
+  const html = md.render(processed)
+  
+  // 4. Sanitize HTML
+  return DOMPurify.sanitize(html)
 }
 
 const goBack = () => {
@@ -356,22 +397,41 @@ onMounted(() => {
     
     .streaming-content {
         padding: 16px;
-        font-size: 14px;
-        line-height: 1.6;
+        font-size: 15px;
+        line-height: 1.8;
         color: vars.$text-main-color;
         
-        :deep(h3) {
-            margin-top: 16px;
-            margin-bottom: 8px;
-            font-size: 16px;
+        :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
+            margin-top: 20px;
+            margin-bottom: 12px;
+            font-weight: 600;
             color: vars.$primary-color;
+            line-height: 1.4;
             &:first-child { margin-top: 0; }
         }
+
+        :deep(h3) { font-size: 18px; }
+        :deep(h4) { font-size: 16px; }
         
-        :deep(p) { margin-bottom: 8px; }
-        :deep(ul) { padding-left: 20px; margin-bottom: 8px; }
-        :deep(li) { margin-bottom: 4px; }
-        :deep(strong) { color: vars.$warning-color; }
+        :deep(p) { margin-bottom: 12px; text-align: justify; }
+        :deep(ul), :deep(ol) { padding-left: 24px; margin-bottom: 12px; }
+        :deep(li) { margin-bottom: 6px; }
+        :deep(strong) { color: vars.$primary-color; font-weight: 600; }
+        :deep(blockquote) {
+            margin: 16px 0;
+            padding: 8px 16px;
+            background-color: rgba(vars.$primary-color, 0.05);
+            border-left: 4px solid vars.$primary-color;
+            border-radius: 4px;
+            color: vars.$text-secondary-color;
+        }
+        :deep(code) {
+            background-color: rgba(0,0,0,0.05);
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
     }
     
     .typing-cursor {

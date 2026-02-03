@@ -174,7 +174,7 @@ const isAdminMode = computed(() => userStore.profile?.role === 'ADMIN')
 
 const hasReminderPermission = computed(() => {
   if (!userStore.profile) return false
-  return ['ADMIN', 'DOCTOR', 'FAMILY_ADMIN'].includes(userStore.profile.role)
+  return ['ADMIN', 'DOCTOR', 'FAMILY_ADMIN', 'MEMBER'].includes(userStore.profile.role)
 })
 
 const isReminderVisible = computed(() => userStore.profile && hasReminderPermission.value)

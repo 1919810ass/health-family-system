@@ -38,6 +38,16 @@ public class SolarTermUtil {
         return "未知";
     }
 
+    /**
+     * 判断指定日期是否正好是节气交接日
+     */
+    public static boolean isSolarTermDate(LocalDate date) {
+        Date utilDate = Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        Lunar lunar = Lunar.fromDate(utilDate);
+        String term = lunar.getJieQi();
+        return term != null && !term.isEmpty();
+    }
+
     public static void main(String[] args) {
         System.out.println("2024-01-05: " + getSolarTerm(LocalDate.of(2024, 1, 5)));
         System.out.println("2024-01-06: " + getSolarTerm(LocalDate.of(2024, 1, 6)));

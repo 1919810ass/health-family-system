@@ -2,7 +2,12 @@ package com.healthfamily.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthfamily.domain.repository.HealthLogRepository;
+import com.healthfamily.domain.repository.HealthThresholdRepository;
 import com.healthfamily.domain.repository.ProfileRepository;
+import com.healthfamily.domain.repository.UserRepository;
+import com.healthfamily.domain.entity.User;
+import com.healthfamily.domain.constant.UserRole;
+import com.healthfamily.ai.OllamaLegacyClient;
 import com.healthfamily.service.HealthDataAiService.AnomalyResult;
 import com.healthfamily.service.impl.HealthDataAiServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +39,15 @@ class HealthDataAiServiceTest {
 
     @Mock
     private ProfileRepository profileRepository;
+
+    @Mock
+    private HealthThresholdRepository thresholdRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private OllamaLegacyClient ollamaLegacyClient;
 
     @InjectMocks
     private HealthDataAiServiceImpl healthDataAiService;
@@ -122,6 +137,10 @@ class HealthDataAiServiceTest {
 
         when(healthLogRepository.findByUser_IdAndTypeOrderByLogDateDesc(any(), any()))
                 .thenReturn(Collections.emptyList());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(
+                User.builder().id(userId).phone("13800000000").nickname("u").role(UserRole.MEMBER).status(1).build()
+        ));
+        when(thresholdRepository.findByUserAndMetric(any(), any())).thenReturn(Optional.empty());
 
         // Act
         AnomalyResult result = healthDataAiService.detectAnomaly(userId, dataType, value, null);

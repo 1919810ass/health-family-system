@@ -210,10 +210,88 @@ public class AiReportAnalysisServiceImpl implements ReportAnalysisService {
         if (summary == null || summary.isBlank() || "Analysis completed.".equalsIgnoreCase(summary)) {
             summary = buildSummary(details);
         }
+        
+        // Enhanced AI Interpretation: If summary is generic or placeholder, try to generate a real medical interpretation using Text LLM
+        if (items != null && !items.isEmpty() && isGenericSummary(summary)) {
+            log.info("Summary is generic, triggering Text LLM for deeper interpretation...");
+            Map<String, Object> aiInterpretation = generateInterpretation(items);
+            if (aiInterpretation != null) {
+                if (aiInterpretation.containsKey("summary")) {
+                    String aiSummary = (String) aiInterpretation.get("summary");
+                    if (aiSummary != null && !aiSummary.isBlank()) {
+                        summary = aiSummary;
+                    }
+                }
+                if (aiInterpretation.containsKey("details")) {
+                    Object aiDetailsObj = aiInterpretation.get("details");
+                    if (aiDetailsObj instanceof Map<?, ?> aiDetailsMap) {
+                        for (Map.Entry<?, ?> entry : aiDetailsMap.entrySet()) {
+                            String key = String.valueOf(entry.getKey());
+                            String val = String.valueOf(entry.getValue());
+                            // Override or append? Let's override for now as the user wants interpretation
+                            // But maybe keep the "Normal/High" status if AI doesn't provide it?
+                            // AI is instructed to provide "Analysis result".
+                            if (val != null && !val.isBlank()) {
+                                details.put(key, val);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         interpretation.put("summary", summary == null || summary.isBlank() ? "分析完成。" : summary);
         interpretation.put("details", details);
         return interpretation;
+    }
+
+    private boolean isGenericSummary(String summary) {
+        if (summary == null || summary.isBlank()) return true;
+        if (summary.contains("基于数值的总体健康状况摘要")) return true;
+        if (summary.contains("分析完成")) return true;
+        if (summary.contains("未见明显异常") && summary.length() < 20) return true; // Simple rule-based summary
+        return false;
+    }
+
+    private Map<String, Object> generateInterpretation(Map<String, String> items) {
+        try {
+            String itemsJson = objectMapper.writeValueAsString(items);
+            String systemPrompt = """
+                你是一位经验丰富的全科医生。请根据用户的体检报告数据，提供专业的健康解读。
+                
+                你的任务：
+                1. 分析各项指标，判断是否异常。
+                2. 生成一段通俗易懂的"总体评价"（summary），概括用户的健康状况，指出主要问题（如有）。
+                3. 对关键指标（特别是异常指标）提供"详细解读"（details）。
+                
+                输出必须是严格的JSON格式：
+                {
+                  "summary": "这里写总体评价...",
+                  "details": {
+                    "项目名称": "这里写该项目的解读，例如：'偏高。可能与...有关，建议...'"
+                  }
+                }
+                
+                请确保JSON格式合法，不要包含Markdown标记。
+                """;
+            
+            String userPrompt = "请解读以下体检数据：\n" + itemsJson;
+            
+            String response = callText(systemPrompt, userPrompt);
+            return parseJsonResponse(response);
+        } catch (Exception e) {
+            log.error("Failed to generate text interpretation", e);
+            return null;
+        }
+    }
+
+    private String callText(String systemPrompt, String userPrompt) {
+        return chatClientBuilder.build()
+                .prompt()
+                .system(systemPrompt)
+                .user(userPrompt)
+                .call()
+                .content();
     }
 
     private Map<String, String> extractItems(Map<String, Object> ocrData) {

@@ -31,7 +31,7 @@ public class UserControllerAuthTest {
     @Test
     void getProfile_FallbackHeader_WhenPrincipalNull() throws Exception {
         when(userService.getProfile(anyLong()))
-                .thenReturn(new UserProfileResponse(4L, "13800000000", "Tester", null, null, java.util.Map.of()));
+                .thenReturn(new UserProfileResponse(4L, "13800000000", "Tester", null, null, "MEMBER", java.util.Map.of()));
 
         mockMvc.perform(get("/api/user/profile")
                         .header("X-User-Id", "4")

@@ -118,7 +118,17 @@
       align-center
     >
       <el-form :model="reminderForm" label-position="top" class="custom-form">
-        <!-- 分配给字段已移除，个人提醒默认分配给自己 -->
+        <el-form-item label="分配给">
+          <el-select v-model="reminderForm.assignedToUserId" placeholder="选择家庭成员（可选）" clearable style="width: 100%">
+            <template #prefix><el-icon><User /></el-icon></template>
+            <el-option 
+              v-for="member in familyMembers" 
+              :key="member.id" 
+              :label="member.nickname" 
+              :value="member.id" 
+            />
+          </el-select>
+        </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="提醒类型" required>
@@ -207,8 +217,11 @@ import {
   getUserReminders,
   updateReminderStatus,
   deleteReminder as deleteReminderApi,
-  generateSmartReminders as generateSmartRemindersApi
-} from '../../api/reminder'
+  generateSmartReminders as generateSmartRemindersApi,
+  generateSmartRemindersForUser
+} from '@/api/reminder'
+import { getFamilyMembers } from '@/api/family'
+import { listFamilies } from '@/api/user'
 import dayjs from 'dayjs'
 
 const activeTab = ref('all')
@@ -216,11 +229,19 @@ const loading = ref(false)
 const reminders = ref([])
 const showCreateDialog = ref(false)
 
-const openCreateDialog = () => {
+const openCreateDialog = async () => {
+  // 打开对话框前先重置表单
   resetForm()
+  // 然后加载家庭成员
+  await loadFamilyMembers()
   showCreateDialog.value = true
 }
 const creating = ref(false)
+
+const familyMembers = ref([])
+const loadingMembers = ref(false)
+
+const currentFamilyId = ref(null)
 
 const reminderForm = ref({
   type: 'MEDICATION',
@@ -254,13 +275,70 @@ const getPriorityClass = (priority) => {
   return map[priority] || 'priority-medium'
 }
 
+const loadFamilyMembers = async () => {
+  loadingMembers.value = true
+  try {
+    // 尝试从localStorage获取当前家庭ID
+    let familyId = localStorage.getItem('current_family_id')
+    
+    // 如果localStorage中没有家庭ID，尝试从用户API获取
+    if (!familyId) {
+      const familyRes = await listFamilies()
+      if (familyRes && familyRes.code === 0 && familyRes.data && familyRes.data.length > 0) {
+        // 使用第一个家庭作为当前家庭
+        familyId = familyRes.data[0].id
+        localStorage.setItem('current_family_id', familyId)
+      }
+    }
+    
+    if (!familyId) {
+      ElMessage.warning('您还没有加入任何家庭，请先加入或创建家庭')
+      familyMembers.value = []
+      return
+    }
+    
+    currentFamilyId.value = familyId
+    
+    const res = await getFamilyMembers(familyId)
+    if (res && res.code === 0 && res.data) {
+      // 映射并过滤成员数据，确保id(userId)和nickname存在
+      const rawMembers = res.data || []
+      familyMembers.value = rawMembers
+        .filter(m => m && m.userId)
+        .map(m => ({
+          ...m,
+          id: m.userId, // 使用userId作为唯一标识和值
+          nickname: m.nickname || m.name || m.phone || '家庭成员' // 确保有显示名称
+        }))
+      
+      console.log('Loaded family members:', familyMembers.value);
+      // 检查是否有家庭成员
+      if (familyMembers.value.length === 0) {
+        ElMessage.info('当前家庭暂无成员')
+      }
+    } else {
+      familyMembers.value = []
+      ElMessage.warning('当前家庭暂无成员')
+    }
+  } catch (error) {
+    console.error('加载家庭成员失败:', error)
+    const errorMsg = error?.response?.data?.message || error?.message || '加载家庭成员失败'
+    ElMessage.error(errorMsg)
+    familyMembers.value = []
+  } finally {
+    loadingMembers.value = false
+  }
+}
+
 const loadReminders = async () => {
   loading.value = true
   try {
     const params = activeTab.value === 'all' ? {} : { status: activeTab.value }
     
-    // 个人提醒只关注当前用户，不需要传入familyId
-    // 如果传入familyId，后端会切换到家庭看板模式
+    // 如果有当前家庭ID，传入familyId参数以便获取整个家庭的提醒
+    if (currentFamilyId.value) {
+      params.familyId = currentFamilyId.value
+    }
     
     const res = await getUserReminders(params)
     if (res && res.code === 0 && res.data) {
@@ -278,7 +356,9 @@ const loadReminders = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 先加载家庭信息，获取currentFamilyId
+  await loadFamilyMembers()
   loadReminders()
 })
 
@@ -350,28 +430,56 @@ const deleteReminder = async (id) => {
   }
 }
 
+const showSmartReminderDialog = ref(false);
+const selectedUserForSmartReminder = ref(null);
+
 const generateSmartReminders = async () => {
-  loading.value = true
+  // 先加载家庭成员，然后打开选择用户对话框
+  await loadFamilyMembers();
+  
+  // 检查是否有家庭成员
+  if (familyMembers.value.length === 0) {
+    ElMessage.warning('当前家庭暂无其他成员，无法为特定用户生成智能提醒');
+    return;
+  }
+  
+  showSmartReminderDialog.value = true;
+  // 重置选择的用户
+  selectedUserForSmartReminder.value = null;
+};
+
+const generateSmartRemindersForSelectedUser = async () => {
+  if (!selectedUserForSmartReminder.value) {
+    ElMessage.warning('请选择要生成智能提醒的用户');
+    return;
+  }
+  
+  loading.value = true;
   try {
-    const res = await generateSmartRemindersApi()
+    const userId = selectedUserForSmartReminder.value;
+    console.log('Generating smart reminders for user:', userId);
+    const res = await generateSmartRemindersForUser(userId);
     if (res && res.code === 0 && res.data) {
-      const count = res.data.length || 0
+      const count = res.data.length || 0;
       if (count > 0) {
-        ElMessage.success(`成功生成 ${count} 条智能提醒`)
+        ElMessage.success(`成功为用户生成 ${count} 条智能提醒`);
       } else {
-        ElMessage.info('暂无可生成的智能提醒')
+        ElMessage.info('暂无可生成的智能提醒');
       }
-      loadReminders()
+      loadReminders();
+      showSmartReminderDialog.value = false;
+      selectedUserForSmartReminder.value = null;
     } else {
-      ElMessage.warning(res?.message || '生成智能提醒失败')
+      ElMessage.warning(res?.message || '生成智能提醒失败');
     }
   } catch (error) {
-    console.error('生成智能提醒失败:', error)
-    ElMessage.error('生成智能提醒失败')
+    console.error('生成智能提醒失败:', error);
+    const errorMsg = error?.response?.data?.message || error?.message || '生成智能提醒失败';
+    ElMessage.error(errorMsg);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const resetForm = () => {
   reminderForm.value = {

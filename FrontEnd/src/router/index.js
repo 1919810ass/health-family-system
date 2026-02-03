@@ -195,7 +195,7 @@ const routes = [
         component: () => import('../views/Reminder/index.vue'),
         meta: {
           title: '健康提醒',
-          roles: ['ADMIN', 'DOCTOR', 'FAMILY_ADMIN'],
+          roles: ['ADMIN', 'DOCTOR', 'FAMILY_ADMIN', 'MEMBER'],
         },
       },
       {

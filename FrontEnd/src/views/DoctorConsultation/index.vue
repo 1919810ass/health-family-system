@@ -686,6 +686,7 @@ onMounted(async () => {
       flex: 1;
       display: flex;
       flex-direction: column;
+      min-height: 0;
       background: transparent;
     }
   }
@@ -747,6 +748,7 @@ onMounted(async () => {
   // 消息容器
   .messages-container {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 24px;
     display: flex;

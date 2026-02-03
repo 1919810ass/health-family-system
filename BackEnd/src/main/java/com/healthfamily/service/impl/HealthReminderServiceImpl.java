@@ -127,10 +127,26 @@ public class HealthReminderServiceImpl implements HealthReminderService {
             // 过滤指定状态的提醒
             reminders = reminders.stream()
                     .filter(reminder -> reminder.getStatus() == ReminderStatus.valueOf(status))
+                    // 仅返回分配给自己的任务，或者自己创建且未分配的任务
+                    .filter(r -> {
+                        if (r.getAssignedTo() != null) {
+                            return r.getAssignedTo().getId().equals(userId);
+                        }
+                        return r.getUser().getId().equals(userId);
+                    })
                     .collect(Collectors.toList());
         } else {
             // 查询用户作为提醒拥有者或分配者的提醒
             reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByScheduledTimeAsc(userId, userId);
+            reminders = reminders.stream()
+                    // 仅返回分配给自己的任务，或者自己创建且未分配的任务
+                    .filter(r -> {
+                        if (r.getAssignedTo() != null) {
+                            return r.getAssignedTo().getId().equals(userId);
+                        }
+                        return r.getUser().getId().equals(userId);
+                    })
+                    .collect(Collectors.toList());
         }
 
         return reminders.stream()
@@ -143,10 +159,16 @@ public class HealthReminderServiceImpl implements HealthReminderService {
         // 查询用户作为提醒拥有者或分配者的提醒
         List<HealthReminder> reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByScheduledTimeAsc(userId, userId);
         
-        // 过滤 PENDING 和 SENT 状态的提醒（即待办事项）
+        // 过滤 PENDING 和 SENT 状态的提醒（即待办事项），且必须是自己的任务
         return reminders.stream()
                 .filter(reminder -> reminder.getStatus() == ReminderStatus.PENDING || 
                                   reminder.getStatus() == ReminderStatus.SENT)
+                .filter(r -> {
+                    if (r.getAssignedTo() != null) {
+                        return r.getAssignedTo().getId().equals(userId);
+                    }
+                    return r.getUser().getId().equals(userId);
+                })
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -160,34 +182,17 @@ public class HealthReminderServiceImpl implements HealthReminderService {
         User user = loadUser(userId);
         
         // 检查用户角色，家庭管理员、医生和系统管理员可以查看家庭的所有提醒
-        boolean isAdmin = user.getRole() == com.healthfamily.domain.constant.UserRole.FAMILY_ADMIN ||
-                        user.getRole() == com.healthfamily.domain.constant.UserRole.DOCTOR ||
-                        user.getRole() == com.healthfamily.domain.constant.UserRole.ADMIN;
+        // 修改：为了支持家庭协作（督促功能），允许所有家庭成员查看家庭内的所有提醒
+        boolean isFamilyMember = familyMemberRepository.findByFamilyAndUser(family, user)
+                .isPresent();
         
-        List<HealthReminder> reminders;
-        
-        if (isAdmin) {
-            // 管理员可以查看家庭中的所有提醒
-            reminders = reminderRepository.findByFamily_IdOrderByScheduledTimeAsc(familyId);
-        } else {
-            // 普通家庭成员只能查看与自己相关的提醒
-            boolean isFamilyMember = familyMemberRepository.findByFamilyAndUser(family, user)
-                    .isPresent();
-            
-            if (!isFamilyMember) {
-                throw new RuntimeException("无权访问该家庭的提醒");
-            }
-            
-            // 普通成员查看家庭中与自己相关的提醒（作为用户或被分配者）
-            reminders = reminderRepository.findByFamily_IdOrderByScheduledTimeAsc(familyId)
-                    .stream()
-                    .filter(reminder -> {
-                        boolean isForUser = reminder.getUser() != null && reminder.getUser().getId().equals(userId);
-                        boolean isAssignedToUser = reminder.getAssignedTo() != null && reminder.getAssignedTo().getId().equals(userId);
-                        return isForUser || isAssignedToUser;
-                    })
-                    .collect(Collectors.toList());
+        // 如果不是家庭成员且不是系统管理员/医生（假设医生/管理员可能有特殊权限跳过成员检查，但此处逻辑主要针对家庭上下文）
+        if (!isFamilyMember && user.getRole() != com.healthfamily.domain.constant.UserRole.ADMIN && user.getRole() != com.healthfamily.domain.constant.UserRole.DOCTOR) {
+             throw new RuntimeException("无权访问该家庭的提醒");
         }
+        
+        // 所有家庭成员都可以查看家庭中的所有提醒，以便进行协作
+        List<HealthReminder> reminders = reminderRepository.findByFamily_IdOrderByScheduledTimeAsc(familyId);
         
         return reminders.stream().map(this::toResponse).collect(Collectors.toList());
     }
@@ -198,12 +203,8 @@ public class HealthReminderServiceImpl implements HealthReminderService {
         HealthReminder reminder = reminderRepository.findById(reminderId)
                 .orElseThrow(() -> new RuntimeException("提醒不存在"));
 
-        // 检查用户是否为提醒的拥有者或分配者
-        boolean isOwner = reminder.getUser() != null && reminder.getUser().getId().equals(userId);
-        boolean isAssigned = reminder.getAssignedTo() != null && reminder.getAssignedTo().getId().equals(userId);
-        boolean isCreator = reminder.getCreator() != null && reminder.getCreator().getId().equals(userId);
-        
-        if (!isOwner && !isAssigned && !isCreator) {
+        User user = loadUser(userId);
+        if (!canManageReminder(user, reminder)) {
             throw new AccessDeniedException("无权操作");
         }
 
@@ -222,15 +223,40 @@ public class HealthReminderServiceImpl implements HealthReminderService {
         HealthReminder reminder = reminderRepository.findById(reminderId)
                 .orElseThrow(() -> new RuntimeException("提醒不存在"));
 
-        // 检查用户是否为提醒的拥有者或分配者
-        boolean isOwner = reminder.getUser() != null && reminder.getUser().getId().equals(userId);
-        boolean isAssigned = reminder.getAssignedTo() != null && reminder.getAssignedTo().getId().equals(userId);
-        
-        if (!isOwner && !isAssigned) {
-            throw new RuntimeException("无权操作");
+        User user = loadUser(userId);
+        if (!canManageReminder(user, reminder)) {
+            throw new AccessDeniedException("无权操作");
         }
 
         reminderRepository.delete(reminder);
+    }
+
+    private boolean canManageReminder(User user, HealthReminder reminder) {
+        if (user == null || reminder == null) return false;
+
+        Long userId = user.getId();
+
+        boolean isOwner = reminder.getUser() != null && Objects.equals(reminder.getUser().getId(), userId);
+        boolean isAssigned = reminder.getAssignedTo() != null && Objects.equals(reminder.getAssignedTo().getId(), userId);
+        boolean isCreator = reminder.getCreator() != null && Objects.equals(reminder.getCreator().getId(), userId);
+        if (isOwner || isAssigned || isCreator) return true;
+
+        if (user.getRole() == com.healthfamily.domain.constant.UserRole.ADMIN ||
+                user.getRole() == com.healthfamily.domain.constant.UserRole.DOCTOR) {
+            return true;
+        }
+
+        if (reminder.getFamily() == null) return false;
+
+        if (reminder.getFamily().getOwner() != null && Objects.equals(reminder.getFamily().getOwner().getId(), userId)) {
+            return true;
+        }
+
+        var fmOpt = familyMemberRepository.findByFamilyAndUser(reminder.getFamily(), user);
+        boolean isFamilyMember = fmOpt.isPresent();
+        boolean isFamilyMemberAdmin = fmOpt.map(fm -> Boolean.TRUE.equals(fm.getAdmin())).orElse(false);
+        if (isFamilyMemberAdmin) return true;
+        return user.getRole() == com.healthfamily.domain.constant.UserRole.FAMILY_ADMIN && isFamilyMember;
     }
 
     @Override
@@ -1062,16 +1088,16 @@ public class HealthReminderServiceImpl implements HealthReminderService {
                             .findByUser_IdAndTypeOrderByLogDateDesc(assignee.getId(), com.healthfamily.domain.constant.HealthLogType.VITALS)
                             .stream().anyMatch(l -> today.equals(l.getLogDate()));
                     if (!hasLogToday) {
-                        String promptText = String.format("请以温和口吻提醒%s：记得测量并记录老人的血压、血糖等体征数据，方便医生监测健康状况。控制在60字内。", assignee.getNickname());
+                        String promptText = String.format("请生成一条给%s的温馨提示：提醒他/她记得测量并记录血压、血糖等体征数据，方便医生监测健康状况。直接以对他说的话的口吻输出，控制在60字内。", assignee.getNickname());
                         String content;
                         try {
                             Prompt prompt = new Prompt(new UserMessage(promptText));
                             content = chatModel.call(prompt).getResult().getOutput().getContent();
                         } catch (Exception e) {
-                            content = "请记得测量并记录体征数据，便于健康监测。";
+                            content = "记得测量并记录体征数据，便于健康监测。";
                         }
                         HealthReminder reminder = HealthReminder.builder()
-                                .user(r.getUser())
+                                .user(assignee) // 设置所属用户为被提醒者
                                 .creator(r.getUser())  // 设置创建者为原始提醒的用户
                                 .assignedTo(assignee)
                                 .family(family)
@@ -1103,11 +1129,12 @@ public class HealthReminderServiceImpl implements HealthReminderService {
                 "数据：%s\n" +
                 "\n" +
                 "要求：\n" +
-                "1. 提醒用户关注异常数据\n" +
-                "2. 建议复测时间\n" +
-                "3. 提供简单的健康建议\n" +
-                "4. 语气温和、专业\n" +
-                "5. 不超过100字\n",
+                "1. 直接对用户说话（使用第二人称'您'）\n" +
+                "2. 提醒关注异常数据\n" +
+                "3. 建议复测时间\n" +
+                "4. 提供简单的健康建议\n" +
+                "5. 语气温和、专业\n" +
+                "6. 不超过100字\n",
                 healthLog.getLogDate(),
                 healthLog.getType(),
                 healthLog.getContentJson());

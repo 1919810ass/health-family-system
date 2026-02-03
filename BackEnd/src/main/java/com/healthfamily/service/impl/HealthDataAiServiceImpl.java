@@ -312,6 +312,9 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
     }
 
     private String getRangeKey(String dataType) {
+        if (NORMAL_RANGES.containsKey(dataType)) {
+            return dataType;
+        }
         return switch (dataType.toUpperCase()) {
             case "血压", "BLOOD_PRESSURE", "BP" -> "血压_收缩压"; // 简化处理
             case "血糖", "BLOOD_SUGAR", "GLUCOSE" -> "血糖_空腹";

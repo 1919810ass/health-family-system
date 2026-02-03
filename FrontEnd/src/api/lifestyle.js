@@ -8,4 +8,5 @@ export const recordExercise = (payload) => request.post('/lifestyle/exercise/rec
 export const suggestExercise = () => request.get('/lifestyle/exercise/suggest')
 export const recordSleep = (payload) => request.post('/lifestyle/sleep/record', payload)
 export const analyzeSleep = () => request.get('/lifestyle/sleep/analyze')
-
+export const recordMood = (payload) => request.post('/lifestyle/mood/record', payload)
+export const recordVitals = (payload) => request.post('/lifestyle/vitals/record', payload)

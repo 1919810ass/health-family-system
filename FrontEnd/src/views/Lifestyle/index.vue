@@ -157,16 +157,159 @@
           </el-col>
         </el-row>
       </el-tab-pane>
+
+      <el-tab-pane label="情绪管理">
+        <el-row justify="center">
+          <el-col :xs="24" :md="16" class="stagger-anim" style="--delay: 0.1s">
+            <el-card class="glass-card" shadow="hover">
+              <template #header><span class="card-title"><el-icon><ChatDotRound /></el-icon> 记录情绪</span></template>
+              <el-form :model="moodForm" label-width="120px">
+                <el-form-item label="情绪">
+                  <el-select v-model="moodForm.emotion" placeholder="选择情绪" style="width: 100%" class="glass-select">
+                    <el-option label="开心" value="开心" />
+                    <el-option label="平静" value="平静" />
+                    <el-option label="焦虑" value="焦虑" />
+                    <el-option label="低落" value="低落" />
+                    <el-option label="烦躁" value="烦躁" />
+                    <el-option label="疲惫" value="疲惫" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="强度(1-5)">
+                  <el-rate v-model="moodForm.level" :max="5" />
+                </el-form-item>
+                <el-form-item label="压力(0-10)">
+                  <el-slider v-model="moodForm.stress" :min="0" :max="10" show-input />
+                </el-form-item>
+                <el-form-item label="精力(0-10)">
+                  <el-slider v-model="moodForm.energy" :min="0" :max="10" show-input />
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="moodForm.note" type="textarea" :rows="3" placeholder="例如：工作压力大，下午有点焦虑" class="glass-input" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="moodLoading" @click="recordMoodAction" round v-particles>保存到健康日志</el-button>
+                  <el-button @click="goToLogs('mood')" round class="glass-button">去健康日志查看</el-button>
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
+
+      <el-tab-pane label="体征管理">
+        <el-row :gutter="20">
+          <el-col :xs="24" :md="12" class="stagger-anim" style="--delay: 0.1s">
+            <el-card class="glass-card" shadow="hover">
+              <template #header><span class="card-title"><el-icon><Monitor /></el-icon> 血压</span></template>
+              <el-form :model="bpForm" label-width="120px">
+                <el-form-item label="测量时间">
+                  <el-time-picker v-model="bpForm.time" format="HH:mm" value-format="HH:mm" placeholder="HH:mm" class="glass-input" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="收缩压(mmHg)">
+                  <el-input-number v-model="bpForm.systolic" :min="60" :max="260" :precision="0" class="glass-input-number" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="舒张压(mmHg)">
+                  <el-input-number v-model="bpForm.diastolic" :min="40" :max="160" :precision="0" class="glass-input-number" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="bpForm.note" placeholder="可选" class="glass-input" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="vitalsLoading.bp" @click="recordVitalsAction('血压')" round v-particles>保存到健康日志</el-button>
+                  <el-button @click="goToLogs('vital')" round class="glass-button">去健康日志查看</el-button>
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+
+          <el-col :xs="24" :md="12" class="stagger-anim" style="--delay: 0.2s">
+            <el-card class="glass-card" shadow="hover">
+              <template #header><span class="card-title"><el-icon><Monitor /></el-icon> 血糖</span></template>
+              <el-form :model="glucoseForm" label-width="120px">
+                <el-form-item label="测量时间">
+                  <el-time-picker v-model="glucoseForm.time" format="HH:mm" value-format="HH:mm" placeholder="HH:mm" class="glass-input" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="数值">
+                  <el-input-number v-model="glucoseForm.value" :min="0" :max="30" :precision="1" class="glass-input-number" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="单位">
+                  <el-input v-model="glucoseForm.unit" placeholder="mmol/L" class="glass-input" />
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="glucoseForm.note" placeholder="可选，例如：空腹/餐后" class="glass-input" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="vitalsLoading.glucose" @click="recordVitalsAction('血糖')" round v-particles>保存到健康日志</el-button>
+                  <el-button @click="goToLogs('vital')" round class="glass-button">去健康日志查看</el-button>
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+
+          <el-col :xs="24" :md="12" class="stagger-anim" style="--delay: 0.3s">
+            <el-card class="glass-card" shadow="hover">
+              <template #header><span class="card-title"><el-icon><Monitor /></el-icon> 心率</span></template>
+              <el-form :model="hrForm" label-width="120px">
+                <el-form-item label="测量时间">
+                  <el-time-picker v-model="hrForm.time" format="HH:mm" value-format="HH:mm" placeholder="HH:mm" class="glass-input" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="数值">
+                  <el-input-number v-model="hrForm.value" :min="20" :max="240" :precision="0" class="glass-input-number" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="单位">
+                  <el-input v-model="hrForm.unit" placeholder="bpm" class="glass-input" />
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="hrForm.note" placeholder="可选" class="glass-input" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="vitalsLoading.hr" @click="recordVitalsAction('心率')" round v-particles>保存到健康日志</el-button>
+                  <el-button @click="goToLogs('vital')" round class="glass-button">去健康日志查看</el-button>
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+
+          <el-col :xs="24" :md="12" class="stagger-anim" style="--delay: 0.4s">
+            <el-card class="glass-card" shadow="hover">
+              <template #header><span class="card-title"><el-icon><Monitor /></el-icon> 体温 / 体重</span></template>
+              <el-form :model="tempWeightForm" label-width="120px">
+                <el-form-item label="测量时间">
+                  <el-time-picker v-model="tempWeightForm.time" format="HH:mm" value-format="HH:mm" placeholder="HH:mm" class="glass-input" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="体温(°C)">
+                  <el-input-number v-model="tempWeightForm.temperature" :min="30" :max="45" :precision="1" class="glass-input-number" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="体重(kg)">
+                  <el-input-number v-model="tempWeightForm.weight" :min="20" :max="300" :precision="1" class="glass-input-number" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="tempWeightForm.note" placeholder="可选" class="glass-input" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="vitalsLoading.tempWeight" @click="recordTempWeight" round v-particles>保存到健康日志</el-button>
+                  <el-button @click="goToLogs('vital')" round class="glass-button">去健康日志查看</el-button>
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Camera, DataLine, Food, Bicycle, Moon, Sunrise } from '@element-plus/icons-vue'
-import { ingestDiet, weeklyDietReport, recommendRecipes, recordExercise, suggestExercise, recordSleep, analyzeSleep, uploadDietImage } from '../../api/lifestyle'
+import { Plus, Camera, DataLine, Food, Bicycle, Moon, Sunrise, ChatDotRound, Monitor } from '@element-plus/icons-vue'
+import { ingestDiet, weeklyDietReport, recommendRecipes, recordExercise, suggestExercise, recordSleep, analyzeSleep, uploadDietImage, recordMood, recordVitals } from '../../api/lifestyle'
 import dayjs from 'dayjs'
+import { useLogStore } from '../../stores'
+
+const router = useRouter()
+const logStore = useLogStore()
 
 const dietForm = ref({ imageUrl: '', description: '', quantity: '' })
 const dietLoading = ref(false)
@@ -230,6 +373,15 @@ const sleepLoading = ref(false)
 const sleepAnalyzeLoading = ref(false)
 const sleepAnalyze = ref('')
 const calculatedDuration = ref(null)
+
+const moodForm = ref({ emotion: '平静', level: 3, stress: 3, energy: 7, note: '' })
+const moodLoading = ref(false)
+
+const bpForm = ref({ time: null, systolic: 120, diastolic: 80, note: '' })
+const glucoseForm = ref({ time: null, value: 5.6, unit: 'mmol/L', note: '' })
+const hrForm = ref({ time: null, value: 75, unit: 'bpm', note: '' })
+const tempWeightForm = ref({ time: null, temperature: 36.5, weight: 60, note: '' })
+const vitalsLoading = ref({ bp: false, glucose: false, hr: false, tempWeight: false })
 
 // 自动计算睡眠时长
 watch([() => sleepForm.value.bedtime, () => sleepForm.value.wakeTime], ([bed, wake]) => {
@@ -366,6 +518,95 @@ const analyzeSleepAction = async () => {
     sleepAnalyze.value = ''
   } finally {
     sleepAnalyzeLoading.value = false
+  }
+}
+
+const goToLogs = (tab) => {
+  logStore.setActiveTab(tab)
+  router.push('/logs')
+}
+
+const recordMoodAction = async () => {
+  if (!moodForm.value.level) {
+    ElMessage.warning('请设置情绪强度')
+    return
+  }
+  moodLoading.value = true
+  try {
+    const payload = {
+      emotion: moodForm.value.emotion,
+      level: moodForm.value.level,
+      stress: moodForm.value.stress,
+      energy: moodForm.value.energy,
+      note: moodForm.value.note,
+      time: dayjs().format('HH:mm')
+    }
+    const res = await recordMood(payload)
+    if (res.code === 0) {
+      ElMessage.success('已保存到健康日志')
+      moodForm.value.note = ''
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    moodLoading.value = false
+  }
+}
+
+const recordVitalsAction = async (type) => {
+  const loadingKeyMap = { 血压: 'bp', 血糖: 'glucose', 心率: 'hr' }
+  const key = loadingKeyMap[type]
+  if (key) vitalsLoading.value[key] = true
+  try {
+    let payload = { type }
+    if (type === '血压') {
+      payload = { ...payload, systolic: bpForm.value.systolic, diastolic: bpForm.value.diastolic, unit: 'mmHg', note: bpForm.value.note, time: bpForm.value.time }
+    } else if (type === '血糖') {
+      payload = { ...payload, value: glucoseForm.value.value, unit: glucoseForm.value.unit, note: glucoseForm.value.note, time: glucoseForm.value.time }
+    } else if (type === '心率') {
+      payload = { ...payload, value: hrForm.value.value, unit: hrForm.value.unit, note: hrForm.value.note, time: hrForm.value.time }
+    }
+    const res = await recordVitals(payload)
+    if (res.code === 0) {
+      ElMessage.success('已保存到健康日志')
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    if (key) vitalsLoading.value[key] = false
+  }
+}
+
+const recordTempWeight = async () => {
+  if (tempWeightForm.value.temperature == null && tempWeightForm.value.weight == null) {
+    ElMessage.warning('请至少填写体温或体重')
+    return
+  }
+  vitalsLoading.value.tempWeight = true
+  try {
+    const time = tempWeightForm.value.time
+    const tasks = []
+    if (tempWeightForm.value.temperature != null) {
+      tasks.push(recordVitals({ type: '体温', value: tempWeightForm.value.temperature, unit: '°C', note: tempWeightForm.value.note, time }))
+    }
+    if (tempWeightForm.value.weight != null) {
+      tasks.push(recordVitals({ type: '体重', value: tempWeightForm.value.weight, unit: 'kg', note: tempWeightForm.value.note, time }))
+    }
+    const results = await Promise.all(tasks)
+    const ok = results.every(r => r.code === 0)
+    if (ok) {
+      ElMessage.success('已保存到健康日志')
+    } else {
+      ElMessage.error('部分保存失败')
+    }
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    vitalsLoading.value.tempWeight = false
   }
 }
 </script>

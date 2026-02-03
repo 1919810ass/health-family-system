@@ -11,26 +11,29 @@ import java.util.List;
 public record UserPrincipal(User user) implements UserDetails {
 
     public Long getUserId() {
-        return user.getId();
+        return user != null ? user.getId() : null;
     }
 
     public String getRole() {
-        return user.getRole().name();
+        return user != null && user.getRole() != null ? user.getRole().name() : null;
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        String role = getRole();
+        if (role == null) return List.of();
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role));
     }
 
     @Override
     public String getPassword() {
-        return user.getPasswordHash();
+        return user != null ? user.getPasswordHash() : "";
     }
 
     @Override
     public String getUsername() {
-        return user.getPhone() != null ? user.getPhone() : user.getId().toString();
+        if (user == null) return "";
+        return user.getPhone() != null ? user.getPhone() : (user.getId() != null ? user.getId().toString() : "");
     }
 
     @Override
@@ -50,7 +53,7 @@ public record UserPrincipal(User user) implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return user.getStatus() != null && user.getStatus() == 1;
+        return user != null && user.getStatus() != null && user.getStatus() == 1;
     }
 }
 

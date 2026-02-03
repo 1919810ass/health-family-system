@@ -41,6 +41,7 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
     public SeasonalWellnessDTO getWellnessAdvice(Long userId) {
         String todayDate = LocalDate.now().toString();
         String solarTerm = SolarTermUtil.getCurrentSolarTerm();
+        boolean isSolarTermDay = SolarTermUtil.isSolarTermDate(LocalDate.now());
         
         // 尝试从Redis获取缓存
         String cacheKey = "wellness:uid:" + userId + ":date:" + todayDate;
@@ -59,7 +60,7 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
         String constitution = getUserConstitution(userId);
 
         // 生成建议
-        String advice = generateAiAdvice(solarTerm, constitution);
+        String advice = generateAiAdvice(solarTerm, constitution, isSolarTermDay);
 
         // 构建DTO
         SeasonalWellnessDTO dto = SeasonalWellnessDTO.builder()
@@ -79,6 +80,7 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
     public Flux<ServerSentEvent<String>> getWellnessAdviceStream(Long userId) {
         String todayDate = LocalDate.now().toString();
         String solarTerm = SolarTermUtil.getCurrentSolarTerm();
+        boolean isSolarTermDay = SolarTermUtil.isSolarTermDate(LocalDate.now());
         
         // 1. 获取用户体质
         String constitution = getUserConstitution(userId);
@@ -93,7 +95,8 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
         );
         
         // 3. 检查缓存
-        String cacheKey = "wellness:uid:" + userId + ":date:" + todayDate;
+        // 使用 v2 前缀以强制刷新旧缓存
+        String cacheKey = "wellness:v2:uid:" + userId + ":date:" + todayDate;
         String cachedValue = redisTemplate.opsForValue().get(cacheKey);
         
         if (cachedValue != null) {
@@ -111,7 +114,7 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
         }
         
         // 4. AI 流式生成
-        String promptText = buildPromptText(solarTerm, constitution);
+        String promptText = buildPromptText(solarTerm, constitution, isSolarTermDay);
         log.info("Cache miss. Calling AI for wellness advice. Prompt: {}", promptText);
         StringBuilder accumulatedAdvice = new StringBuilder();
         
@@ -159,16 +162,17 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
         }
     }
 
-    private String buildPromptText(String solarTerm, String constitution) {
+    private String buildPromptText(String solarTerm, String constitution, boolean isSolarTermDay) {
+        String dateDesc = isSolarTermDay ? "今天是" + solarTerm : "今天正处于" + solarTerm + "节气期间（非" + solarTerm + "当天）";
         if (constitution != null && !constitution.isEmpty()) {
-            return String.format("今天是%s，用户的中医体质是%s。请作为老中医，给出一段100字左右的饮食（推荐2种食材）和起居建议。语气亲切，口语化。", solarTerm, constitution);
+            return String.format("%s，用户的中医体质是%s。请作为老中医，给出一段100字左右的饮食（推荐2种食材）和起居建议。不要说“今天是%s”，要说“时值%s”或“正值%s期间”。语气亲切，口语化。", dateDesc, constitution, solarTerm, solarTerm, solarTerm);
         } else {
-            return String.format("今天是%s。请作为老中医，给出一段100字左右的通用大众养生建议。语气亲切，口语化。", solarTerm);
+            return String.format("%s。请作为老中医，给出一段100字左右的通用大众养生建议。不要说“今天是%s”，要说“时值%s”或“正值%s期间”。语气亲切，口语化。", dateDesc, solarTerm, solarTerm, solarTerm);
         }
     }
 
-    private String generateAiAdvice(String solarTerm, String constitution) {
-        String promptText = buildPromptText(solarTerm, constitution);
+    private String generateAiAdvice(String solarTerm, String constitution, boolean isSolarTermDay) {
+        String promptText = buildPromptText(solarTerm, constitution, isSolarTermDay);
         return callTextWithFallback(promptText);
     }
 

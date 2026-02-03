@@ -540,6 +540,19 @@ async function loadLogs() {
              content = parts.join('；')
           }
 
+          // 特殊处理运动记录
+          if (l.type === 'SPORT') {
+            const parts = []
+            const typeMap = { run: '跑步', walk: '步行', swim: '游泳', bike: '骑行', cycling: '骑行' }
+            const t = l.content.type ? (typeMap[String(l.content.type).toLowerCase()] || l.content.type) : ''
+            if (t) parts.push(t)
+            if (l.content.durationMinutes != null) parts.push(`时长 ${l.content.durationMinutes}分钟`)
+            if (l.content.distanceKm != null) parts.push(`距离 ${l.content.distanceKm}公里`)
+            if (l.content.steps != null) parts.push(`步数 ${l.content.steps}`)
+            if (content) parts.push(content)
+            content = parts.filter(Boolean).join('；')
+          }
+
           // 如果没有找到内容，尝试序列化整个对象
           if (!content) {
             try {

@@ -122,28 +122,19 @@ public class HealthReminderController {
                                                                          @RequestHeader(value = "X-User-Id", required = false) Long userHeader,
                                                                          @RequestParam("familyId") Long familyId) {
         Long userId = principal != null ? principal.getUserId() : userHeader;
-        // 检查用户是否有权限生成协作提醒
         User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("用户不存在"));
-        log.info("用户 {} 尝试生成协作提醒，角色为 {}", userId, user.getRole());
-        if (!hasReminderPermission(user.getRole())) {
-            log.warn("用户 {} (角色: {}) 无权生成协作提醒", userId, user.getRole());
-            throw new RuntimeException("无权生成协作提醒");
-        }
-        log.info("用户 {} (角色: {}) 有权限生成协作提醒", userId, user.getRole());
+        
         // 检查用户是否为ADMIN角色，如果是则跳过家庭访问检查
         if (user.getRole() != com.healthfamily.domain.constant.UserRole.ADMIN) {
             accessGuard.assertFamilyAccess(userId, familyId);
         }
+        // 允许家庭成员生成协作提醒
         return Result.success(reminderService.generateSmartReminders(userId, familyId));
     }
     
     private boolean hasReminderPermission(com.healthfamily.domain.constant.UserRole userRole) {
-        // 家庭管理员、医生和系统管理员角色可以访问健康提醒功能
-        boolean hasPermission = userRole == com.healthfamily.domain.constant.UserRole.FAMILY_ADMIN || 
-                               userRole == com.healthfamily.domain.constant.UserRole.DOCTOR ||
-                               userRole == com.healthfamily.domain.constant.UserRole.ADMIN;
-        log.debug("检查用户角色 {} 的权限，结果: {}", userRole, hasPermission);
-        return hasPermission;
+        // 所有注册用户（包括家庭成员）都可以使用健康提醒功能
+        return true;
     }
     
     private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(HealthReminderController.class);

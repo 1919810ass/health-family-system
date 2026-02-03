@@ -157,10 +157,11 @@ public class UserController {
     public record AvatarResponse(String avatar) {}
 
     private Long resolveUserId(UserPrincipal principal, Long userHeader, String action) {
-        boolean authenticated = principal != null;
-        Long resolved = authenticated ? principal.getUserId() : userHeader;
+        Long principalUserId = principal != null ? principal.getUserId() : null;
+        boolean authenticated = principalUserId != null;
+        Long resolved = authenticated ? principalUserId : userHeader;
         log.info("authState action={} authenticated={} principalUserId={} headerUserId={}",
-                action, authenticated, authenticated ? principal.getUserId() : null, userHeader);
+                action, authenticated, principalUserId, userHeader);
         if (resolved == null) {
             throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException("未登录或缺少用户身份信息");
         }

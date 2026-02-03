@@ -56,12 +56,13 @@ public class RecommendationController {
     }
 
     private Long resolveUserId(UserPrincipal principal, Long userHeader) {
-        if (principal == null) return userHeader;
+        Long principalUserId = principal != null ? principal.getUserId() : null;
+        if (principalUserId == null) return userHeader;
         if (userHeader != null && principal.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_DOCTOR") || a.getAuthority().equals("ROLE_ADMIN"))) {
             return userHeader;
         }
-        return principal.getUserId();
+        return principalUserId;
     }
 }
 

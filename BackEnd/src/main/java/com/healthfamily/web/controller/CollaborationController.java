@@ -69,9 +69,29 @@ public class CollaborationController {
         return Result.success(collaborationService.getRecentEvents(userId, familyId));
     }
 
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/interactions")
+    public Result<Void> sendInteraction(@AuthenticationPrincipal UserPrincipal principal,
+                                        @RequestHeader(value = "X-User-Id", required = false) Long userHeader,
+                                        @PathVariable("id") Long familyId,
+                                        @org.springframework.web.bind.annotation.RequestBody com.healthfamily.web.dto.SendInteractionRequest request) {
+        Long userId = resolveUserId(principal, userHeader);
+        request.setFamilyId(familyId);
+        collaborationService.sendInteraction(userId, request);
+        return Result.success(null);
+    }
+
+    @GetMapping("/{id}/interactions")
+    public Result<java.util.List<com.healthfamily.web.dto.FamilyInteractionDto>> getInteractions(@AuthenticationPrincipal UserPrincipal principal,
+                                                                                                 @RequestHeader(value = "X-User-Id", required = false) Long userHeader,
+                                                                                                 @PathVariable("id") Long familyId) {
+        Long userId = resolveUserId(principal, userHeader);
+        return Result.success(collaborationService.getRecentInteractions(userId, familyId));
+    }
+
     private Long resolveUserId(UserPrincipal principal, Long userHeader) {
-        if (principal != null) {
-            return principal.getUserId();
+        Long principalUserId = principal != null ? principal.getUserId() : null;
+        if (principalUserId != null) {
+            return principalUserId;
         }
         if (userHeader != null) {
             return userHeader;

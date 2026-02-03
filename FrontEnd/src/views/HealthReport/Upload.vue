@@ -1,6 +1,11 @@
 <template>
   <div class="page-container">
     <div class="page-header">
+      <el-tooltip content="返回" placement="bottom">
+        <el-button circle text class="back-btn" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+        </el-button>
+      </el-tooltip>
       <div class="header-icon">
         <el-icon><Document /></el-icon>
       </div>
@@ -16,19 +21,27 @@
             <el-input v-model="form.reportName" placeholder="例如：2023年度体检报告" />
         </el-form-item>
         <el-form-item label="报告图片">
-            <el-upload
-              class="report-uploader"
-              action="#"
-              :http-request="handleUpload"
-              :show-file-list="false"
-              :before-upload="beforeUpload"
-            >
-              <img v-if="form.imageUrl" :src="form.imageUrl" class="report-image" />
-              <el-icon v-else class="report-uploader-icon"><Plus /></el-icon>
-            </el-upload>
-            <div class="mt-2 text-gray-400 text-sm">支持 JPG/PNG 格式，大小不超过 5MB</div>
-            <div class="mt-2">
+            <div class="upload-block">
+              <el-upload
+                class="report-uploader"
+                action="#"
+                :http-request="handleUpload"
+                :show-file-list="false"
+                :before-upload="beforeUpload"
+              >
+                <img v-if="form.imageUrl" :src="form.imageUrl" class="report-image" />
+                <div v-else class="uploader-content">
+                  <el-icon class="report-uploader-icon"><Plus /></el-icon>
+                  <div class="uploader-text">
+                    点击上传
+                    <div class="sub-text">支持 JPG/PNG，大小不超过 5MB</div>
+                  </div>
+                </div>
+              </el-upload>
+              <div class="text-gray-400 text-sm">支持 JPG/PNG 格式，大小不超过 5MB</div>
+              <div>
                 <el-button size="small" @click="fillDemoImage">使用示例图片</el-button>
+              </div>
             </div>
         </el-form-item>
         <el-form-item>
@@ -81,11 +94,13 @@
 
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { submitReport, uploadReportImage, getReportDetail, getReportStatus } from '@/api/report'
 import { ElMessage } from 'element-plus'
-import { Plus, Document } from '@element-plus/icons-vue'
+import { Plus, Document, ArrowLeft } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
+const router = useRouter()
 const userStore = useUserStore()
 const submitting = ref(false)
 const form = ref({
@@ -188,6 +203,14 @@ const stopProgress = (finalValue = null) => {
     if (finalValue !== null) {
         progressValue.value = finalValue
     }
+}
+
+const goBack = () => {
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
+  router.push('/report')
 }
 
 const startStream = () => {
@@ -390,6 +413,22 @@ const handleSubmit = async () => {
   margin-bottom: 24px;
   animation: fadeInDown 0.6s vars.$ease-spring;
   gap: 16px;
+
+  .back-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    transition: transform 0.25s vars.$ease-spring, background 0.25s vars.$ease-spring;
+    flex-shrink: 0;
+
+    &:hover {
+      transform: translateX(-2px);
+      background: rgba(255, 255, 255, 0.85);
+    }
+  }
   
   .header-icon {
     width: 48px;
@@ -433,6 +472,13 @@ const handleSubmit = async () => {
   animation-fill-mode: both;
 }
 
+.upload-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -452,8 +498,8 @@ const handleSubmit = async () => {
       position: relative;
       overflow: hidden;
       transition: var(--el-transition-duration-fast);
-      width: 100%;
-      min-height: 300px;
+      width: 160px;
+      height: 160px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -483,6 +529,8 @@ const handleSubmit = async () => {
       align-items: center;
       justify-content: center;
       color: vars.$text-secondary-color;
+      width: 100%;
+      height: 100%;
   }
 
   .report-uploader-icon {
@@ -515,10 +563,10 @@ const handleSubmit = async () => {
   }
 
   .report-image {
-    max-width: 100%;
-    max-height: 500px;
+    width: 100%;
+    height: 100%;
     display: block;
-    object-fit: contain;
+    object-fit: cover;
   }
   
   .pill-input {
