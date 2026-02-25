@@ -112,12 +112,13 @@ onMounted(() => {
 .family-status-card {
   background: #fff;
   border-radius: vars.$radius-lg;
-  padding: 24px;
+  padding: 16px; /* Reduced padding */
   height: 100%;
   box-shadow: vars.$shadow-sm;
   display: flex;
   flex-direction: column;
   transition: all 0.3s;
+  overflow: hidden; /* Prevent outer scroll */
   
   &:hover {
     box-shadow: vars.$shadow-md;
@@ -125,11 +126,12 @@ onMounted(() => {
 }
 
 .card-header {
+  flex-shrink: 0;
   h3 {
     margin: 0;
-    font-size: 18px;
+    font-size: 16px; /* Slightly smaller title */
     color: vars.$text-main-color;
-    margin-bottom: 24px;
+    margin-bottom: 12px; /* Reduced margin */
   }
 }
 
@@ -137,13 +139,15 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px; /* Reduced gap */
   overflow-y: auto;
+  min-height: 0; /* Important for flex scrolling */
+  padding-right: 4px; /* Space for scrollbar */
   
   .member-item {
     display: flex;
     align-items: center;
-    padding: 12px;
+    padding: 8px 12px; /* Compact padding */
     border-radius: 12px;
     transition: background 0.2s;
     
@@ -162,7 +166,7 @@ onMounted(() => {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px; /* Tighter gap */
       
       .top-row {
         display: flex;
@@ -171,14 +175,14 @@ onMounted(() => {
         
         .name {
           font-weight: 600;
-          font-size: 15px;
+          font-size: 14px; /* Slightly smaller */
           color: vars.$text-main-color;
         }
         
         .tag {
           font-size: 10px;
-          padding: 2px 8px;
-          border-radius: 10px;
+          padding: 2px 6px;
+          border-radius: 8px;
           font-weight: 500;
           
           &.blue {
@@ -194,7 +198,7 @@ onMounted(() => {
       }
       
       .bottom-row {
-        font-size: 12px;
+        font-size: 11px;
         color: vars.$text-secondary-color;
       }
     }
@@ -202,11 +206,11 @@ onMounted(() => {
     .status-indicator {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 12px;
+      gap: 4px;
+      padding: 2px 8px;
       background: rgba(53, 199, 122, 0.1);
       color: vars.$success-color;
-      font-size: 12px;
+      font-size: 11px;
       border-radius: 20px;
       font-weight: 500;
       

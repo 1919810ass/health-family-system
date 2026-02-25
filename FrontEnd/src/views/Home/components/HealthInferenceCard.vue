@@ -121,8 +121,11 @@ const startDiagnosis = async () => {
   border-radius: vars.$radius-lg;
   border: vars.$glass-border;
   overflow: hidden;
-  margin-bottom: 24px;
+  margin-bottom: 0; /* Remove margin */
   transition: all 0.3s vars.$ease-spring;
+  height: 100%; /* Fill parent */
+  display: flex;
+  flex-direction: column;
 
   &:hover {
     box-shadow: vars.$shadow-md;
@@ -131,18 +134,21 @@ const startDiagnosis = async () => {
 
 .card-content {
   display: flex;
-  min-height: 400px;
+  height: 100%; /* Fill card */
+  min-height: 0; /* Important */
 
   @media (max-width: 768px) {
     flex-direction: column;
+    height: auto;
+    min-height: 400px;
   }
 }
 
 /* Left: Action Area */
 .action-area {
-  width: 35%;
+  width: 30%; /* Reduce width slightly */
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(240, 242, 245, 0.6) 100%);
-  padding: 40px 24px;
+  padding: 24px; /* Reduce padding */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -161,15 +167,15 @@ const startDiagnosis = async () => {
 
   .illustration {
     position: relative;
-    width: 100px;
-    height: 100px;
-    margin-bottom: 24px;
+    width: 80px; /* Smaller illustration */
+    height: 80px;
+    margin-bottom: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
 
     .ai-brain-icon {
-      font-size: 48px;
+      font-size: 40px;
       color: vars.$primary-color;
       z-index: 2;
     }
@@ -186,22 +192,22 @@ const startDiagnosis = async () => {
   }
 
   h3 {
-    font-size: 20px;
+    font-size: 18px; /* Smaller title */
     font-weight: 700;
     color: vars.$text-main-color;
     margin: 0 0 8px;
   }
 
   p {
-    font-size: 14px;
+    font-size: 13px;
     color: vars.$text-secondary-color;
-    margin: 0 0 32px;
+    margin: 0 0 24px;
     max-width: 200px;
   }
 
   .start-btn {
     width: 100%;
-    max-width: 200px;
+    max-width: 180px;
     border-radius: 24px;
     font-weight: 600;
     box-shadow: 0 4px 12px rgba(vars.$primary-color, 0.3);
@@ -221,6 +227,7 @@ const startDiagnosis = async () => {
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* Ensure content doesn't spill */
   
   .empty-state {
     flex: 1;
@@ -263,11 +270,11 @@ const startDiagnosis = async () => {
 /* Report Paper Style */
 .report-paper {
   flex: 1;
-  padding: 32px 40px;
+  padding: 24px 32px; /* Reduce padding */
   position: relative;
   background-color: #fdfbf7; /* Light yellow tint */
   overflow-y: auto;
-  max-height: 600px;
+  min-height: 0; /* Important for flex scrolling */
   
   /* Scrollbar */
   &::-webkit-scrollbar { width: 6px; }
@@ -290,11 +297,11 @@ const startDiagnosis = async () => {
     display: flex;
     align-items: center;
     border-bottom: 2px solid #e8e1d5;
-    padding-bottom: 20px;
-    margin-bottom: 24px;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
 
     .hospital-logo {
-      font-size: 32px;
+      font-size: 28px;
       color: #bf9e74;
       margin-right: 16px;
     }
@@ -302,14 +309,14 @@ const startDiagnosis = async () => {
     .title-group {
       flex: 1;
       h2 {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 700;
         color: #5c4e3c;
         margin: 0;
         font-family: "Songti SC", "SimSun", serif; /* Serif font for medical feel */
       }
       .sub-title {
-        font-size: 12px;
+        font-size: 11px;
         color: #9c8e7e;
         text-transform: uppercase;
         letter-spacing: 1px;
@@ -322,7 +329,7 @@ const startDiagnosis = async () => {
       border: 1px solid #9c8e7e;
       padding: 4px 8px;
       border-radius: 4px;
-      font-size: 14px;
+      font-size: 13px;
     }
   }
 
@@ -331,15 +338,16 @@ const startDiagnosis = async () => {
     z-index: 1;
     font-family: "Songti SC", "SimSun", serif;
     color: #4a4a4a;
-    line-height: 1.8;
+    line-height: 1.6;
+    font-size: 14px;
     
     :deep(h3) {
-      font-size: 18px;
+      font-size: 16px;
       color: #8c6b45;
       border-bottom: 1px dashed #dcdfe6;
-      padding-bottom: 8px;
-      margin-top: 24px;
-      margin-bottom: 16px;
+      padding-bottom: 6px;
+      margin-top: 20px;
+      margin-bottom: 12px;
     }
 
     :deep(strong) {
@@ -348,39 +356,39 @@ const startDiagnosis = async () => {
     }
 
     :deep(ul) {
-      padding-left: 20px;
+      padding-left: 16px;
     }
 
     :deep(li) {
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
   }
 
   .report-footer {
     position: relative;
     z-index: 1;
-    margin-top: 40px;
+    margin-top: 32px;
     border-top: 1px solid #e8e1d5;
-    padding-top: 16px;
+    padding-top: 12px;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
 
     .signature {
       font-family: "Songti SC", "SimSun", serif;
-      font-size: 16px;
+      font-size: 14px;
       color: #5c4e3c;
       
       .ai-name {
         font-family: "Brush Script MT", cursive;
-        font-size: 20px;
+        font-size: 18px;
         color: #8c6b45;
         margin-left: 8px;
       }
     }
 
     .disclaimer {
-      font-size: 12px;
+      font-size: 11px;
       color: #9c8e7e;
       font-style: italic;
     }

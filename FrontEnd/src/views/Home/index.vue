@@ -1,27 +1,25 @@
 <template>
   <div class="home-container">
-    <!-- Optional: Keep Seasonal Card as a banner/header element if needed, or put it aside -->
-    <!-- For now, I'll place it at the top but make it blend in -->
-    <div class="top-section">
-       <SeasonalWellnessCard />
-    </div>
-
     <!-- Main Dashboard Grid -->
     <div class="dashboard-grid">
+      <div class="grid-item seasonal-section">
+         <SeasonalWellnessCard />
+      </div>
+
       <div class="grid-item trend-chart">
         <HealthTrendChart />
       </div>
 
-      <div class="grid-item ai-overview">
-        <HealthInferenceCard />
-      </div>
-      
       <div class="grid-item ai-assistant">
         <AIAssistantCard />
       </div>
       
       <div class="grid-item family-status">
         <FamilyStatusCard />
+      </div>
+
+      <div class="grid-item ai-overview">
+        <HealthInferenceCard />
       </div>
     </div>
 
@@ -126,48 +124,64 @@ const startBreathing = () => {
 @use '@/styles/mixins' as mixins;
 
 .home-container {
-  /* Padding is handled by BaseLayout main */
-  min-height: 100%;
-}
+  height: calc(100vh - 60px);
+  overflow: hidden; /* Prevent main scrollbar on large screens */
+  padding: 16px;
+  box-sizing: border-box;
 
-.top-section {
-  margin-bottom: 24px;
+  @media (max-width: 1200px) {
+    height: auto;
+    overflow-y: auto;
+  }
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: auto auto auto;
-  gap: 24px;
+  grid-template-columns: 65% 1fr;
+  grid-template-rows: 15fr 22.5fr 22.5fr 40fr;
+  gap: 16px;
+  height: 100%;
   
-  .trend-chart {
-    grid-column: 1 / -1;
-    height: 320px;
+  .grid-item {
+    min-height: 0; /* Important for grid items to shrink/scroll internally */
+    height: 100%;
+    overflow: hidden;
   }
 
-  .ai-overview {
-    grid-column: 1 / -1;
-    min-height: 420px;
+  .seasonal-section {
+    grid-area: 1 / 1 / 2 / 3;
   }
   
-  /* Bottom cards take 1 column each */
+  .trend-chart {
+    grid-area: 2 / 1 / 4 / 2;
+  }
+
   .ai-assistant {
-    grid-column: 1 / 2;
-    height: 240px;
+    grid-area: 2 / 2 / 3 / 3;
   }
   
   .family-status {
-    grid-column: 2 / 3;
-    height: 240px;
+    grid-area: 3 / 2 / 4 / 3;
   }
 
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
+  .ai-overview {
+    grid-area: 4 / 1 / 5 / 3;
+  }
+
+  /* Responsive fallback for smaller screens */
+  @media (max-width: 1200px) {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    gap: 16px;
     
-    .trend-chart, .ai-overview, .ai-assistant, .family-status {
-      grid-column: 1 / -1;
+    .grid-item {
       height: auto;
-      min-height: 200px;
+      min-height: 320px;
+      
+      &.seasonal-section {
+        min-height: auto;
+      }
     }
   }
 }

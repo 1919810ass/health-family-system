@@ -224,11 +224,22 @@ export const MENU_CONFIG = {
       path: 'monitoring',
       icon: 'Monitor',
       children: [
+        { title: 'AI 监控', path: '/admin/monitoring/ai' },
         { title: '系统监控', path: '/admin/monitoring/system' },
         { title: '用户活动', path: '/admin/monitoring/users' },
         { title: '数据报告', path: '/admin/monitoring/reports' },
         { title: '自定义报告', path: '/admin/monitoring/custom' }
       ]
+    },
+    {
+      title: '知识库管理',
+      path: '/admin/knowledge',
+      icon: 'Document'
+    },
+    {
+      title: '会话审计',
+      path: '/admin/audit/chat',
+      icon: 'ChatDotRound'
     },
     {
       title: '系统配置',

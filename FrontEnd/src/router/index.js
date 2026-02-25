@@ -349,6 +349,11 @@ const routes = [
         meta: { title: '自定义报告', roles: ['ADMIN'] },
       },
       {
+        path: 'monitoring/ai',
+        component: () => import('../views/Admin/Monitoring/AiDashboard.vue'),
+        meta: { title: 'AI 监控', roles: ['ADMIN'] },
+      },
+      {
         path: 'system/config',
         component: () => import('../views/Admin/System/Config.vue'),
         meta: { title: '系统配置', roles: ['ADMIN'] },
@@ -369,9 +374,24 @@ const routes = [
         meta: { title: '数据备份', roles: ['ADMIN'] },
       },
       {
+        path: 'knowledge',
+        component: () => import('../views/Admin/Knowledge/Index.vue'),
+        meta: { title: '知识库管理', roles: ['ADMIN'] },
+      },
+      {
+        path: 'knowledge/:id',
+        component: () => import('../views/Admin/Knowledge/Detail.vue'),
+        meta: { title: '文档详情', roles: ['ADMIN'], hidden: true },
+      },
+      {
         path: 'ops',
         component: () => import('../views/Ops/index.vue'),
         meta: { title: '系统运维', roles: ['ADMIN'] },
+      },
+      {
+        path: 'audit/chat',
+        component: () => import('../views/Admin/Audit/ChatReview.vue'),
+        meta: { title: '会话审计', roles: ['ADMIN'] },
       },
     ],
   },

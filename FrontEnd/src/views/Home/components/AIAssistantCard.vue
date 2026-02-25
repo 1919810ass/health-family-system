@@ -231,12 +231,13 @@ onMounted(() => {
 .ai-assistant-card {
   background: #fff;
   border-radius: 20px;
-  padding: 16px 16px 12px;
+  padding: 16px; /* slightly more uniform padding */
   height: 100%;
   box-shadow: 0 8px 24px rgba(64, 158, 255, 0.08);
   display: flex;
   flex-direction: column;
   transition: all 0.3s;
+  overflow: hidden; /* Ensure no outer scroll */
   
   &:hover {
     box-shadow: 0 12px 32px rgba(64, 158, 255, 0.12);
@@ -248,6 +249,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0; /* Header doesn't shrink */
 
   h3 {
     margin: 0;

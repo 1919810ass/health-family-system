@@ -12,7 +12,9 @@ import org.springframework.data.jpa.repository.Query;
  */
 import java.util.List;
 
-public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocument, Long> {
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocument, Long>, JpaSpecificationExecutor<KnowledgeDocument> {
 
     List<KnowledgeDocument> findByCategoryAndEnabledTrue(String category);
 

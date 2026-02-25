@@ -188,23 +188,26 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .seasonal-wellness-card {
-  margin-bottom: 20px;
+  height: 100%; /* Fill parent */
   border-radius: 12px;
   overflow: hidden;
   border: none;
+  display: flex;
+  flex-direction: column;
   
   .wellness-container {
     display: flex;
-    min-height: 140px;
+    height: 100%; /* Fill card */
     
     @media (max-width: 768px) {
       flex-direction: column;
+      height: auto;
     }
   }
   
   .solar-term-section {
-    width: 30%;
-    min-width: 120px;
+    width: 20%; /* Reduce width */
+    min-width: 100px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -214,35 +217,37 @@ onMounted(() => {
     
     @media (max-width: 768px) {
       width: 100%;
-      padding: 20px 0;
+      padding: 16px 0;
     }
     
     .term-name {
-      font-size: 2.5rem;
+      font-size: 2rem; /* Reduce font size */
       font-weight: bold;
       font-family: "KaiTi", "STKaiti", serif;
       letter-spacing: 4px;
     }
     
     .term-date {
-      font-size: 1rem;
-      margin-top: 8px;
+      font-size: 0.9rem;
+      margin-top: 4px;
       opacity: 0.9;
     }
   }
   
   .advice-section {
     flex: 1;
-    padding: 20px;
+    padding: 16px; /* Reduce padding */
     background-color: #fdfbf7;
     display: flex;
     flex-direction: column;
+    justify-content: center; /* Center content vertically */
+    overflow: hidden;
     
     .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 8px; /* Reduce margin */
 
       .title-wrapper {
         display: flex;
@@ -251,7 +256,7 @@ onMounted(() => {
       }
       
       .title {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         font-weight: 600;
         color: #5c4033;
       }
@@ -268,14 +273,21 @@ onMounted(() => {
     
     .content {
       flex: 1;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
       
       .advice-text {
         color: #666;
-        font-size: 0.95rem;
-        line-height: 1.6;
+        font-size: 0.9rem;
+        line-height: 1.5;
         text-align: justify;
         white-space: pre-wrap;
         position: relative;
+        display: -webkit-box;
+        -webkit-line-clamp: 3; /* Limit lines */
+        -webkit-box-orient: vertical;
+        overflow: hidden;
       }
 
       .cursor {

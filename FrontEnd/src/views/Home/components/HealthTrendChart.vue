@@ -224,12 +224,13 @@ onUnmounted(() => {
 .health-trend-card {
   background: #fff;
   border-radius: vars.$radius-lg;
-  padding: 24px;
+  padding: 16px; /* Reduce padding slightly */
   height: 100%;
   display: flex;
   flex-direction: column;
   box-shadow: vars.$shadow-sm;
   transition: all 0.3s;
+  overflow: hidden; /* Prevent overflow */
   
   &:hover {
     box-shadow: vars.$shadow-md;
@@ -240,17 +241,18 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 12px; /* Reduce margin */
+  flex-shrink: 0; /* Prevent header from shrinking */
   
   h3 {
     margin: 0;
-    font-size: 18px;
+    font-size: 16px; /* Slightly smaller title */
     color: vars.$text-main-color;
   }
   
   .legend {
     display: flex;
-    gap: 16px;
+    gap: 12px;
     
     .legend-item {
       display: flex;
@@ -262,7 +264,7 @@ onUnmounted(() => {
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        margin-right: 6px;
+        margin-right: 4px;
         
         &.blue { background: #4EA1FF; }
         &.green { background: #35C77A; }
@@ -274,7 +276,7 @@ onUnmounted(() => {
 
 .chart-container {
   flex: 1;
-  min-height: 250px;
+  min-height: 0; /* Important for flex container to not overflow */
   width: 100%;
 }
 </style>
