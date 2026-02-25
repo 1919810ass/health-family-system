@@ -23,8 +23,10 @@ public class AiMonitorService {
 
     @Async
     public void saveLog(AiRequestLog logEntity) {
+        log.info("Saving AI Request Log: {}", logEntity);
         try {
             aiRequestLogRepository.save(logEntity);
+            log.info("Successfully saved AI Request Log: ID={}", logEntity.getId());
         } catch (Exception e) {
             log.error("Failed to save AI request log", e);
         }

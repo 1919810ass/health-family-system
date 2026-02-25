@@ -235,6 +235,23 @@ CREATE TABLE IF NOT EXISTS consultation_messages (
     FOREIGN KEY (sender_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='咨询消息表';
 
+-- 20. AI 请求日志表 (AI Monitor)
+CREATE TABLE IF NOT EXISTS ai_request_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    trace_id VARCHAR(64) COMMENT '链路追踪ID',
+    user_id BIGINT COMMENT '用户ID',
+    service_name VARCHAR(128) COMMENT '服务名称',
+    model_name VARCHAR(64) COMMENT '模型名称',
+    input_tokens INT DEFAULT 0 COMMENT '输入Token数',
+    output_tokens INT DEFAULT 0 COMMENT '输出Token数',
+    latency BIGINT DEFAULT 0 COMMENT '耗时(ms)',
+    status VARCHAR(32) DEFAULT 'SUCCESS' COMMENT '状态: SUCCESS/FAIL',
+    error_message TEXT COMMENT '错误信息',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_create_time (create_time),
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI请求日志表';
+
 -- 初始管理员账号 (admin/123456) - 使用手机号 13800000000
 INSERT INTO users (phone, password_hash, nickname, role, status) 
 VALUES ('13800000000', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOcd7.jRjD.a', '系统管理员', 'ADMIN', 1)

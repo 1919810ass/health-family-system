@@ -2,6 +2,7 @@ package com.healthfamily.aspect;
 
 import com.healthfamily.domain.entity.AiRequestLog;
 import com.healthfamily.service.AiMonitorService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -27,15 +28,26 @@ public class AiMonitorAspect {
 
     private final AiMonitorService aiMonitorService;
 
-    @Pointcut("execution(* com.healthfamily.service.impl.*Ai*Impl.*(..)) || execution(* com.healthfamily.service.impl.HealthInferenceServiceImpl.*(..)) || execution(* com.healthfamily.service.AiAssistantService.*(..))")
+    @PostConstruct
+    public void init() {
+        log.info("============== AI MONITOR ASPECT LOADED SUCCESSFULLY ==============");
+    }
+
+    @Pointcut("execution(* com.healthfamily.service.impl.*Ai*Impl.*(..)) " +
+            "|| execution(* com.healthfamily.service.impl.HealthInferenceServiceImpl.*(..)) " +
+            "|| execution(* com.healthfamily.service.AiAssistantService.*(..)) " +
+            "|| execution(* com.healthfamily.ai..*.*(..))")
     public void aiServicePointcut() {}
 
     @Around("aiServicePointcut()")
     public Object monitorAiCall(ProceedingJoinPoint joinPoint) throws Throwable {
+        String className = joinPoint.getTarget().getClass().getSimpleName();
+        String methodName = joinPoint.getSignature().getName();
+        log.info("🔔 AI Monitor Aspect Triggered: {}.{}", className, methodName);
+
         long start = System.currentTimeMillis();
-        
-        // Use AtomicLong to store startTime in a thread-safe way if needed, 
-        // but here 'start' is captured in closure.
+        // Capture userId in main thread
+        Long userId = getUserId();
         
         try {
             Object result = joinPoint.proceed();
@@ -46,7 +58,8 @@ public class AiMonitorAspect {
                             long duration = System.currentTimeMillis() - start;
                             String status = signalType.name().equals("ON_COMPLETE") ? "SUCCESS" : "FAIL";
                             String errorMessage = signalType.name().equals("ON_ERROR") ? "Stream Error" : null;
-                            recordLog(joinPoint, duration, status, errorMessage, null, null); // Pass null result for Flux
+                            log.info("🔔 AI Monitor Flux Finished: status={}", status);
+                            recordLog(joinPoint, duration, status, errorMessage, null, userId); 
                         });
             } else if (result instanceof Mono) {
                 return ((Mono<?>) result)
@@ -54,17 +67,20 @@ public class AiMonitorAspect {
                             long duration = System.currentTimeMillis() - start;
                             String status = signalType.name().equals("ON_COMPLETE") ? "SUCCESS" : "FAIL";
                             String errorMessage = signalType.name().equals("ON_ERROR") ? "Mono Error" : null;
-                            recordLog(joinPoint, duration, status, errorMessage, null, null);
+                            log.info("🔔 AI Monitor Mono Finished: status={}", status);
+                            recordLog(joinPoint, duration, status, errorMessage, null, userId);
                         });
             } else {
                 // Synchronous call
                 long duration = System.currentTimeMillis() - start;
-                recordLog(joinPoint, duration, "SUCCESS", null, result, null);
+                log.info("🔔 AI Monitor Sync Finished: duration={}", duration);
+                recordLog(joinPoint, duration, "SUCCESS", null, result, userId);
                 return result;
             }
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - start;
-            recordLog(joinPoint, duration, "FAIL", e.getMessage(), null, null);
+            log.error("🔔 AI Monitor Error: {}", e.getMessage());
+            recordLog(joinPoint, duration, "FAIL", e.getMessage(), null, userId);
             throw e;
         }
     }

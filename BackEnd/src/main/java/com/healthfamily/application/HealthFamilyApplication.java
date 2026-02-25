@@ -8,9 +8,11 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 @SpringBootApplication(scanBasePackages = {
         "com.healthfamily.application",
+        "com.healthfamily.aspect",
         "com.healthfamily.common",
         "com.healthfamily.config",
         "com.healthfamily.domain",
@@ -21,6 +23,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         "com.healthfamily.modules"
 })
 @EnableScheduling
+@EnableAsync
 @EnableJpaRepositories(basePackages = {
         "com.healthfamily.domain.repository",
         "com.healthfamily.modules.recommendationv2.repository"
