@@ -19,6 +19,12 @@ import java.time.LocalDateTime;
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "consultation_triage_chat", indexes = {
         @Index(name = "idx_session", columnList = "session_id")
+/**
+ * 问诊TriageChat实体类
+ * <p>
+ * 用于持久化领域数据，通常与数据库表一一对应，承载业务状态与属性。
+ * </p>
+ */
 })
 public class ConsultationTriageChat {
 

@@ -2,6 +2,12 @@ package com.healthfamily.utils;
 
 import org.junit.jupiter.api.Test;
 import java.time.LocalDate;
+/**
+ * SolarTermUtilTest工具类
+ * <p>
+ * 提供可复用的通用工具方法，供业务模块调用。
+ * </p>
+ */
 import static org.junit.jupiter.api.Assertions.*;
 
 public class SolarTermUtilTest {

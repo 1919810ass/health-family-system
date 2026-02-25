@@ -6,9 +6,16 @@ import com.healthfamily.web.dto.DoctorViewResponse;
 import com.healthfamily.web.dto.DoctorNoteRequest;
 import com.healthfamily.web.dto.DoctorNoteResponse;
 import com.healthfamily.web.dto.MonitoringDataResponse;
+import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
 import java.util.List;
+/**
+ * 医生服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 import java.util.Map;
 
 public interface DoctorService {
@@ -60,6 +67,29 @@ public interface DoctorService {
     // 医生设置相关方法
     com.healthfamily.web.dto.DoctorSettingsResponse getDoctorSettings(Long doctorId);
     com.healthfamily.web.dto.DoctorSettingsResponse updateDoctorSettings(Long doctorId, com.healthfamily.web.dto.DoctorSettingsRequest request);
+
+    // 新版工作台
+    com.healthfamily.web.dto.DoctorWorkbenchDto getWorkbenchDashboard(Long doctorId);
+
+    /**
+     * 工作台高风险患者一键标记已处理
+     */
+    void handleRisk(Long doctorId, com.healthfamily.web.dto.HandleRiskRequest request);
+
+    /**
+     * 基于近期日志与体质评估生成患者健康AI摘要
+     */
+    String generatePatientHealthSummary(Long doctorId, Long patientId);
+
+    /**
+     * 基于近期日志与体质评估生成患者健康AI摘要（流式）
+     */
+    Flux<String> generatePatientHealthSummaryStream(Long doctorId, Long patientId);
+    
+    /**
+     * 将今日时令养生小贴士发送给所有绑定患者
+     */
+    int sendSeasonalAdviceToAllPatients(Long doctorId);
     
     // 管理员功能相关方法
     Map<String, Object> getAdminDoctorList(String keyword, String status, String specialty, int page, int size, LocalDateTime startTime, LocalDateTime endTime);

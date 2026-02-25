@@ -1,3 +1,9 @@
+/**
+ * 前端接口封装：doctor.js
+ *
+ * 统一封装与后端 /api 路径下接口的调用，供页面与状态管理层复用。
+ */
+
 import request from '../utils/request'
 
 export const listMyFamilies = () => request.get('/user/families')
@@ -9,6 +15,14 @@ export const getBoundFamilyMembers = (familyId) => request.get(`/doctor/families
 export const getPatientDetail = (familyId, patientUserId) => request.get(`/doctor/families/${familyId}/patients/${patientUserId}/detail`)
 export const togglePatientImportant = (familyId, patientUserId, isImportant) => request.post(`/doctor/families/${familyId}/patients/${patientUserId}/toggle-important`, { isImportant })
 export const updatePatientTags = (familyId, patientUserId, tags) => request.post(`/doctor/families/${familyId}/patients/${patientUserId}/tags`, tags)
+
+// 新增工作台接口
+export const getWorkbenchDashboard = () => request.get('/doctor/workbench')
+export const handleRisk = (data) => request.post('/doctor/workbench/handle-risk', data)
+export const getPatientAiSummary = (patientId) => request.get(`/doctor/patient/${patientId}/ai-summary`)
+
+// 医生一键发送今日时令小贴士给所有绑定患者
+export const sendSeasonalAdviceToPatients = () => request.post('/doctor/seasonal-advice/send')
 
 export const getDoctorReports = (patientUserId) => request.get('/doctor/reports', { params: { userId: patientUserId } })
 export const getDoctorReportDetail = (reportId) => request.get(`/doctor/reports/${reportId}`)
@@ -103,9 +117,7 @@ export const generateReportPdf = (payload) => request.post('/doctor/report-gener
 export const generateBatchReportZip = (payload) => request.post('/doctor/report-generation/batch-docx', payload, {
   responseType: 'blob',
   headers: { Accept: 'application/zip' }
-})
-
-// 报告生成预览（JSON）
+})// 报告生成预览（JSON）
 export const generateReportPreview = (payload) => request.post('/doctor/report-generation/preview', payload)
 
 // 系统监控

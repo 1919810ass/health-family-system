@@ -194,6 +194,12 @@
 </template>
 
 <script setup>
+/**
+ * 组件：index.vue
+ *
+ * 业务说明：用于呈现对应页面/模块功能，并通过 API 层与后端进行数据交互。
+ */
+
 import { ref, computed, onMounted } from 'vue'
 import { useFamilyStore } from '@/stores/family'
 import { useUserStore } from '@/stores/user'

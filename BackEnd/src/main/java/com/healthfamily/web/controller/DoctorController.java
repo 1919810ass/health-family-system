@@ -13,6 +13,12 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * 医生控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/families")
 public class DoctorController {
 
@@ -81,6 +87,11 @@ public class DoctorController {
     }
     
     @GetMapping("/doctor/ratings")
+    /**
+     * 获取
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public Result<java.util.List<com.healthfamily.web.dto.DoctorRatingResponse>> getMyRatings(@AuthenticationPrincipal UserPrincipal principal) {
         return Result.success(doctorService.getDoctorRatings(principal.getUserId()));
     }

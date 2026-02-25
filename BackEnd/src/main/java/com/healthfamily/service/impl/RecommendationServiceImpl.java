@@ -52,6 +52,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * 推荐服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class RecommendationServiceImpl implements RecommendationService {
 
@@ -72,6 +78,12 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     @Override
     @Transactional
+    /**
+     * 生成
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public RecommendationGenerateResponse generate(Long userId, RecommendationGenerateRequest request) {
         User user = loadUser(userId);
         LocalDate targetDate = Optional.ofNullable(request.date()).orElse(LocalDate.now());
@@ -88,6 +100,13 @@ public class RecommendationServiceImpl implements RecommendationService {
     }
 
     @Override
+    /**
+     * 查询列表
+     * @param userId 家庭成员唯一标识
+     * @param date 日期
+     * @param category 业务参数
+     * @return 业务返回结果
+     */
     public List<RecommendationResponse> list(Long userId, LocalDate date, RecommendationCategory category) {
         User user = loadUser(userId);
         LocalDate targetDate = Optional.ofNullable(date).orElse(LocalDate.now());
@@ -100,6 +119,13 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param recommendationId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public RecommendationResponse feedback(Long userId, Long recommendationId, RecommendationFeedbackRequest request) {
         User user = loadUser(userId);
         Recommendation recommendation = recommendationRepository.findByIdAndUser(recommendationId, user)

@@ -50,11 +50,23 @@ import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 @Service
+/**
+ * 测评服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class AssessmentServiceImpl implements AssessmentService {
     // ... existing fields ...
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param lookbackDays 业务参数
+     * @return 业务返回结果
+     */
     public Flux<ServerSentEvent<String>> getTrendInsightsStream(Long userId, int lookbackDays) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -124,6 +136,10 @@ public class AssessmentServiceImpl implements AssessmentService {
     private static final List<Map<String, Object>> DEFAULT_DIMENSIONS = buildDefaultDimensions();
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public AssessmentSchemaResponse getSchema() {
         return new AssessmentSchemaResponse(
                 DEFAULT_TYPE,
@@ -135,6 +151,12 @@ public class AssessmentServiceImpl implements AssessmentService {
 
     @Override
     @Transactional
+    /**
+     * 提交
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public AssessmentResponse submitAssessment(Long userId, AssessmentSubmitRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -170,6 +192,12 @@ public class AssessmentServiceImpl implements AssessmentService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param assessmentId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public AssessmentResponse getAssessment(Long userId, Long assessmentId) {
         ConstitutionAssessment assessment = assessmentRepository.findById(assessmentId)
                 .orElseThrow(() -> new BusinessException(40403, "测评不存在"));
@@ -186,6 +214,11 @@ public class AssessmentServiceImpl implements AssessmentService {
     }
 
     @Override
+    /**
+     * 查询列表
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public List<AssessmentHistoryResponse> listHistory(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -201,6 +234,12 @@ public class AssessmentServiceImpl implements AssessmentService {
     }
 
     @Override
+    /**
+     * 查询列表
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public java.util.List<FamilyMemberLatestResponse> listFamilyLatest(Long userId, Long familyId) {
         var family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         var user = userRepository.findById(userId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -234,6 +273,11 @@ public class AssessmentServiceImpl implements AssessmentService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public TcmPersonalizedPlanResponse getPersonalizedPlan(Long userId) {
         // 获取用户最新的体质测评
         User user = userRepository.findById(userId)
@@ -310,6 +354,12 @@ public class AssessmentServiceImpl implements AssessmentService {
     }
     
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param lookbackDays 业务参数
+     * @return 业务返回结果
+     */
     public ConstitutionTrendResponse getConstitutionTrend(Long userId, int lookbackDays) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -382,6 +432,12 @@ public class AssessmentServiceImpl implements AssessmentService {
     }
     
     @Override
+    /**
+     * 获取
+     * @param familyId 家庭唯一标识
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public FamilyTcmHealthOverviewResponse getFamilyHealthOverview(Long familyId, Long userId) {
         // 验证用户是否为家庭成员
         var family = familyRepository.findById(familyId)
@@ -834,16 +890,35 @@ public class AssessmentServiceImpl implements AssessmentService {
     }
     
     @Override
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public Map<String, Object> startAiAssessment(Long userId) {
         return aiService.startAiAssessment(userId);
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param sessionId 业务对象唯一标识
+     * @param userAnswer 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> processAiAnswer(Long userId, String sessionId, String userAnswer) {
         return aiService.processAnswer(userId, sessionId, userAnswer);
     }
     
     @Override
+    /**
+     * 生成
+     * @param userId 家庭成员唯一标识
+     * @param sessionId 业务对象唯一标识
+     * @param finalAnswers 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> generateFinalAiAssessment(Long userId, String sessionId, String finalAnswers) {
         // 生成AI分析结果
         Map<String, Object> aiResult = aiService.generateFinalAssessment(userId, sessionId, finalAnswers);

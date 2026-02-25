@@ -17,6 +17,12 @@ import org.springframework.web.context.request.WebRequest;
 
 import java.util.stream.Collectors;
 
+/**
+ * GlobalExceptionHandler
+ * <p>
+ * 承载平台业务功能，供上层调用或作为领域组件使用。
+ * </p>
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

@@ -20,6 +20,12 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * Lifestyle控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/lifestyle")
 public class LifestyleController {
 
@@ -57,6 +63,12 @@ public class LifestyleController {
     }
 
     @PostMapping("/diet/ingest")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<DietIngestResponse> ingestDiet(@AuthenticationPrincipal UserPrincipal principal,
                                                  @RequestBody @Valid DietIngestRequest request) {
         Long userId = principal.getUserId();
@@ -64,6 +76,12 @@ public class LifestyleController {
     }
 
     @PostMapping("/recipes/recommend")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<List<RecipeRecommendResponse>> recommendRecipes(@AuthenticationPrincipal UserPrincipal principal,
                                                                   @RequestBody RecipeRecommendRequest request) {
         Long userId = principal.getUserId();
@@ -80,6 +98,12 @@ public class LifestyleController {
     }
 
     @PostMapping("/exercise/record")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<Void> recordExercise(@AuthenticationPrincipal UserPrincipal principal,
                                        @RequestBody @Valid ExerciseRecordRequest request) {
         Long userId = principal.getUserId();
@@ -88,12 +112,23 @@ public class LifestyleController {
     }
 
     @GetMapping("/exercise/suggest")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public Result<String> suggestExercise(@AuthenticationPrincipal UserPrincipal principal) {
         Long userId = principal.getUserId();
         return Result.success(lifestyleService.suggestExercise(userId));
     }
 
     @PostMapping("/sleep/record")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<Void> recordSleep(@AuthenticationPrincipal UserPrincipal principal,
                                     @RequestBody @Valid SleepRecordRequest request) {
         Long userId = principal.getUserId();
@@ -102,6 +137,12 @@ public class LifestyleController {
     }
 
     @PostMapping("/mood/record")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<Void> recordMood(@AuthenticationPrincipal UserPrincipal principal,
                                    @RequestBody @Valid MoodRecordRequest request) {
         Long userId = principal.getUserId();
@@ -110,6 +151,12 @@ public class LifestyleController {
     }
 
     @PostMapping("/vitals/record")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<Void> recordVitals(@AuthenticationPrincipal UserPrincipal principal,
                                      @RequestBody @Valid VitalsRecordRequest request) {
         Long userId = principal.getUserId();
@@ -118,6 +165,11 @@ public class LifestyleController {
     }
 
     @GetMapping("/sleep/analyze")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public Result<String> analyzeSleep(@AuthenticationPrincipal UserPrincipal principal) {
         Long userId = principal.getUserId();
         return Result.success(lifestyleService.analyzeSleep(userId));

@@ -1,5 +1,11 @@
 package com.healthfamily.modules.recommendationv2.service;
 
+/**
+ * NutritionMapper服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 import java.util.*;
 
 public class NutritionMapper {
@@ -21,6 +27,16 @@ public class NutritionMapper {
     dict.put("少油","low_fat");
     dict.put("低钠","low_salt");
   }
+
+  /**
+
+   * 执行业务操作
+
+   * @param text 业务参数
+
+   * @return 业务返回结果
+
+   */
 
   public static List<String> extractTags(String text) {
     if (text == null || text.isEmpty()) return List.of();

@@ -16,6 +16,12 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/ai/chat")
 @RequiredArgsConstructor
+/**
+ * AIAssistant控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @Tag(name = "AI 助手接口", description = "提供流式对话能力")
 public class AiAssistantController {
 
@@ -23,6 +29,12 @@ public class AiAssistantController {
 
     @Operation(summary = "流式对话", description = "基于 RAG 的流式问答接口")
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    /**
+     * 执行业务操作
+     * @param request 请求体数据
+     * @param userDetails 业务参数
+     * @return 业务返回结果
+     */
     public Flux<String> chatStream(
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -37,6 +49,12 @@ public class AiAssistantController {
 
     @Operation(summary = "多模态流式对话", description = "支持图片上传的流式问答接口")
     @PostMapping(value = "/image-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    /**
+     * 执行业务操作
+     * @param request 请求体数据
+     * @param userDetails 业务参数
+     * @return 业务返回结果
+     */
     public Flux<String> chatImageStream(
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetails userDetails) {

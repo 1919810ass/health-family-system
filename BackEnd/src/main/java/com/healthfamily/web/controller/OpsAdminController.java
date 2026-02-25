@@ -14,6 +14,12 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * Ops管理员控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/admin/ops")
 public class OpsAdminController {
 
@@ -48,11 +54,20 @@ public class OpsAdminController {
     }
 
     @GetMapping("/settings")
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public Result<Map<String, Object>> getSettings() {
         return Result.success(opsService.getSettings());
     }
 
     @PutMapping("/settings")
+    /**
+     * 更新
+     * @param payload 请求体数据
+     * @return 业务返回结果
+     */
     public Result<?> updateSettings(@RequestBody Map<String, Object> payload) {
         opsService.updateSettings(payload);
         return Result.success(true);

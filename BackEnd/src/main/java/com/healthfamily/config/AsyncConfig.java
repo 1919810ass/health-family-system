@@ -9,6 +9,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
+/**
+ * Async配置配置类
+ * <p>
+ * 集中定义框架与组件的装配、参数及运行时行为（如安全、异步、HTTP等）。
+ * </p>
+ */
 @EnableAsync
 public class AsyncConfig {
 

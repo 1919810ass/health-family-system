@@ -16,6 +16,12 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "health_inference_report", indexes = {
         @Index(name = "idx_user_date", columnList = "user_id, report_date")
+/**
+ * 健康Inference报告实体类
+ * <p>
+ * 用于持久化领域数据，通常与数据库表一一对应，承载业务状态与属性。
+ * </p>
+ */
 })
 public class HealthInferenceReport {
 

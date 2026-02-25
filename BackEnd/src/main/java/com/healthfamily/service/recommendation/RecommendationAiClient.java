@@ -26,6 +26,12 @@ import java.util.Map;
 
 @Slf4j
 @Component
+/**
+ * 推荐AIClient服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class RecommendationAiClient {
 
@@ -41,6 +47,10 @@ public class RecommendationAiClient {
 
     // 添加初始化方法验证日志配置
     @PostConstruct
+    /**
+     * 执行业务操作
+     * @return 无
+     */
     public void init() {
         log.debug("=== RecommendationAiClient 初始化，DEBUG 日志已启用 ===");
         log.info("=== RecommendationAiClient 初始化，配置模型: {} ===", properties.getAi().getModel());
@@ -59,6 +69,16 @@ public class RecommendationAiClient {
         }
         return promptTemplate;
     }
+
+    /**
+
+     * 生成
+
+     * @param request 请求体数据
+
+     * @return 业务返回结果
+
+     */
 
     public AiRecommendationResult generate(AiRecommendationRequest request) {
         // 1. Check Safety Switch

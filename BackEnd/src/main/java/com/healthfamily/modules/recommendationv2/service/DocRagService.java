@@ -16,6 +16,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
+/**
+ * DocRag服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 @Service
 public class DocRagService {
     private final DocFragmentRepository repo;
@@ -37,6 +43,10 @@ public class DocRagService {
     }
 
     @PostConstruct
+    /**
+     * 执行业务操作
+     * @return 无
+     */
     public void initData() {
         File storeFile = new File(vectorStorePath);
         if (!storeFile.exists()) {
@@ -75,6 +85,16 @@ public class DocRagService {
         }
     }
 
+    /**
+
+     * 执行业务操作
+
+     * @param q 业务参数
+
+     * @return 业务返回结果
+
+     */
+
     public List<Map<String, Object>> search(String q) {
         List<Document> results = vectorStore.similaritySearch(
                 SearchRequest.query(q)
@@ -102,6 +122,10 @@ public class DocRagService {
     }
     
     // 供外部调用，手动刷新向量库
+    /**
+     * 执行业务操作
+     * @return 无
+     */
     public void refreshVectorStore() {
         File storeFile = new File(vectorStorePath);
         if (storeFile.exists()) {

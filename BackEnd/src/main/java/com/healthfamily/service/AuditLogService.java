@@ -8,6 +8,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+/**
+ * Audit日志服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 import java.util.List;
 
 public interface AuditLogService {

@@ -6,6 +6,12 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
+/**
+ * AlertResponse
+ * <p>
+ * 承载平台业务功能，供上层调用或作为领域组件使用。
+ * </p>
+ */
 @Builder
 public class AlertResponse {
     private Long id;

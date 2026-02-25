@@ -17,6 +17,12 @@ import java.sql.Date;
 import java.time.Instant;
 import java.util.*;
 
+/**
+ * 推荐服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 @Service
 public class RecommendationService {
   private final RuleEngine ruleEngine;
@@ -51,6 +57,24 @@ public class RecommendationService {
     this.aiClient = new NoopAiClient();
     this.constitutionProcessor = new ConstitutionProcessor(constitutionRepository, 10 * 60 * 1000);
   }
+
+  /**
+
+   * 生成
+
+   * @param userId 家庭成员唯一标识
+
+   * @param date 日期
+
+   * @param scope 业务参数
+
+   * @param maxItems 业务参数
+
+   * @param strictMode 业务参数
+
+   * @return 业务返回结果
+
+   */
 
   public RecommendationResponse generate(Long userId, Date date, int scope, int maxItems, boolean strictMode) {
     UserProfile profile = buildProfile(userId);

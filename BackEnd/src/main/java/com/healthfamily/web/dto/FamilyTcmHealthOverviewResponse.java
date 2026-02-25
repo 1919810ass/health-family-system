@@ -2,6 +2,12 @@ package com.healthfamily.web.dto;
 
 import java.time.LocalDate;
 import java.util.List;
+/**
+ * 家庭中医体质健康OverviewResponse
+ * <p>
+ * 承载平台业务功能，供上层调用或作为领域组件使用。
+ * </p>
+ */
 import java.util.Map;
 
 public record FamilyTcmHealthOverviewResponse(

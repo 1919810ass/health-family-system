@@ -28,6 +28,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * 健康DataAI服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class HealthDataAiServiceImpl implements HealthDataAiService {
 
@@ -51,6 +57,12 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
     );
 
     @Override
+    /**
+     * 执行业务操作
+     * @param rawData 业务参数
+     * @param dataType 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> cleanAndNormalize(Object rawData, String dataType) {
         Map<String, Object> result = new HashMap<>();
         
@@ -196,6 +208,14 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param dataType 业务参数
+     * @param value 业务参数
+     * @param historicalData 业务参数
+     * @return 业务返回结果
+     */
     public AnomalyResult detectAnomaly(Long userId, String dataType, Double value, Map<String, Object> historicalData) {
         if (value == null) {
             return new AnomalyResult(false, "数值为空", "LOW", null);
@@ -345,6 +365,11 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param imageBase64 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> parseMedicalDataFromImage(String imageBase64) {
         try {
             // 使用AI模型解析医疗数据
@@ -396,6 +421,12 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param type 业务参数
+     * @param text 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> optimizeInput(String type, String text) {
         if (!StringUtils.hasText(text)) return Map.of();
         String t = type != null ? type.toUpperCase() : "";
@@ -535,6 +566,11 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param voiceText 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> parseVoiceInput(String voiceText) {
         if (!StringUtils.hasText(voiceText)) {
             return Map.of("error", "语音文本为空");
@@ -595,6 +631,11 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param text 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> optimizeDietText(String text) {
         if (!StringUtils.hasText(text)) {
             return Map.of("items", List.of(), "totalCalories", 0);

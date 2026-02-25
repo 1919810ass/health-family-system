@@ -2,9 +2,20 @@ package com.healthfamily.modules.recommendationv2.service;
 
 import com.healthfamily.modules.recommendationv2.domain.RuleV2;
 
+/**
+ * SuggestionClassifier服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 import java.util.Locale;
 
 public class SuggestionClassifier {
+  /**
+   * 执行业务操作
+   * @param text 业务参数
+   * @return 业务返回结果
+   */
   public static RuleV2.Category detect(String text) {
     if (text == null) return RuleV2.Category.DIET;
     String t = text.toLowerCase(Locale.ROOT);

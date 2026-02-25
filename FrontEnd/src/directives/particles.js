@@ -1,3 +1,7 @@
+/**
+ * 前端模块：particles.js
+ */
+
 const colors = ['#7B61FF', '#00D2BA', '#FFB84C', '#FF5C5C', '#5D8BF4'];
 
 export default {

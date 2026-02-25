@@ -15,6 +15,12 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+/**
+ * Constitution趋势Record实体类
+ * <p>
+ * 用于持久化领域数据，通常与数据库表一一对应，承载业务状态与属性。
+ * </p>
+ */
 @Table(name = "constitution_trend_records")
 public class ConstitutionTrendRecord {
 

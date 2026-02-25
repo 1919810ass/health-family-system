@@ -22,6 +22,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+/**
+ * 监测服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class MonitoringServiceImpl implements MonitoringService {
 
@@ -31,6 +37,12 @@ public class MonitoringServiceImpl implements MonitoringService {
     private final FamilyRepository familyRepository;
 
     @Override
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public AlertResponse ingest(Long requesterId, TelemetryIngestRequest request) {
         // 获取用户信息
         User user = userRepository.findById(requesterId)
@@ -116,6 +128,12 @@ public class MonitoringServiceImpl implements MonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public List<AlertResponse> getAlerts(Long requesterId, Long familyId) {
         // 获取用户
         User user = userRepository.findById(requesterId)
@@ -152,6 +170,12 @@ public class MonitoringServiceImpl implements MonitoringService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param alertId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public AlertResponse acknowledge(Long requesterId, Long alertId) {
         // 获取告警
         HealthAlert alert = healthAlertRepository.findById(alertId)
@@ -189,6 +213,11 @@ public class MonitoringServiceImpl implements MonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public List<ThresholdResponse> getThresholds(Long requesterId) {
         // 获取用户配置的阈值
         Profile profile = profileRepository.findById(requesterId).orElse(null);
@@ -216,6 +245,11 @@ public class MonitoringServiceImpl implements MonitoringService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public List<ThresholdResponse> optimizeThresholds(Long requesterId) {
         // 获取用户健康数据以优化阈值
         // 这里简化处理，返回默认优化后的阈值

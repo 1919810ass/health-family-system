@@ -11,6 +11,12 @@ import org.mockito.Mockito;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * ConstitutionProcessorTest
+ * <p>
+ * 承载平台业务功能，供上层调用或作为领域组件使用。
+ * </p>
+ */
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ConstitutionProcessorTest {

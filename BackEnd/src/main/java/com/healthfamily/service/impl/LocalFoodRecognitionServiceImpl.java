@@ -21,6 +21,12 @@ import java.util.List;
 
 @Slf4j
 @Service
+/**
+ * LocalFoodRecognition服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class LocalFoodRecognitionServiceImpl implements FoodRecognitionService {
 
@@ -32,6 +38,11 @@ public class LocalFoodRecognitionServiceImpl implements FoodRecognitionService {
     private double visionTemperature;
 
     @Override
+    /**
+     * 执行业务操作
+     * @param imagePath 业务参数
+     * @return 业务返回结果
+     */
     public RecognitionResult recognize(Path imagePath) {
         try {
             log.info("Starting AI food recognition for: {}", imagePath);

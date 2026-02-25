@@ -1,3 +1,9 @@
+/**
+ * 前端接口封装：monitor.js
+ *
+ * 统一封装与后端 /api 路径下接口的调用，供页面与状态管理层复用。
+ */
+
 import request from '../utils/request'
 
 // 医生端健康监测API
@@ -20,4 +26,12 @@ export const getAlerts = (params) => request.get('/monitor/alerts', { params })
 export const ackAlert = (id) => request.put(`/monitor/alerts/${id}/ack`)
 export const getThresholds = () => request.get('/monitor/thresholds')
 export const optimizeThresholds = () => request.post('/monitor/thresholds/optimize', {})
+
+// 获取服务器实时监控数据 (CPU, 内存, 线程)
+export function getSystemMetrics() {
+  return request({
+    url: '/api/monitor/metrics',
+    method: 'get'
+  })
+}
 

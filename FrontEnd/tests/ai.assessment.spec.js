@@ -1,3 +1,7 @@
+/**
+ * 前端模块：ai.assessment.spec.js
+ */
+
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'

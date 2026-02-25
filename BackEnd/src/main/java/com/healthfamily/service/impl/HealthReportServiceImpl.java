@@ -54,6 +54,12 @@ import com.lowagie.text.pdf.PdfWriter;
 
 @Slf4j
 @Service
+/**
+ * 健康报告服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class HealthReportServiceImpl implements HealthReportService {
     private static final Pattern INLINE_CITATION_PATTERN = Pattern.compile("\\\\[(\\\\d+)]");
@@ -74,6 +80,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     @Override
     // Remove @Transactional to avoid race condition with async thread
     // @Transactional 
+    /**
+     * 提交
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public HealthReportResponse submitReport(Long userId, HealthReportRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(404, "用户不存在"));
@@ -176,6 +188,10 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 30000)
+    /**
+     * 执行业务操作
+     * @return 无
+     */
     public void retryPendingReports() {
         List<HealthReport> pending = reportRepository.findByStatusOrderByCreatedAtAsc(ReportStatus.PENDING);
         if (pending == null || pending.isEmpty()) return;
@@ -186,6 +202,11 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public List<HealthReportResponse> getUserReports(Long userId) {
         return reportRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(this::toResponse)
@@ -193,6 +214,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param reportId 报告唯一标识
+     * @return 业务返回结果
+     */
     public HealthReportResponse getReportDetail(Long userId, Long reportId) {
         HealthReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new BusinessException(404, "报告不存在"));
@@ -204,6 +231,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param reportId 报告唯一标识
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.ReportStatusResponse getReportStatus(Long userId, Long reportId) {
         HealthReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new BusinessException(404, "报告不存在"));
@@ -221,6 +254,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param reportId 报告唯一标识
+     * @return 业务返回结果
+     */
     public HealthReportResponse getReportDetailForDoctor(Long doctorId, Long reportId) {
         // 实际应添加医生与患者关系的校验
         HealthReport report = reportRepository.findById(reportId)
@@ -229,6 +268,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public List<HealthReportResponse> getReportsForDoctor(Long doctorId, Long patientUserId) {
         // 实际应添加医生与患者关系的校验
         return reportRepository.findByUserIdOrderByCreatedAtDesc(patientUserId).stream()
@@ -238,6 +283,13 @@ public class HealthReportServiceImpl implements HealthReportService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param reportId 报告唯一标识
+     * @param comment 业务参数
+     * @return 业务返回结果
+     */
     public HealthReportResponse addDoctorComment(Long doctorId, Long reportId, String comment) {
         HealthReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new BusinessException(404, "报告不存在"));
@@ -250,6 +302,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 生成
+     * @param doctorId 医生唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public byte[] generateReportDocx(Long doctorId, GenerateReportRequest request) {
         Long userId = request.userId();
         User user = userRepository.findById(userId)
@@ -339,6 +397,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 生成
+     * @param doctorId 医生唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public byte[] generateReportPdf(Long doctorId, GenerateReportRequest request) {
         Long userId = request.userId();
         User user = userRepository.findById(userId)
@@ -464,6 +528,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 生成
+     * @param doctorId 医生唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public ReportGenerationPreviewResponse generateReportPreview(Long doctorId, GenerateReportRequest request) {
         Long userId = request.userId();
         User user = userRepository.findById(userId)
@@ -475,6 +545,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Flux<String> streamReportPreview(Long doctorId, GenerateReportRequest request) {
         return Mono.fromCallable(() -> {
             Long userId = request.userId();
@@ -519,6 +595,12 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 生成
+     * @param doctorId 医生唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public byte[] generateBatchReportZip(Long doctorId, GenerateBatchReportRequest request) {
         List<GenerateBatchReportItem> items = request.items() == null ? List.of() : request.items();
         if (items.isEmpty()) {
@@ -846,6 +928,10 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public byte[] getReportTemplate() {
         try (XWPFDocument document = new XWPFDocument();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {

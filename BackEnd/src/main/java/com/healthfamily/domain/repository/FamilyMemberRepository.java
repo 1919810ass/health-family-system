@@ -9,6 +9,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+/**
+ * 家庭Member数据访问接口
+ * <p>
+ * 基于 Spring Data JPA 的数据访问层，用于领域对象的 CRUD 与查询。
+ * </p>
+ */
 import java.util.Optional;
 
 public interface FamilyMemberRepository extends JpaRepository<FamilyMember, Long> {
@@ -28,4 +34,6 @@ public interface FamilyMemberRepository extends JpaRepository<FamilyMember, Long
 
     @Query("select fm.user.id from FamilyMember fm where fm.family.id = :familyId")
     List<Long> findUserIdsByFamilyId(@Param("familyId") Long familyId);
+
+    long countByFamilyIdIn(List<Long> familyIds);
 }

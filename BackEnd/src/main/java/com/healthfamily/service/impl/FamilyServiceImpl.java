@@ -29,6 +29,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+/**
+ * 家庭服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class FamilyServiceImpl implements FamilyService {
 
@@ -45,6 +51,12 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 创建
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public FamilyResponse createFamily(Long userId, FamilyCreateRequest request) {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -80,6 +92,13 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public FamilyResponse joinFamily(Long userId, Long familyId, FamilyInviteRequest request) {
         Family family = familyRepository.findById(familyId)
                 .orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
@@ -111,6 +130,12 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param inviteCode 业务参数
+     * @return 业务返回结果
+     */
     public FamilyResponse joinByCode(Long userId, String inviteCode) {
         Family family = familyRepository.findByInviteCode(inviteCode)
                 .orElseThrow(() -> new BusinessException(40402, "家庭不存在或邀请码错误"));
@@ -134,6 +159,12 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public FamilyResponse getFamily(Long userId, Long familyId) {
         Family family = ensureMembership(userId, familyId);
         return toFamilyResponse(family);
@@ -141,6 +172,11 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 查询列表
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public List<FamilyResponse> listUserFamilies(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -173,6 +209,12 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 查询列表
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public List<FamilyMemberResponse> listMembers(Long userId, Long familyId) {
         Family family = ensureMembership(userId, familyId);
         return familyMemberRepository.findByFamily(family).stream()
@@ -285,6 +327,12 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public FamilyResponse regenerateInviteCode(Long userId, Long familyId) {
         Family family = ensureAdminAccess(userId, familyId);
         String inviteCode = generateInviteCode();
@@ -298,6 +346,13 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public FamilyResponse updateFamily(Long userId, Long familyId, FamilyUpdateRequest request) {
         Family family = ensureAdminAccess(userId, familyId);
         family.setName(request.name());
@@ -307,6 +362,14 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @param memberId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public FamilyMemberResponse updateMember(Long userId, Long familyId, Long memberId, FamilyMemberUpdateRequest request) {
         Family family = ensureAdminAccess(userId, familyId);
         FamilyMember member = familyMemberRepository.findById(memberId)
@@ -342,6 +405,13 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @param memberId 家庭成员唯一标识
+     * @return 无
+     */
     public void removeMember(Long userId, Long familyId, Long memberId) {
         Family family = ensureAdminAccess(userId, familyId);
         FamilyMember member = familyMemberRepository.findById(memberId)
@@ -364,6 +434,13 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @param shareToFamily 业务参数
+     * @return 无
+     */
     public void setDataShare(Long userId, Long familyId, Boolean shareToFamily) {
         ensureMembership(userId, familyId);
         updateDataShare(userId, shareToFamily);
@@ -397,6 +474,16 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 获取
+     * @param keyword 业务参数
+     * @param status 业务参数
+     * @param page 分页页码
+     * @param size 分页大小
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public java.util.Map<String, Object> getAdminFamilyList(String keyword, String status, int page, int size, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
         List<Family> families = familyRepository.findAll();
         
@@ -477,11 +564,21 @@ public class FamilyServiceImpl implements FamilyService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public Family findById(Long id) {
         return familyRepository.findById(id).orElse(null);
     }
 
     @Override
+    /**
+     * 创建
+     * @param family 业务参数
+     * @return 业务返回结果
+     */
     public Family create(Family family) {
         // 生成邀请码
         String inviteCode = generateInviteCode();
@@ -494,6 +591,12 @@ public class FamilyServiceImpl implements FamilyService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param family 业务参数
+     * @return 业务返回结果
+     */
     public Family update(Long id, Family family) {
         Family existingFamily = familyRepository.findById(id).orElse(null);
         if (existingFamily == null) {
@@ -511,6 +614,11 @@ public class FamilyServiceImpl implements FamilyService {
     }
 
     @Override
+    /**
+     * 删除
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean deleteById(Long id) {
         if (familyRepository.existsById(id)) {
             familyRepository.deleteById(id);
@@ -520,6 +628,12 @@ public class FamilyServiceImpl implements FamilyService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param status 业务参数
+     * @return 业务返回结果
+     */
     public boolean updateStatus(Long id, String status) {
         Family family = familyRepository.findById(id).orElse(null);
         if (family == null) {

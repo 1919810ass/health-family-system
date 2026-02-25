@@ -1,5 +1,11 @@
+/**
+ * 前端状态管理模块：doctor.js
+ *
+ * 存储与管理全局/模块级状态，并封装与接口交互的动作。
+ */
+
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { getDoctorFamilies, getBoundFamilyMembers } from '../api/doctor'
 import { getDoctorView } from '../api/family'
 import { ElMessage } from 'element-plus'
@@ -21,11 +27,8 @@ export const useDoctorStore = defineStore('doctor', () => {
   const summary = ref('') // 当前家庭的健康摘要
   const telemetry = ref({}) // 当前家庭的遥测数据
   const aiEnabled = ref(false) // AI生成功能开关
-  const pendingData = ref({
-    consultations: 0,
-    plans: 0,
-    followups: 0,
-  }) // 待办事项统计
+    const pendingData = ref({ consultations: 0, plans: 0, followups: 0 }); // 待办事项统计
+  const briefData = ref({ consults: 0, newPatients: 0, improveRate: 0 }); // 数据简报
   const abnormalEvents = ref([]) // 异常事件列表
   const highRiskMembers = ref([]) // 高风险患者列表
 
@@ -55,17 +58,19 @@ export const useDoctorStore = defineStore('doctor', () => {
       const res = await getDoctorFamilies()
       families.value = res?.data || []
       
-      // 如果列表不为空且当前没有选中家庭，自动选择第一个
       if (families.value.length > 0 && !currentFamilyId.value) {
-        const firstFamilyId = String(families.value[0].id)
-        await setCurrentFamily(firstFamilyId)
+        currentFamilyId.value = String(families.value[0].id)
       } else if (currentFamilyId.value) {
-        // 验证当前家庭ID是否还在列表中
         const exists = families.value.some(f => String(f.id) === String(currentFamilyId.value))
         if (!exists && families.value.length > 0) {
-          // 当前家庭不存在，选择第一个
-          await setCurrentFamily(String(families.value[0].id))
+          currentFamilyId.value = String(families.value[0].id)
         }
+      }
+      
+      // 持久化 currentFamilyId
+      if (currentFamilyId.value) {
+        localStorage.setItem(STORAGE_KEY_CURRENT_FAMILY_ID, currentFamilyId.value)
+        localStorage.setItem(STORAGE_KEY_CURRENT_FAMILY_ID_COMMON, currentFamilyId.value)
       }
       
       return families.value
@@ -103,12 +108,6 @@ export const useDoctorStore = defineStore('doctor', () => {
     } catch (error) {
       console.error('保存当前家庭ID到本地存储失败:', error)
     }
-
-    // 刷新相关数据（不自动启用AI）
-    await Promise.all([
-      fetchMembers(familyIdStr),
-      fetchSummary(familyIdStr, false),
-    ])
   }
 
   // 获取指定家庭的绑定成员
@@ -153,6 +152,11 @@ export const useDoctorStore = defineStore('doctor', () => {
         consultations: res?.data?.pendingConsultationsCount || 0,
         plans: res?.data?.pendingPlansCount || 0,
         followups: res?.data?.todayFollowupsCount || 0,
+      }
+      briefData.value = {
+        consults: res?.data?.weeklyConsultations || 0,
+        newPatients: res?.data?.newPatients || 0,
+        improveRate: res?.data?.improvementRate || 0,
       }
       abnormalEvents.value = res?.data?.abnormalEvents || []
       highRiskMembers.value = res?.data?.highRiskMembers || []
@@ -216,6 +220,24 @@ export const useDoctorStore = defineStore('doctor', () => {
   // 初始化：从本地存储恢复当前家庭ID
   initCurrentFamilyId()
 
+  // 侦听器：当 currentFamilyId 变化时，自动获取相关数据
+  watch(currentFamilyId, (newId) => {
+    if (newId && newId !== 'null') {
+      // 当 familyId 有效时，获取该家庭的全部核心数据
+      fetchSummary(newId, aiEnabled.value)
+      fetchMembers(newId)
+    } else {
+      // 当 familyId 为空时，清空所有相关数据
+      summary.value = ''
+      telemetry.value = {}
+      pendingData.value = { consultations: 0, plans: 0, followups: 0 }
+      briefData.value = { consults: 0, newPatients: 0, improveRate: 0 }
+      abnormalEvents.value = []
+      highRiskMembers.value = []
+      boundMembers.value = []
+    }
+  }, { immediate: true }) // immediate: true 确保侦听器在初始化时立即执行一次
+
   return {
     // 状态
     families,
@@ -228,6 +250,7 @@ export const useDoctorStore = defineStore('doctor', () => {
     abnormalEvents,
     highRiskMembers,
     aiEnabled,
+    briefData,
     // 计算属性
     currentFamily,
     // 方法

@@ -24,6 +24,12 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @EntityListeners(AuditingEntityListener.class)
+/**
+ * 用户Login日志实体类
+ * <p>
+ * 用于持久化领域数据，通常与数据库表一一对应，承载业务状态与属性。
+ * </p>
+ */
 @Table(name = "user_login_logs")
 public class UserLoginLog {
 

@@ -5,6 +5,12 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
+/**
+ * AesUtil工具类
+ * <p>
+ * 提供可复用的通用工具方法，供业务模块调用。
+ * </p>
+ */
 import java.util.Base64;
 
 public class AesUtil {

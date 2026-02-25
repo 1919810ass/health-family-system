@@ -34,6 +34,12 @@ import org.springframework.ai.converter.BeanOutputConverter;
 
 @Slf4j
 @Service
+/**
+ * AI推荐服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class AiRecommendationServiceImpl implements AiRecommendationService {
 
@@ -56,6 +62,12 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
     @Override
     @Transactional
+    /**
+     * 生成
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public AiRecommendationResponse generateRecommendation(Long userId, AiRecommendationRequest request) {
         // Privacy Check
         String scope = mapCategoryToScope(request.category());
@@ -239,6 +251,13 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param startDate 开始日期
+     * @param endDate 结束日期
+     * @return 业务返回结果
+     */
     public List<AiRecommendationResponse> getUserRecommendations(Long userId, LocalDate startDate, LocalDate endDate) {
         User user = loadUser(userId);
         List<AiRecommendation> recommendations;
@@ -257,6 +276,13 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param recommendationId 业务对象唯一标识
+     * @param userId 家庭成员唯一标识
+     * @param feedback 业务参数
+     * @return 无
+     */
     public void feedback(Long recommendationId, Long userId, Integer feedback) {
         AiRecommendation recommendation = recommendationRepository.findById(recommendationId)
                 .orElseThrow(() -> new RuntimeException("建议不存在"));

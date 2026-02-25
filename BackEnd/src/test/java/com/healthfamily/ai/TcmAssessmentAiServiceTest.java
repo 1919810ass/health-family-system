@@ -22,6 +22,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+/**
+ * 中医体质测评AI服务Test
+ * <p>
+ * 承载平台业务功能，供上层调用或作为领域组件使用。
+ * </p>
+ */
 @ExtendWith(MockitoExtension.class)
 class TcmAssessmentAiServiceTest {
 

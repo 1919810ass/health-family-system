@@ -1,3 +1,7 @@
+/**
+ * 前端模块：recommendation.mapping.spec.js
+ */
+
 import { describe, it, expect } from 'vitest'
 import { mapToBackendCategories } from '../src/utils/recommendation'
 

@@ -304,9 +304,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, StarFilled, Refresh, Plus } from '@element-plus/icons-vue'
+import { Star, StarFilled, Refresh, Plus, MagicStick, Microphone } from '@element-plus/icons-vue'
 import { 
   getPatientDetail, 
   togglePatientImportant,
@@ -383,6 +383,103 @@ const noteFormRules = {
 // 诊断工具相关
 const generatingRecommendation = ref(false)
 const shareDisabled = computed(() => props.shareToFamily === false)
+
+// Voice Dictation
+const isListening = ref(false);
+let recognition = null;
+const handleNote = ref('');
+
+const toggleVoice = () => {
+  if (isListening.value) {
+    recognition.stop();
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    ElMessage.error('您的浏览器不支持语音输入，请使用 Chrome');
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-CN';
+  recognition.continuous = false;
+
+  recognition.onstart = () => {
+    isListening.value = true;
+  };
+
+  recognition.onend = () => {
+    isListening.value = false;
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    handleNote.value += transcript;
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      ElMessage.warning('语音输入需要麦克风权限，请在浏览器设置中允许。');
+    } else {
+      ElMessage.error(`语音识别错误: ${event.error}`);
+    }
+  };
+
+  recognition.start();
+};
+
+const handleMarkRiskHandled = async () => {
+  handleNote.value = ''; // 重置备注
+  try {
+    await ElMessageBox({
+      title: '标记已处理',
+      message: h('div', { class: 'handle-risk-dialog' }, [
+        h('p', '请输入处置备注，说明您是如何处理本次风险的。'),
+        h('div', { class: 'voice-input-wrapper' }, [
+          h(ElInput, {
+            modelValue: handleNote.value,
+            'onUpdate:modelValue': (val) => handleNote.value = val,
+            type: 'textarea',
+            rows: 4,
+            placeholder: '例如：已电话联系患者，建议其注意休息，3天后复查。'
+          }),
+          h(ElButton, {
+            class: { 'voice-btn': true, 'is-listening': isListening.value },
+            icon: Microphone,
+            circle: true,
+            onClick: toggleVoice
+          })
+        ])
+      ]),
+      showCancelButton: true,
+      confirmButtonText: '确认处理',
+      cancelButtonText: '取消',
+      beforeClose: async (action, instance, done) => {
+        if (action === 'confirm') {
+          instance.confirmButtonLoading = true
+          try {
+            await handleRisk({
+              patientId: props.patientUserId,
+              note: handleNote.value
+            })
+            ElMessage.success('标记成功')
+            emit('refresh')
+            done()
+          } catch (e) {
+            ElMessage.error('操作失败')
+          } finally {
+            instance.confirmButtonLoading = false
+          }
+        } else {
+          done()
+        }
+      }
+    });
+  } catch (e) {
+    // 用户点击取消
+  }
+}
 
 // 监听抽屉打开，加载数据
 watch(visible, async (newVal) => {
@@ -834,6 +931,38 @@ const handleGenerateRecommendation = async () => {
     .note-meta {
       flex: 1;
     }
+  }
+}
+</style>
+<style scoped>
+.voice-input-wrapper {
+  position: relative;
+  margin-top: 8px;
+}
+
+.voice-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 1;
+  transition: color 0.3s, background-color 0.3s;
+}
+
+.voice-btn.is-listening {
+  color: #fff;
+  background-color: #f56c6c;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 108, 108, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(245, 108, 108, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 108, 108, 0);
   }
 }
 </style>

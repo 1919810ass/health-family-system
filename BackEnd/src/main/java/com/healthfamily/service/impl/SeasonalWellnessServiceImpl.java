@@ -27,6 +27,12 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
+/**
+ * SeasonalWellness服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
 
@@ -38,6 +44,11 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
     private final OllamaLegacyClient ollamaLegacyClient;
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public SeasonalWellnessDTO getWellnessAdvice(Long userId) {
         String todayDate = LocalDate.now().toString();
         String solarTerm = SolarTermUtil.getCurrentSolarTerm();
@@ -77,6 +88,11 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public Flux<ServerSentEvent<String>> getWellnessAdviceStream(Long userId) {
         String todayDate = LocalDate.now().toString();
         String solarTerm = SolarTermUtil.getCurrentSolarTerm();

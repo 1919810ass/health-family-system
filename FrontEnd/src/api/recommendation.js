@@ -1,3 +1,9 @@
+/**
+ * 前端接口封装：recommendation.js
+ *
+ * 统一封装与后端 /api 路径下接口的调用，供页面与状态管理层复用。
+ */
+
 import request from '../utils/request'
 
 // 统一用户ID头的注入逻辑：优先使用本地开发配置，其次回退到 4

@@ -25,6 +25,12 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * 健康Inference服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @Slf4j
 public class HealthInferenceServiceImpl implements HealthInferenceService {
 
@@ -38,6 +44,11 @@ public class HealthInferenceServiceImpl implements HealthInferenceService {
     private final OllamaLegacyClient ollamaLegacyClient;
 
     @Override
+    /**
+     * 生成
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public String generateCrossDomainInference(Long userId) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));

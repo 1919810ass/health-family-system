@@ -1,3 +1,9 @@
+/**
+ * 前端接口封装：index.js
+ *
+ * 统一封装与后端 /api 路径下接口的调用，供页面与状态管理层复用。
+ */
+
 export * from './user'
 export * from './family'
 export * from './assessment'

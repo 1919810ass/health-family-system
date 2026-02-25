@@ -1,3 +1,7 @@
+/**
+ * 前端模块：logger.spec.js
+ */
+
 import { describe, it, expect } from 'vitest'
 import { error, info } from '../src/utils/logger'
 

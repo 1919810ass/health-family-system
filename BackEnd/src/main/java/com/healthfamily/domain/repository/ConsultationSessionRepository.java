@@ -6,6 +6,12 @@ import com.healthfamily.domain.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+/**
+ * 问诊Session数据访问接口
+ * <p>
+ * 基于 Spring Data JPA 的数据访问层，用于领域对象的 CRUD 与查询。
+ * </p>
+ */
 import java.util.Optional;
 
 public interface ConsultationSessionRepository extends JpaRepository<ConsultationSession, Long> {
@@ -39,5 +45,9 @@ public interface ConsultationSessionRepository extends JpaRepository<Consultatio
      * 根据状态查找会话
      */
     List<ConsultationSession> findByStatusOrderByLastMessageAtDesc(String status);
+
+    long countByDoctorAndUnreadCountDoctorGreaterThan(User doctor, int count);
+
+    long countByDoctorAndCreatedAtAfter(User doctor, java.time.LocalDateTime createdAt);
 }
 

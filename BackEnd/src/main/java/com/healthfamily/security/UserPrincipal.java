@@ -6,6 +6,12 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
+/**
+ * 用户Principal安全组件
+ * <p>
+ * 负责认证鉴权、Token 解析、权限校验或安全相关的辅助能力。
+ * </p>
+ */
 import java.util.List;
 
 public record UserPrincipal(User user) implements UserDetails {

@@ -26,6 +26,12 @@ import org.springframework.core.annotation.Order;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+/**
+ * 安全配置配置类
+ * <p>
+ * 集中定义框架与组件的装配、参数及运行时行为（如安全、异步、HTTP等）。
+ * </p>
+ */
 @EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 

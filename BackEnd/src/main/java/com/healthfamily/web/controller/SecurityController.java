@@ -19,6 +19,12 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * 安全控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/security")
 public class SecurityController {
 
@@ -26,12 +32,22 @@ public class SecurityController {
     private final AuditLogService auditLogService;
 
     @GetMapping("/export")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public Result<String> export(@AuthenticationPrincipal UserPrincipal principal) {
         Long userId = principal.getUserId();
         return Result.success(securityService.exportUserDataBase64(userId));
     }
 
     @DeleteMapping("/data")
+    /**
+     * 删除
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public Result<Void> delete(@AuthenticationPrincipal UserPrincipal principal) {
         Long userId = principal.getUserId();
         securityService.deleteUserData(userId);
@@ -39,6 +55,11 @@ public class SecurityController {
     }
 
     @GetMapping("/privacy")
+    /**
+     * 获取
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public Result<Map<String, Object>> getPrivacySettings(@AuthenticationPrincipal UserPrincipal principal) {
         Long userId = principal.getUserId();
         return Result.success(securityService.getPrivacySettings(userId));
@@ -46,6 +67,12 @@ public class SecurityController {
 
     @PutMapping("/privacy")
     @Audit(action = "UPDATE_PRIVACY", resource = "Security", sensitivity = SensitivityLevel.HIGH)
+    /**
+     * 更新
+     * @param principal 当前登录用户
+     * @param settings 业务参数
+     * @return 业务返回结果
+     */
     public Result<Void> updatePrivacySettings(@AuthenticationPrincipal UserPrincipal principal,
                                               @RequestBody Map<String, Object> settings) {
         Long userId = principal.getUserId();

@@ -1,3 +1,7 @@
+/**
+ * 前端模块：setup.js
+ */
+
 if (!globalThis.localStorage) {
   const store = new Map()
   globalThis.localStorage = {

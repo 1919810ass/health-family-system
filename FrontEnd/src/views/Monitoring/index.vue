@@ -199,6 +199,12 @@
 </template>
 
 <script setup>
+/**
+ * 组件：index.vue
+ *
+ * 业务说明：用于呈现对应页面/模块功能，并通过 API 层与后端进行数据交互。
+ */
+
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Monitor, BellFilled, Operation, MagicStick, Check, DataLine, User, House, Odometer, Upload, Warning } from '@element-plus/icons-vue'

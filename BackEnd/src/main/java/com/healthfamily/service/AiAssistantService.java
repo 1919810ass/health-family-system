@@ -22,6 +22,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * AIAssistant服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class AiAssistantService {
 
@@ -32,6 +38,18 @@ public class AiAssistantService {
     private String visionModel;
     @Value("${spring.ai.ollama.vision.temperature:0.3}")
     private double visionTemperature;
+
+    /**
+
+     * 执行业务操作
+
+     * @param userMessage 业务参数
+
+     * @param userId 家庭成员唯一标识
+
+     * @return 业务返回结果
+
+     */
 
     public Flux<String> chatStream(String userMessage, Long userId) {
         // 1. RAG 检索上下文 (增加异常处理，避免 RAG 失败导致整个对话崩溃)
@@ -91,6 +109,20 @@ public class AiAssistantService {
 
         return responseStream;
     }
+
+    /**
+
+     * 执行业务操作
+
+     * @param userMessage 业务参数
+
+     * @param base64Image 业务参数
+
+     * @param userId 家庭成员唯一标识
+
+     * @return 业务返回结果
+
+     */
 
     public Flux<String> chatImageStream(String userMessage, String base64Image, Long userId) {
         String systemPrompt = """

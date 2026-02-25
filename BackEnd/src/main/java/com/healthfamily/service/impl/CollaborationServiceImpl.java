@@ -25,6 +25,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+/**
+ * Collaboration服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class CollaborationServiceImpl implements com.healthfamily.service.CollaborationService {
 
@@ -40,6 +46,12 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
 
     @Override
     @Transactional
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public FamilyDashboardResponse getFamilyDashboard(Long requesterId, Long familyId) {
         Family family = familyRepository.findById(familyId)
                 .orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
@@ -103,6 +115,12 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.HomeAbnormalTodayResponse getAbnormalToday(Long requesterId, Long familyId) {
         Family family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         User requester = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -126,6 +144,12 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.HomeHealthIndexResponse getHealthIndex(Long requesterId, Long familyId) {
         Family family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         User requester = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -147,6 +171,14 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @param metric 业务参数
+     * @param period 业务参数
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.HomeTrendResponse getMetricTrend(Long requesterId, Long familyId, String metric, String period) {
         Family family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         User requester = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -203,6 +235,12 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.HomeStatusDistributionResponse getStatusDistribution(Long requesterId, Long familyId) {
         Family family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         User requester = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -223,6 +261,12 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
 
     @Override
     @Transactional
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.HomeEventsResponse getRecentEvents(Long requesterId, Long familyId) {
         Family family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         User requester = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -250,6 +294,12 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void sendInteraction(Long requesterId, com.healthfamily.web.dto.SendInteractionRequest request) {
         User sender = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));
         User target = userRepository.findById(request.getTargetUserId()).orElseThrow(() -> new BusinessException(40401, "目标用户不存在"));
@@ -276,6 +326,12 @@ public class CollaborationServiceImpl implements com.healthfamily.service.Collab
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public List<com.healthfamily.web.dto.FamilyInteractionDto> getRecentInteractions(Long requesterId, Long familyId) {
         Family family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         User requester = userRepository.findById(requesterId).orElseThrow(() -> new BusinessException(40401, "用户不存在"));

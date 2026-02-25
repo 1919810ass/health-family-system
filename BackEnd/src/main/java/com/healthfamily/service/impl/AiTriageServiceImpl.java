@@ -24,6 +24,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+/**
+ * AITriage服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class AiTriageServiceImpl implements AiTriageService {
 
@@ -34,6 +40,12 @@ public class AiTriageServiceImpl implements AiTriageService {
 
     // 1. 用户发送消息，获取AI回复 (多轮对话)
     @Override
+    /**
+     * 执行业务操作
+     * @param sessionId 业务对象唯一标识
+     * @param userContent 业务参数
+     * @return 业务返回结果
+     */
     public String chat(Long sessionId, String userContent) {
         // 保存用户消息
         saveMessage(sessionId, "USER", userContent);
@@ -74,6 +86,11 @@ public class AiTriageServiceImpl implements AiTriageService {
 
     // 2. 生成最终摘要
     @Override
+    /**
+     * 生成
+     * @param sessionId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public String generateSummary(Long sessionId) {
         List<ConsultationTriageChat> history = chatRepo.findBySessionIdOrderByGmtCreateAsc(sessionId);
         String historyText = history.stream()

@@ -2,53 +2,46 @@ package com.healthfamily.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthfamily.common.exception.BusinessException;
-import com.healthfamily.domain.entity.Family;
-import com.healthfamily.domain.entity.FamilyDoctor;
-import com.healthfamily.domain.entity.HealthLog;
-import com.healthfamily.domain.entity.User;
 import com.healthfamily.domain.constant.AlertStatus;
-import com.healthfamily.domain.constant.ReminderStatus;
-import com.healthfamily.domain.entity.HealthAlert;
-import com.healthfamily.domain.entity.Profile;
-import com.healthfamily.domain.repository.FamilyDoctorRepository;
-import com.healthfamily.domain.repository.FamilyMemberRepository;
-import com.healthfamily.domain.repository.FamilyRepository;
-import com.healthfamily.domain.constant.HealthLogType;
-import com.healthfamily.domain.entity.ConstitutionAssessment;
-import com.healthfamily.domain.entity.AiRecommendation;
-import com.healthfamily.domain.entity.DoctorNote;
-import com.healthfamily.domain.entity.HealthPlan;
-import com.healthfamily.domain.repository.AiRecommendationRepository;
-import com.healthfamily.domain.repository.ConstitutionAssessmentRepository;
-import com.healthfamily.domain.repository.DoctorNoteRepository;
-import com.healthfamily.domain.repository.HealthPlanRepository;
-import com.healthfamily.domain.constant.HealthPlanType;
-import com.healthfamily.domain.constant.HealthPlanStatus;
 import com.healthfamily.domain.constant.FrequencyType;
 import com.healthfamily.domain.constant.HealthLogType;
-import com.healthfamily.domain.constant.Sex;
+import com.healthfamily.domain.constant.HealthPlanStatus;
+import com.healthfamily.domain.constant.HealthPlanType;
 import com.healthfamily.domain.constant.ReminderStatus;
-import com.healthfamily.domain.entity.Profile;
-import com.healthfamily.domain.entity.HealthPlan;
+import com.healthfamily.domain.constant.Sex;
+import com.healthfamily.domain.entity.AbnormalHandlingRecord;
+import com.healthfamily.domain.entity.AiRecommendation;
 import com.healthfamily.domain.entity.ConsultationSession;
+import com.healthfamily.domain.entity.ConstitutionAssessment;
+import com.healthfamily.domain.entity.DoctorNote;
 import com.healthfamily.domain.entity.DoctorProfile;
-import com.healthfamily.domain.repository.DoctorProfileRepository;
+import com.healthfamily.domain.entity.Family;
+import com.healthfamily.domain.entity.FamilyDoctor;
+import com.healthfamily.domain.entity.FamilyMember;
+import com.healthfamily.domain.entity.HealthAlert;
+import com.healthfamily.domain.entity.HealthLog;
+import com.healthfamily.domain.entity.HealthPlan;
+import com.healthfamily.domain.entity.Profile;
+import com.healthfamily.domain.entity.User;
+import com.healthfamily.domain.repository.*;
+import com.healthfamily.service.AiAssistantService;
 import com.healthfamily.service.HealthDataAiService;
+import com.healthfamily.service.HealthReminderService;
+import com.healthfamily.service.SeasonalWellnessService;
 import com.healthfamily.web.dto.AdminDoctorDto;
 import com.healthfamily.web.dto.DoctorRegisterRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.healthfamily.web.dto.HandleRiskRequest;
 import com.healthfamily.web.dto.HealthPlanRequest;
 import com.healthfamily.web.dto.HealthPlanResponse;
 import com.healthfamily.web.dto.DoctorStatsResponse;
+import com.healthfamily.web.dto.DoctorWorkbenchDto;
+import com.healthfamily.web.dto.HighRiskPatientDto;
+import com.healthfamily.web.dto.ConsultationTaskDto;
 import com.healthfamily.web.dto.DoctorSettingsRequest;
 import com.healthfamily.web.dto.DoctorSettingsResponse;
 import com.healthfamily.web.dto.DoctorNotificationSettings;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.healthfamily.domain.repository.HealthAlertRepository;
-import com.healthfamily.domain.repository.HealthLogRepository;
-import com.healthfamily.domain.repository.HealthReminderRepository;
-import com.healthfamily.domain.repository.ProfileRepository;
-import com.healthfamily.domain.repository.UserRepository;
 import com.healthfamily.web.dto.PatientDetailResponse;
 import com.healthfamily.web.dto.DoctorNoteRequest;
 import com.healthfamily.web.dto.DoctorNoteResponse;
@@ -56,6 +49,8 @@ import com.healthfamily.web.dto.AbnormalEventDto;
 import com.healthfamily.web.dto.HighRiskMemberDto;
 import com.healthfamily.web.dto.MonitoringDataResponse;
 import com.healthfamily.web.dto.MonitoringAlertDto;
+import com.healthfamily.web.dto.SeasonalWellnessDTO;
+import com.healthfamily.web.dto.ReminderRequest;
 import com.healthfamily.domain.constant.AlertStatus;
 import com.healthfamily.domain.constant.ReminderStatus;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -71,11 +66,19 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
+/**
+ * 医生服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class DoctorServiceImpl implements DoctorService {
 
@@ -97,9 +100,15 @@ public class DoctorServiceImpl implements DoctorService {
     private final com.healthfamily.domain.repository.ConsultationSessionRepository consultationSessionRepository;
     private final DoctorProfileRepository doctorProfileRepository;
     private final com.healthfamily.domain.repository.DoctorRatingRepository doctorRatingRepository;
+    private final AlertRepository monitoringAlertRepository;
+    private final HealthReportRepository healthReportRepository;
+    private final AbnormalHandlingRecordRepository abnormalHandlingRecordRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
     private final ChatModel chatModel;
+    private final SeasonalWellnessService seasonalWellnessService;
+    private final HealthReminderService healthReminderService;
+    private final AiAssistantService aiAssistantService;
     private static final TypeReference<List<String>> STRING_LIST_TYPE_REF = new TypeReference<>() {};
     private static final TypeReference<Map<String, Object>> MAP_TYPE_REF = new TypeReference<>() {};
     private static final com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, Object>> MAP_TYPE = new com.fasterxml.jackson.core.type.TypeReference<>() {};
@@ -107,6 +116,13 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @param doctorUserId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public FamilyDoctorResponse bindDoctor(Long requesterId, Long familyId, Long doctorUserId) {
         Family family = ensureAdmin(requesterId, familyId);
         User doctor = userRepository.findById(doctorUserId)
@@ -174,6 +190,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 无
+     */
     public void unbindDoctor(Long requesterId, Long familyId) {
         Family family = ensureAdmin(requesterId, familyId);
         List<FamilyDoctor> list = familyDoctorRepository.findByFamily(family);
@@ -196,6 +218,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 查询列表
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public java.util.List<com.healthfamily.web.dto.FamilyMemberResponse> listBoundMembers(Long requesterId, Long familyId) {
         Family family = familyRepository.findById(familyId)
                 .orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
@@ -287,6 +315,12 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public FamilyDoctorResponse getFamilyDoctor(Long requesterId, Long familyId) {
         Family family = ensureMember(requesterId, familyId);
         List<FamilyDoctor> list = familyDoctorRepository.findByFamily(family);
@@ -358,6 +392,13 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @param useAi 业务参数
+     * @return 业务返回结果
+     */
     public DoctorViewResponse getDoctorView(Long requesterId, Long familyId, Boolean useAi) {
         // 请求者必须是家庭成员或绑定医生
         Family family = familyRepository.findById(familyId)
@@ -405,17 +446,7 @@ public class DoctorServiceImpl implements DoctorService {
                     : java.util.Collections.emptyList();
             totalLogs += logs.size();
             
-            // 重新检测异常并收集数据
-            List<Map<String, Object>> userTelemetry = new ArrayList<>();
-            for (HealthLog l : logs) {
-                Map<String, Object> content = new HashMap<>(safeParse(l.getContentJson()));
-                boolean isAbnormal = checkAnomaly(u.getId(), content); // 实时检测
-                
-                content.put("date", l.getLogDate().toString());
-                content.put("isAbnormal", isAbnormal);
-                content.put("userId", u.getId());
-                userTelemetry.add(content);
-            }
+            // 统计近7日体征日志总数，作为活跃度指标
             String displayName = u.getNickname();
             if (displayName == null || displayName.isBlank()) {
                 displayName = u.getPhone();
@@ -429,7 +460,7 @@ public class DoctorServiceImpl implements DoctorService {
             }
             Map<String, Object> entry = new HashMap<>();
             entry.put("count", logs.size());
-            entry.put("items", userTelemetry);
+            entry.put("items", java.util.Collections.emptyList()); // 不再需要详细的日志项
             entry.put("userId", u.getId());
             entry.put("displayName", displayName);
             entry.put("shared", canView);
@@ -437,8 +468,8 @@ public class DoctorServiceImpl implements DoctorService {
         }
 
         // 计算待办事项统计
-        int pendingConsultationsCount = 0; // 待回复咨询数（暂时为0，后续可根据实际咨询功能实现）
-        int pendingPlansCount = 0; // 待审核计划数（暂时为0，后续可根据实际计划功能实现）
+        long pendingConsultationsCount = consultationSessionRepository.countByDoctorAndUnreadCountDoctorGreaterThan(requester, 0);
+        long pendingPlansCount = 0; // 待审核计划功能暂未实现
         
         // 今日需随访数（基于提醒）
         java.time.LocalDateTime todayStart = today.atStartOfDay();
@@ -573,11 +604,17 @@ public class DoctorServiceImpl implements DoctorService {
             
             highRiskMembers.add(new HighRiskMemberDto(
                     user.getId(),
+                    family.getId(),
                     user.getNickname(),
                     family.getName(),
                     tags,
                     lastAbnormalTime,
-                    readAvatar(user.getId())
+                    readAvatar(user.getId()),
+                    null,
+                    null,
+                    null,
+                    null,
+                    false
             ));
         }
         
@@ -625,15 +662,34 @@ public class DoctorServiceImpl implements DoctorService {
             summary = "成员近7日体征记录已汇总，请点击'AI生成摘要'按钮获取智能分析。";
         }
 
+        // 数据简报
+        LocalDate lastWeek = today.minusWeeks(1);
+        long weeklyConsultations = consultationSessionRepository.countByDoctorAndCreatedAtAfter(requester, lastWeek.atStartOfDay());
+        long newPatients = familyDoctorRepository.countByDoctorAndCreatedAtAfter(requester, lastWeek.atStartOfDay());
+        
+        // 计算改善率：基于当前家庭下，由当前医生创建的所有健康计划的平均完成度
+        List<HealthPlan> plans = healthPlanRepository.findByDoctorAndFamilyOrderByCreatedAtDesc(requester, family);
+        int improvementRate = 0;
+        if (plans != null && !plans.isEmpty()) {
+            double totalCompletion = plans.stream()
+                    .filter(p -> p.getCompletionRate() != null)
+                    .mapToDouble(p -> p.getCompletionRate().doubleValue())
+                    .sum();
+            improvementRate = (int) (totalCompletion / plans.size());
+        }
+
         return new DoctorViewResponse(
                 familyId,
                 summary,
                 telemetry,
-                pendingConsultationsCount,
-                pendingPlansCount,
+                (int) pendingConsultationsCount,
+                (int) pendingPlansCount,
                 (int) todayFollowupsCount,
                 abnormalEvents,
-                highRiskMembers
+                highRiskMembers,
+                (int) weeklyConsultations,
+                (int) newPatients,
+                improvementRate
         );
     }
 
@@ -702,7 +758,38 @@ public class DoctorServiceImpl implements DoctorService {
         }
     }
 
+    /**
+     * 将字符串形式的风险等级转换为可比较的权重
+     */
+    private int mapRiskLevelOrder(String riskLevel) {
+        if (riskLevel == null) {
+            return 0;
+        }
+        return switch (riskLevel) {
+            case "CRITICAL" -> 3;
+            case "WARNING" -> 2;
+            case "NOTICE" -> 1;
+            default -> 0;
+        };
+    }
+
+    /**
+     * 比较两个风险等级的高低（CRITICAL > WARNING > NOTICE）
+     */
+    private int compareRiskLevel(String levelA, String levelB) {
+        int a = mapRiskLevelOrder(levelA);
+        int b = mapRiskLevelOrder(levelB);
+        return Integer.compare(a, b);
+    }
+
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public PatientDetailResponse getPatientDetail(Long doctorId, Long familyId, Long patientUserId) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
@@ -834,6 +921,14 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @param tags 业务参数
+     * @return 无
+     */
     public void updatePatientTags(Long doctorId, Long familyId, Long patientUserId, List<String> tags) {
         // 验证权限
         Family family = familyRepository.findById(familyId)
@@ -862,6 +957,14 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @param isImportant 业务参数
+     * @return 无
+     */
     public void togglePatientImportant(Long doctorId, Long familyId, Long patientUserId, Boolean isImportant) {
         // 暂时不实现，可以使用前端本地存储或后续扩展数据库表
         // 验证权限
@@ -876,6 +979,13 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 生成
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.HealthPlanGenerationResponse generateAiHealthPlan(Long doctorId, Long familyId, com.healthfamily.web.dto.HealthPlanGenerationRequest request) {
         // 1. 验证权限
         Family family = familyRepository.findById(familyId)
@@ -892,6 +1002,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public List<com.healthfamily.web.dto.BatchHealthPlanResponse> batchGenerateAiHealthPlans(Long doctorId, Long familyId) {
         // 1. 验证权限
         Family family = familyRepository.findById(familyId)
@@ -1108,6 +1224,13 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 查询列表
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public List<DoctorNoteResponse> listDoctorNotes(Long doctorId, Long familyId, Long patientUserId) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
@@ -1130,6 +1253,12 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param noteId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public DoctorNoteResponse getDoctorNote(Long doctorId, Long noteId) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -1140,6 +1269,14 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 创建
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public DoctorNoteResponse createDoctorNote(Long doctorId, Long familyId, Long patientUserId, DoctorNoteRequest request) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
@@ -1175,6 +1312,13 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param doctorId 医生唯一标识
+     * @param noteId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public DoctorNoteResponse updateDoctorNote(Long doctorId, Long noteId, DoctorNoteRequest request) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -1196,6 +1340,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 删除
+     * @param doctorId 医生唯一标识
+     * @param noteId 业务对象唯一标识
+     * @return 无
+     */
     public void deleteDoctorNote(Long doctorId, Long noteId) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -1266,6 +1416,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Deprecated // 已迁移至DoctorMonitoringService，请使用新的增强版接口
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public MonitoringDataResponse getMonitoringData(Long doctorId, Long familyId) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
@@ -1429,11 +1585,17 @@ public class DoctorServiceImpl implements DoctorService {
             LocalDateTime lastAbnormalTime = abnormalLogs.get(0).getLogDate().atStartOfDay();
             highRiskMembers.add(new HighRiskMemberDto(
                     user.getId(),
+                    family.getId(),
                     user.getNickname(),
                     family.getName(),
                     tags,
                     lastAbnormalTime,
-                    readAvatar(user.getId())
+                    readAvatar(user.getId()),
+                    null,
+                    null,
+                    null,
+                    null,
+                    false
             ));
         }
         
@@ -1456,6 +1618,12 @@ public class DoctorServiceImpl implements DoctorService {
     @Override
     @Deprecated // 已迁移至DoctorMonitoringService，请使用新的增强版接口
     @Transactional
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param alertId 业务对象唯一标识
+     * @return 无
+     */
     public void markAlertAsHandled(Long doctorId, Long alertId) {
         HealthAlert alert = healthAlertRepository.findById(alertId)
                 .orElseThrow(() -> new BusinessException(40407, "预警不存在"));
@@ -1470,10 +1638,318 @@ public class DoctorServiceImpl implements DoctorService {
         healthAlertRepository.save(alert);
     }
 
+    @Override
+    @Transactional
+    /**
+     * 工作台“高风险患者”一键标记已处理
+     * @param doctorId 当前医生ID
+     * @param request  处理请求（包含患者ID、处置方式和备注）
+     */
+    public void handleRisk(Long doctorId, HandleRiskRequest request) {
+        if (request == null || request.getPatientId() == null) {
+            throw new BusinessException(40001, "患者ID不能为空");
+        }
+
+        Long patientId = request.getPatientId();
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
+        User patient = userRepository.findById(patientId)
+                .orElseThrow(() -> new BusinessException(40401, "患者不存在"));
+
+        // 获取医生管理的所有家庭ID
+        List<FamilyDoctor> bindings = familyDoctorRepository.findByDoctor_Id(doctorId);
+        if (bindings.isEmpty()) {
+            throw new BusinessException(40301, "当前医生未绑定任何家庭");
+        }
+        java.util.Set<Long> familyIds = bindings.stream()
+                .map(fd -> fd.getFamily() != null ? fd.getFamily().getId() : null)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        // 找出该患者在医生所管理家庭下的所有未处理预警（PENDING / ESCALATED）
+        List<HealthAlert> allAlertsForUser = healthAlertRepository.findByUserOrderByCreatedAtDesc(patient);
+        LocalDateTime now = LocalDateTime.now();
+        List<HealthAlert> targetAlerts = allAlertsForUser.stream()
+                .filter(a -> a.getFamily() != null && familyIds.contains(a.getFamily().getId()))
+                .filter(a -> a.getStatus() == AlertStatus.PENDING || a.getStatus() == AlertStatus.ESCALATED)
+                .toList();
+
+        if (targetAlerts.isEmpty()) {
+            // 没有需要处理的预警，但仍然记录一次处置操作，方便审计
+            AbnormalHandlingRecord record = AbnormalHandlingRecord.builder()
+                    .alert(null)
+                    .doctor(doctor)
+                    .patient(patient)
+                    .handlingAction(request.getHandlingMethod() != null ? request.getHandlingMethod() : "MANUAL")
+                    .handlingContent(request.getNotes())
+                    .handlingNote(request.getNotes())
+                    .handledAt(now)
+                    .followUpRequired(false)
+                    .build();
+            abnormalHandlingRecordRepository.save(record);
+            return;
+        }
+
+        // 更新所有相关预警为已处理状态
+        for (HealthAlert alert : targetAlerts) {
+            alert.setStatus(AlertStatus.RESOLVED);
+            alert.setHandledAt(now);
+            alert.setHandledBy(doctorId);
+
+            if (request.getNotes() != null && !request.getNotes().isBlank()) {
+                String existing = alert.getHandlingNote();
+                if (existing == null || existing.isBlank()) {
+                    alert.setHandlingNote(request.getNotes());
+                } else {
+                    alert.setHandlingNote(existing + "\n" + request.getNotes());
+                }
+            }
+        }
+        healthAlertRepository.saveAll(targetAlerts);
+
+        // 以最近一条预警为主，创建一条处置记录
+        HealthAlert primaryAlert = targetAlerts.get(0);
+        AbnormalHandlingRecord record = AbnormalHandlingRecord.builder()
+                .alert(primaryAlert)
+                .doctor(doctor)
+                .patient(patient)
+                .handlingAction(request.getHandlingMethod() != null ? request.getHandlingMethod() : "MANUAL")
+                .handlingContent(request.getNotes())
+                .handlingNote(request.getNotes())
+                .handledAt(now)
+                .followUpRequired(false)
+                .build();
+        abnormalHandlingRecordRepository.save(record);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    /**
+     * 基于近期日志与体质评估生成患者健康AI摘要（当前为Mock实现，便于前端演示）
+     */
+    public String generatePatientHealthSummary(Long doctorId, Long patientId) {
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
+        User patient = userRepository.findById(patientId)
+                .orElseThrow(() -> new BusinessException(40401, "患者不存在"));
+
+        // 基本信息：性别 + 年龄
+        Profile profile = profileRepository.findById(patientId).orElse(null);
+        String sexText = "未知性别";
+        if (profile != null && profile.getSex() != null) {
+            sexText = switch (profile.getSex()) {
+                case M -> "男";
+                case F -> "女";
+                default -> "未知性别";
+            };
+        }
+
+        Integer age = null;
+        if (profile != null && profile.getBirthday() != null) {
+            age = java.time.Period.between(profile.getBirthday(), java.time.LocalDate.now()).getYears();
+        }
+        String ageText = age != null && age > 0 ? age + "岁" : "年龄未知";
+
+        // 最近 8 条健康日志
+        List<HealthLog> recentLogsAll = healthLogRepository.findByUserOrderByLogDateDesc(patient);
+        List<HealthLog> recentLogs = recentLogsAll.stream().limit(8).toList();
+
+        // 提取体征类日志的血压/血糖等信息的简单统计
+        int bpCount = 0;
+        double systolicSum = 0.0;
+        double diastolicSum = 0.0;
+        int glucoseCount = 0;
+        double glucoseSum = 0.0;
+
+        List<String> logSnippets = new ArrayList<>();
+        for (HealthLog log : recentLogs) {
+            Map<String, Object> content = safeParse(log.getContentJson());
+            StringBuilder sb = new StringBuilder();
+            sb.append(log.getLogDate()).append(" ").append(log.getType().name()).append(" ");
+
+            if (log.getType() == HealthLogType.VITALS && !content.isEmpty()) {
+                Double systolic = extractDouble(content.get("systolic"));
+                Double diastolic = extractDouble(content.get("diastolic"));
+                Double glucose = extractDouble(content.getOrDefault("glucose", content.get("bloodSugar")));
+
+                if (systolic != null || diastolic != null) {
+                    bpCount++;
+                    if (systolic != null) systolicSum += systolic;
+                    if (diastolic != null) diastolicSum += diastolic;
+                    sb.append("血压")
+                            .append(systolic != null ? String.format("%.0f", systolic) : "--")
+                            .append("/")
+                            .append(diastolic != null ? String.format("%.0f", diastolic) : "--")
+                            .append("mmHg ");
+                }
+                if (glucose != null) {
+                    glucoseCount++;
+                    glucoseSum += glucose;
+                    sb.append(String.format("血糖%.1fmmol/L ", glucose));
+                }
+            } else {
+                Object note = content.getOrDefault("note",
+                        content.getOrDefault("text", content.getOrDefault("content", "")));
+                if (note != null) {
+                    String text = note.toString();
+                    if (text.length() > 30) {
+                        text = text.substring(0, 30) + "...";
+                    }
+                    sb.append(text);
+                }
+            }
+
+            logSnippets.add(sb.toString().trim());
+        }
+
+        double avgSys = bpCount > 0 ? systolicSum / bpCount : 0.0;
+        double avgDia = bpCount > 0 ? diastolicSum / bpCount : 0.0;
+        double avgGlucose = glucoseCount > 0 ? glucoseSum / glucoseCount : 0.0;
+
+        // 最近一次中医体质评估
+        ConstitutionAssessment latestTcm = assessmentRepository.findByUserOrderByCreatedAtDesc(patient)
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        String tcmType = null;
+        if (latestTcm != null && latestTcm.getPrimaryType() != null) {
+            tcmType = latestTcm.getPrimaryType();
+        }
+
+        // Mock AI 摘要文本（尽量专业、100 字左右）
+        StringBuilder summary = new StringBuilder();
+        summary.append("患者（")
+                .append(sexText)
+                .append("，")
+                .append(ageText)
+                .append("）近期健康数据提示：");
+
+        if (bpCount > 0) {
+            summary.append(String.format("收缩压平均约%.0fmmHg，舒张压约%.0fmmHg，", avgSys, avgDia));
+            if (avgSys >= 140 || avgDia >= 90) {
+                summary.append("存在血压偏高趋势，需警惕心脑血管风险；");
+            } else {
+                summary.append("血压整体控制在可接受范围内；");
+            }
+        }
+
+        if (glucoseCount > 0) {
+            summary.append(String.format("空腹血糖平均约%.1fmmol/L，", avgGlucose));
+            if (avgGlucose > 7.0) {
+                summary.append("需关注糖代谢异常及饮食控制；");
+            } else {
+                summary.append("血糖水平基本平稳；");
+            }
+        }
+
+        if (tcmType != null) {
+            summary.append("中医体质偏向「").append(tcmType).append("」，建议结合祛湿、调和脾胃等干预；");
+        }
+
+        if (summary.length() < 40) {
+            // 数据较少时给一个通用建议
+            summary.append("当前可用数据有限，建议继续完善血压、血糖及生活方式记录，以便进行更精确评估。");
+        } else {
+            summary.append("总体建议保持规律作息、清淡饮食，适量运动，如血压或血糖持续异常应及时门诊随访。");
+        }
+
+        return summary.toString();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    /**
+     * 基于近期日志与体质评估生成患者健康AI摘要（流式，真实 LLM 调用）
+     */
+    public reactor.core.publisher.Flux<String> generatePatientHealthSummaryStream(Long doctorId, Long patientId) {
+        User patient = userRepository.findById(patientId)
+                .orElseThrow(() -> new BusinessException(40401, "患者不存在"));
+
+        // 最近 10 条健康日志
+        List<HealthLog> recentLogsAll = healthLogRepository.findByUserOrderByLogDateDesc(patient);
+        List<HealthLog> recentLogs = recentLogsAll.stream().limit(10).toList();
+
+        // 最新一次中医体质评估
+        ConstitutionAssessment latestTcm = assessmentRepository.findByUserOrderByCreatedAtDesc(patient)
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        // 拼接原始数据片段，供 LLM 阅读
+        StringBuilder dataBuilder = new StringBuilder();
+        dataBuilder.append("患者ID: ").append(patientId).append("\n");
+        dataBuilder.append("患者昵称: ").append(patient.getNickname()).append("\n\n");
+
+        dataBuilder.append("【最近健康日志】（最多10条，按时间倒序）：\n");
+        for (HealthLog log : recentLogs) {
+            Map<String, Object> content = safeParse(log.getContentJson());
+            dataBuilder.append("- 日期: ").append(log.getLogDate())
+                    .append("，类型: ").append(log.getType().name())
+                    .append("，内容: ").append(content).append("\n");
+        }
+
+        dataBuilder.append("\n【最新中医体质评估】:\n");
+        if (latestTcm != null) {
+            dataBuilder.append("主判体质: ").append(latestTcm.getPrimaryType())
+                    .append("，打分向量(scoreVector): ").append(latestTcm.getScoreVector())
+                    .append("，生成时间: ").append(latestTcm.getCreatedAt())
+                    .append("\n");
+        } else {
+            dataBuilder.append("暂无体质评估记录。\n");
+        }
+
+        String systemPrompt = """
+                你是一名专业的临床医生和家庭健康管理专家。
+                下面会提供某位患者近期的健康日志数据以及中医体质评估结果。
+                请你基于这些数据，生成一段不超过 120 字的中文健康摘要和建议，要求：
+                1. 语言专业但亲切，适合直接展示给医生查看。
+                2. 先用一句话概括当前主要风险或关注点，再给出 1-2 条简短建议。
+                3. 不要出现“根据提供的信息”、“作为AI模型”等措辞，直接给出结论和建议。
+                """;
+
+        String userPrompt = """
+                患者近期数据如下：
+                %s
+                
+                请按照上述要求，用中文输出“健康摘要和建议”。
+                """.formatted(dataBuilder);
+
+        log.info("[AI] 正在调用 LLM 生成患者健康摘要, doctorId={}, patientId={}", doctorId, patientId);
+
+        String legacyPrompt = systemPrompt + "\n\n" + userPrompt;
+        StringBuilder fullResponse = new StringBuilder();
+
+        reactor.core.publisher.Flux<String> stream = aiAssistantService.chatStream(legacyPrompt, patientId)
+                .doOnSubscribe(s -> log.info("[AI] LLM 请求已发送"))
+                .doOnNext(chunk -> {
+                    fullResponse.append(chunk);
+                    log.debug("[AI] LLM 响应分片: {}", chunk);
+                })
+                .doOnComplete(() -> {
+                    String preview = fullResponse.length() > 300
+                            ? fullResponse.substring(0, 300) + "..."
+                            : fullResponse.toString();
+                    log.info("[AI] LLM 响应汇总预览: {}", preview);
+                })
+                .doOnError(e -> log.error("[AI] LLM 调用失败: {}", e.getMessage(), e));
+
+        return stream;
+    }
+
     // ==================== 健康计划相关方法 ====================
 
     @Override
     @Transactional
+    /**
+     * 查询列表
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @param status 业务参数
+     * @param type 业务参数
+     * @return 业务返回结果
+     */
     public List<HealthPlanResponse> listHealthPlans(Long doctorId, Long familyId, Long patientUserId, String status, String type) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
@@ -1528,6 +2004,12 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param planId 计划唯一标识
+     * @return 业务返回结果
+     */
     public HealthPlanResponse getHealthPlan(Long doctorId, Long planId) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -1538,6 +2020,13 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 创建
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public HealthPlanResponse createHealthPlan(Long doctorId, Long familyId, HealthPlanRequest request) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
@@ -1686,6 +2175,13 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param doctorId 医生唯一标识
+     * @param planId 计划唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public HealthPlanResponse updateHealthPlan(Long doctorId, Long planId, HealthPlanRequest request) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -1709,6 +2205,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 删除
+     * @param doctorId 医生唯一标识
+     * @param planId 计划唯一标识
+     * @return 无
+     */
     public void deleteHealthPlan(Long doctorId, Long planId) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -1718,6 +2220,14 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @param startDate 开始日期
+     * @param endDate 结束日期
+     * @return 业务返回结果
+     */
     public List<HealthPlanResponse> getHealthPlansCalendar(Long doctorId, Long patientUserId, String startDate, String endDate) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -1814,6 +2324,14 @@ public class DoctorServiceImpl implements DoctorService {
     // ==================== 随访任务相关方法 ====================
 
     @Override
+    /**
+     * 查询列表
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @param status 业务参数
+     * @return 业务返回结果
+     */
     public List<com.healthfamily.web.dto.FollowUpTaskResponse> listFollowUpTasks(Long doctorId, Long familyId, Long patientUserId, String status) {
         // 验证权限
         ensureDoctorAccess(doctorId, familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在")));
@@ -1862,6 +2380,14 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 创建
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.FollowUpTaskResponse createFollowUpTask(Long doctorId, Long familyId, Long patientUserId, com.healthfamily.web.dto.CreateFollowUpTaskRequest request) {
         Family family = familyRepository.findById(familyId)
                 .orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
@@ -1915,6 +2441,13 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param doctorId 医生唯一标识
+     * @param taskId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.FollowUpTaskResponse updateFollowUpTask(Long doctorId, Long taskId, com.healthfamily.web.dto.UpdateFollowUpTaskRequest request) {
         com.healthfamily.domain.entity.HealthReminder reminder = healthReminderRepository.findById(taskId)
                 .orElseThrow(() -> new BusinessException(40410, "任务不存在"));
@@ -1969,6 +2502,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 删除
+     * @param doctorId 医生唯一标识
+     * @param taskId 业务对象唯一标识
+     * @return 无
+     */
     public void deleteFollowUpTask(Long doctorId, Long taskId) {
         com.healthfamily.domain.entity.HealthReminder reminder = healthReminderRepository.findById(taskId)
                 .orElseThrow(() -> new BusinessException(40410, "任务不存在"));
@@ -1983,32 +2522,114 @@ public class DoctorServiceImpl implements DoctorService {
     // ==================== 数据统计相关方法 ====================
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param startDate 开始日期
+     * @param endDate 结束日期
+     * @return 业务返回结果
+     */
     public DoctorStatsResponse getStatistics(Long doctorId, Long familyId, LocalDate startDate, LocalDate endDate) {
-        // 验证医生权限
-        Family family = familyRepository.findById(familyId)
-                .orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
-        ensureDoctorAccess(doctorId, family);
-        
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
-        
-        // 获取该家庭的所有成员
-        List<com.healthfamily.domain.entity.FamilyMember> members = familyMemberRepository.findByFamily(family);
-        List<User> patients = members.stream()
-                .map(com.healthfamily.domain.entity.FamilyMember::getUser)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toList());
-        
-        // 1. 患者结构统计
-        DoctorStatsResponse.PatientStructureStats patientStructure = buildPatientStructureStats(patients);
-        
-        // 2. 管理效果统计
-        DoctorStatsResponse.ManagementEffectStats managementEffect = buildManagementEffectStats(patients, startDate, endDate);
-        
-        // 3. 工作负载统计
-        DoctorStatsResponse.WorkloadStats workload = buildWorkloadStats(doctor, family, startDate, endDate);
-        
-        return new DoctorStatsResponse(patientStructure, managementEffect, workload);
+
+        List<Family> families = new java.util.ArrayList<>();
+        if (familyId != null) {
+            Family family = familyRepository.findById(familyId)
+                    .orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
+            ensureDoctorAccess(doctorId, family);
+            families.add(family);
+        } else {
+            List<FamilyDoctor> bindings = familyDoctorRepository.findByDoctor_Id(doctorId);
+            families = bindings.stream().map(FamilyDoctor::getFamily).collect(Collectors.toList());
+        }
+
+        if (families.isEmpty()) {
+            return createEmptyDoctorStatsResponse();
+        }
+
+        List<User> allPatients = new java.util.ArrayList<>();
+        DoctorStatsResponse.WorkloadStats totalWorkload = createEmptyWorkloadStats();
+
+        for (Family family : families) {
+            List<User> patients = familyMemberRepository.findByFamily(family).stream()
+                    .map(com.healthfamily.domain.entity.FamilyMember::getUser)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toList());
+            allPatients.addAll(patients);
+
+            DoctorStatsResponse.WorkloadStats familyWorkload = buildWorkloadStats(doctor, family, startDate, endDate);
+            totalWorkload = mergeWorkloadStats(totalWorkload, familyWorkload);
+        }
+
+        DoctorStatsResponse.PatientStructureStats totalPatientStructure = buildPatientStructureStats(allPatients);
+        DoctorStatsResponse.ManagementEffectStats totalManagementEffect = buildManagementEffectStats(allPatients, startDate, endDate);
+
+        return new DoctorStatsResponse(totalPatientStructure, totalManagementEffect, totalWorkload);
+    }
+
+    private DoctorStatsResponse createEmptyDoctorStatsResponse() {
+        return new DoctorStatsResponse(createEmptyPatientStructureStats(), createEmptyManagementEffectStats(), createEmptyWorkloadStats());
+    }
+
+    private DoctorStatsResponse.PatientStructureStats createEmptyPatientStructureStats() {
+        return new DoctorStatsResponse.PatientStructureStats(java.util.Collections.emptyMap(), java.util.Collections.emptyMap(), java.util.Collections.emptyMap());
+    }
+
+    private DoctorStatsResponse.ManagementEffectStats createEmptyManagementEffectStats() {
+        DoctorStatsResponse.ManagementEffectStats.BloodPressureStats bp = new DoctorStatsResponse.ManagementEffectStats.BloodPressureStats(0.0, 0, 0, java.util.Collections.emptyList());
+        DoctorStatsResponse.ManagementEffectStats.WeightStats w = new DoctorStatsResponse.ManagementEffectStats.WeightStats(0.0, 0, 0, java.util.Collections.emptyList());
+        DoctorStatsResponse.ManagementEffectStats.SleepStats s = new DoctorStatsResponse.ManagementEffectStats.SleepStats(0.0, 0.0, 0, java.util.Collections.emptyList());
+        return new DoctorStatsResponse.ManagementEffectStats(bp, w, s);
+    }
+
+    private DoctorStatsResponse.WorkloadStats createEmptyWorkloadStats() {
+        DoctorStatsResponse.WorkloadStats.ConsultationStats cs = new DoctorStatsResponse.WorkloadStats.ConsultationStats(0, 0, java.util.Collections.emptyList());
+        DoctorStatsResponse.WorkloadStats.FollowupStats fs = new DoctorStatsResponse.WorkloadStats.FollowupStats(0, 0, 0, java.util.Collections.emptyList());
+        DoctorStatsResponse.WorkloadStats.ReminderStats rs = new DoctorStatsResponse.WorkloadStats.ReminderStats(0, 0, 0, 0.0, java.util.Collections.emptyList());
+        return new DoctorStatsResponse.WorkloadStats(cs, fs, rs);
+    }
+
+    private DoctorStatsResponse.WorkloadStats mergeWorkloadStats(DoctorStatsResponse.WorkloadStats s1, DoctorStatsResponse.WorkloadStats s2) {
+        // Merge ConsultationStats
+        DoctorStatsResponse.WorkloadStats.ConsultationStats cs = new DoctorStatsResponse.WorkloadStats.ConsultationStats(
+            s1.consultation().totalCount() + s2.consultation().totalCount(),
+            s1.consultation().activeSessions() + s2.consultation().activeSessions(),
+            mergeDateValueLists(s1.consultation().trend(), s2.consultation().trend())
+        );
+
+        // Merge FollowupStats
+        DoctorStatsResponse.WorkloadStats.FollowupStats fs = new DoctorStatsResponse.WorkloadStats.FollowupStats(
+            s1.followup().totalPlans() + s2.followup().totalPlans(),
+            s1.followup().activePlans() + s2.followup().activePlans(),
+            s1.followup().completedPlans() + s2.followup().completedPlans(),
+            mergeDateValueLists(s1.followup().trend(), s2.followup().trend())
+        );
+
+        // Merge ReminderStats
+        int totalSent = s1.reminder().totalSent() + s2.reminder().totalSent();
+        int totalCompleted = s1.reminder().completed() + s2.reminder().completed();
+        double newCompletionRate = (totalSent == 0) ? 0.0 : (double) totalCompleted / totalSent * 100;
+        DoctorStatsResponse.WorkloadStats.ReminderStats rs = new DoctorStatsResponse.WorkloadStats.ReminderStats(
+            totalSent,
+            totalCompleted,
+            s1.reminder().pending() + s2.reminder().pending(),
+            newCompletionRate,
+            mergeDateValueLists(s1.reminder().trend(), s2.reminder().trend())
+        );
+
+        return new DoctorStatsResponse.WorkloadStats(cs, fs, rs);
+    }
+
+    private List<DoctorStatsResponse.DateValue> mergeDateValueLists(List<DoctorStatsResponse.DateValue> l1, List<DoctorStatsResponse.DateValue> l2) {
+        Map<LocalDate, Double> mergedMap = new java.util.HashMap<>();
+        l1.forEach(dv -> mergedMap.merge(dv.date(), dv.value(), Double::sum));
+        l2.forEach(dv -> mergedMap.merge(dv.date(), dv.value(), Double::sum));
+        return mergedMap.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(entry -> new DoctorStatsResponse.DateValue(entry.getKey(), entry.getValue()))
+            .collect(Collectors.toList());
     }
 
     /**
@@ -2369,6 +2990,11 @@ public class DoctorServiceImpl implements DoctorService {
     // ==================== 医生设置相关方法 ====================
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @return 业务返回结果
+     */
     public DoctorSettingsResponse getDoctorSettings(Long doctorId) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -2387,6 +3013,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param doctorId 医生唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public DoctorSettingsResponse updateDoctorSettings(Long doctorId, DoctorSettingsRequest request) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -2514,6 +3146,17 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 获取
+     * @param keyword 业务参数
+     * @param status 业务参数
+     * @param specialty 业务参数
+     * @param page 分页页码
+     * @param size 分页大小
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public java.util.Map<String, Object> getAdminDoctorList(String keyword, String status, String specialty, int page, int size, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
         // 获取所有医生用户
         List<User> doctors = userRepository.findAll()
@@ -2612,6 +3255,11 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public User findById(Long id) {
         // 注意：在当前实现中，医生信息存储在User表中
         // 这里返回的是User对象
@@ -2623,6 +3271,11 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 创建
+     * @param doctor 业务参数
+     * @return 业务返回结果
+     */
     public User create(User doctor) {
         // 创建医生用户
         User user = new User();
@@ -2636,6 +3289,12 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param doctor 业务参数
+     * @return 业务返回结果
+     */
     public User update(Long id, User doctor) {
         User existingUser = userRepository.findById(id).orElse(null);
         if (existingUser == null || existingUser.getRole() != com.healthfamily.domain.constant.UserRole.DOCTOR) {
@@ -2653,6 +3312,11 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 删除
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean deleteById(Long id) {
         if (userRepository.existsById(id)) {
             userRepository.deleteById(id);
@@ -2662,6 +3326,12 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param status 业务参数
+     * @return 业务返回结果
+     */
     public boolean updateStatus(Long id, String status) {
         User user = userRepository.findById(id).orElse(null);
         if (user == null || user.getRole() != com.healthfamily.domain.constant.UserRole.DOCTOR) {
@@ -2709,6 +3379,11 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 获取
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public AdminDoctorDto getAdminDoctorById(Long id) {
         User user = userRepository.findById(id).orElse(null);
         if (user == null || user.getRole() != com.healthfamily.domain.constant.UserRole.DOCTOR) {
@@ -2721,6 +3396,10 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public Map<String, Object> getAdminDoctorStats() {
         Map<String, Object> stats = new HashMap<>();
         
@@ -2751,6 +3430,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 获取
+     * @param page 分页页码
+     * @param size 分页大小
+     * @return 业务返回结果
+     */
     public java.util.List<AdminDoctorDto> getPendingDoctors(int page, int size) {
         List<DoctorProfile> pendingProfiles = doctorProfileRepository.findByCertificationStatus("PENDING");
         
@@ -2773,6 +3458,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param adminId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean approveDoctor(Long doctorId, Long adminId) {
         DoctorProfile profile = doctorProfileRepository.findByDoctorId(doctorId)
             .orElseThrow(() -> new BusinessException(40401, "医生信息不存在"));
@@ -2788,6 +3479,13 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param adminId 业务对象唯一标识
+     * @param rejectReason 业务参数
+     * @return 业务返回结果
+     */
     public boolean rejectDoctor(Long doctorId, Long adminId, String rejectReason) {
         DoctorProfile profile = doctorProfileRepository.findByDoctorId(doctorId)
             .orElseThrow(() -> new BusinessException(40401, "医生信息不存在"));
@@ -2802,6 +3500,12 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param certified 业务参数
+     * @return 业务返回结果
+     */
     public boolean updateDoctorCertification(Long id, Boolean certified) {
         DoctorProfile profile = doctorProfileRepository.findByDoctorId(id).orElse(null);
         if (profile == null) {
@@ -2822,6 +3526,11 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 注册
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public User registerDoctor(DoctorRegisterRequest request) {
         // 检查手机号是否已注册
         userRepository.findByPhone(request.phone())
@@ -2866,6 +3575,14 @@ public class DoctorServiceImpl implements DoctorService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param doctorId 医生唯一标识
+     * @param rating 业务参数
+     * @param comment 业务参数
+     * @return 无
+     */
     public void rateDoctor(Long userId, Long doctorId, Integer rating, String comment) {
         // 1. 校验评分
         if (rating == null || rating < 1 || rating > 5) {
@@ -2932,6 +3649,11 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @return 业务返回结果
+     */
     public List<com.healthfamily.web.dto.DoctorRatingResponse> getDoctorRatings(Long doctorId) {
         return doctorRatingRepository.findByDoctorId(doctorId).stream()
             .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
@@ -2943,12 +3665,540 @@ public class DoctorServiceImpl implements DoctorService {
                     r.getId(),
                     name,
                     avatar,
-                    r.getRating(),
-                    r.getComment(),
+                    r.getRating(), 
+                    r.getComment(), 
                     r.getCreatedAt()
                 );
             })
             .collect(Collectors.toList());
+    }
+
+    // ==================== 新版工作台 V2 ====================
+
+    @Override
+    public com.healthfamily.web.dto.DoctorWorkbenchDto getWorkbenchDashboard(Long doctorId) {
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
+
+        // 1. 获取医生管理的所有家庭
+        List<FamilyDoctor> bindings = familyDoctorRepository.findByDoctor_Id(doctorId);
+        List<Family> families = bindings.stream().map(FamilyDoctor::getFamily).collect(Collectors.toList());
+        List<Long> familyIds = families.stream().map(Family::getId).collect(Collectors.toList());
+
+        // 2. 计算顶层KPI
+        int managedFamilies = bindings.size();
+        int totalPatients = (int) familyMemberRepository.countByFamilyIdIn(familyIds);
+        int pendingAlerts = monitoringAlertRepository.countByDoctorIdAndStatus(doctorId, AlertStatus.PENDING);
+        int monthlyReports = healthReportRepository.countByCreatedAtAfter(LocalDate.now().withDayOfMonth(1).atStartOfDay());
+
+        // 3. 基础统计
+        DoctorStatsResponse stats = getStatistics(doctorId, null, LocalDate.now().minusDays(29), LocalDate.now());
+
+        // 4. 获取高风险患者 (Top 5)，复用高风险成员结构，包含体征与中医体质风险详情
+        List<HighRiskMemberDto> criticalPatients = getHighRiskMembersForWorkbench(doctorId);
+
+        // 5. 汇总最近异常事件（近7天，跨家庭）
+        List<AbnormalEventDto> abnormalEvents = buildDoctorAbnormalEvents(families);
+
+        // 6. 获取待处理咨询 (Top 5)
+        List<ConsultationTaskDto> pendingConsultations = getPendingConsultations(doctor);
+
+        // 7. 获取今日中医时令建议（接入 Spring AI 的 SeasonalWellnessService）
+        SeasonalWellnessDTO wellnessDTO = null;
+        String solarTerm;
+        String seasonalAdvice;
+        try {
+            wellnessDTO = seasonalWellnessService.getWellnessAdvice(doctorId);
+        } catch (Exception e) {
+            log.warn("Failed to load AI seasonal wellness advice for doctor {}, fallback to simple message: {}", doctorId, e.getMessage());
+        }
+        if (wellnessDTO != null) {
+            solarTerm = wellnessDTO.getSolarTerm() != null ? wellnessDTO.getSolarTerm() : com.healthfamily.utils.SolarTermUtil.getCurrentSolarTerm();
+            seasonalAdvice = wellnessDTO.getAdvice() != null
+                    ? wellnessDTO.getAdvice()
+                    : String.format("时值【%s】节气，建议根据节气特点调整生活作息和饮食习惯。", solarTerm);
+        } else {
+            solarTerm = com.healthfamily.utils.SolarTermUtil.getCurrentSolarTerm();
+            seasonalAdvice = String.format("时值【%s】节气，建议根据节气特点调整生活作息和饮食习惯。", solarTerm);
+        }
+
+        return DoctorWorkbenchDto.builder()
+                .managedFamilies(managedFamilies)
+                .totalPatients(totalPatients)
+                .pendingAlerts(pendingAlerts)
+                .monthlyReports(monthlyReports)
+                .seasonalSolarTerm(solarTerm)
+                .stats(stats)
+                .abnormalEvents(abnormalEvents)
+                .criticalPatients(criticalPatients)
+                .pendingConsultations(pendingConsultations)
+                .seasonalAdvice(seasonalAdvice)
+                .build();
+    }
+
+    /**
+     * 构建医生视角的异常事件列表（跨家庭，近7天，包含日志异常、预警和异常提醒）
+     */
+    private List<AbnormalEventDto> buildDoctorAbnormalEvents(List<Family> families) {
+        if (families == null || families.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> familyIds = families.stream().map(Family::getId).collect(Collectors.toList());
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+
+        List<AbnormalEventDto> events = new ArrayList<>();
+
+        // 1. 来自 HealthAlert 的预警（PENDING / ESCALATED）
+        for (Long familyId : familyIds) {
+            List<HealthAlert> recentAlerts = healthAlertRepository.findByFamily_IdOrderByCreatedAtDesc(familyId)
+                    .stream()
+                    .filter(a -> a.getCreatedAt() != null && !a.getCreatedAt().isBefore(sevenDaysAgo))
+                    .filter(a -> a.getStatus() == AlertStatus.PENDING || a.getStatus() == AlertStatus.ESCALATED)
+                    .limit(20)
+                    .collect(Collectors.toList());
+
+            for (HealthAlert alert : recentAlerts) {
+                User user = alert.getUser();
+                events.add(new AbnormalEventDto(
+                        String.valueOf(alert.getId()),
+                        "ALERT",
+                        alert.getMetric() + "异常预警",
+                        alert.getMessage(),
+                        alert.getSeverity() != null ? alert.getSeverity().name() : null,
+                        alert.getCreatedAt(),
+                        alert.getStatus() != null ? alert.getStatus().name() : null,
+                        user != null ? user.getId() : null
+                ));
+            }
+        }
+
+        // 2. 按时间倒序取前10条
+        return events.stream()
+                .sorted(Comparator.comparing(AbnormalEventDto::time, Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(10)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 构建医生工作台使用的高风险患者列表（Top 5）
+     * 逻辑：
+     * - 体征风险：近3天体征日志中存在血压/血糖/心率异常
+     * - 中医风险：最新体质为痰湿质/湿热质/血瘀质/特禀质
+     * - 聚合后按风险等级 + 风险时间排序
+     */
+    private List<HighRiskMemberDto> getHighRiskMembersForWorkbench(Long doctorId) {
+        // 1. 获取医生管理的所有家庭与成员
+        List<FamilyDoctor> bindings = familyDoctorRepository.findByDoctor_Id(doctorId);
+        List<Family> families = bindings.stream()
+                .map(FamilyDoctor::getFamily)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (families.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Long, String> userFamilyNameMap = new HashMap<>();
+        List<User> patients = new ArrayList<>();
+        for (Family family : families) {
+            List<FamilyMember> members = familyMemberRepository.findByFamily(family);
+            for (FamilyMember member : members) {
+                if (member.getUser() == null) {
+                    continue;
+                }
+                User user = member.getUser();
+                patients.add(user);
+                userFamilyNameMap.putIfAbsent(user.getId(), family.getName());
+            }
+        }
+        List<Long> patientIds = patients.stream().map(User::getId).distinct().toList();
+        if (patientIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        LocalDate threeDaysAgo = LocalDate.now().minusDays(3);
+
+        // 2. 预加载每个患者最近3天体征日志（体征风险）
+        Map<Long, List<HealthLog>> patientLogsMap = new HashMap<>();
+        for (Long patientId : patientIds) {
+            List<HealthLog> logs = healthLogRepository
+                    .findByUser_IdAndTypeOrderByLogDateDesc(patientId, com.healthfamily.domain.constant.HealthLogType.VITALS)
+                    .stream()
+                    .filter(l -> !l.getLogDate().isBefore(threeDaysAgo))
+                    .collect(Collectors.toList());
+            if (!logs.isEmpty()) {
+                patientLogsMap.put(patientId, logs);
+            }
+        }
+
+        // 3. 预加载中医体质结果（中医风险）
+        List<User> patientEntities = userRepository.findAllById(patientIds);
+        Map<Long, ConstitutionAssessment> latestTcmMap = new HashMap<>();
+        for (User patient : patientEntities) {
+            ConstitutionAssessment latest = assessmentRepository.findByUserOrderByCreatedAtDesc(patient).stream()
+                    .findFirst()
+                    .orElse(null);
+            if (latest != null) {
+                latestTcmMap.put(patient.getId(), latest);
+            }
+        }
+
+        List<HighRiskMemberDto> result = new ArrayList<>();
+
+        for (User patient : patientEntities) {
+            Long userId = patient.getId();
+
+            // ---------- 体征风险 ----------
+            String vitalsRiskType = null;
+            String vitalsRiskDesc = null;
+            String vitalsRiskLevel = null;
+            LocalDateTime vitalsRiskTime = null;
+            boolean vitalsImmediate = false;
+            int highBpCount = 0;
+
+            List<HealthLog> logs = patientLogsMap.get(userId);
+            if (logs != null && !logs.isEmpty()) {
+                for (HealthLog log : logs) {
+                    Map<String, Object> content = safeParse(log.getContentJson());
+                    if (content.isEmpty()) {
+                        continue;
+                    }
+
+                    Double systolic = extractDouble(content.get("systolic"));
+                    Double diastolic = extractDouble(content.get("diastolic"));
+                    Double glucose = extractDouble(content.getOrDefault("glucose", content.get("bloodSugar")));
+                    Double heartRate = extractDouble(content.getOrDefault("heartRate", content.get("hr")));
+
+                    String currentLevel = null;
+                    StringBuilder currentDescBuilder = new StringBuilder();
+                    boolean currentImmediate = false;
+
+                    // 血压逻辑：>140/90 预警，>180 或 >110 危急；连续3次高血压标记需要立即干预
+                    if (systolic != null || diastolic != null) {
+                        boolean highBp = (systolic != null && systolic > 140) || (diastolic != null && diastolic > 90);
+                        if (highBp) {
+                            highBpCount++;
+                            currentLevel = "WARNING";
+                            currentDescBuilder.append(String.format("血压偏高：收缩压%.0f/舒张压%.0f mmHg",
+                                    systolic != null ? systolic : 0,
+                                    diastolic != null ? diastolic : 0));
+                        }
+                        if ((systolic != null && systolic > 180) || (diastolic != null && diastolic > 110)) {
+                            currentLevel = "CRITICAL";
+                            currentImmediate = true;
+                            currentDescBuilder.setLength(0);
+                            currentDescBuilder.append(String.format("血压严重升高：收缩压%.0f/舒张压%.0f mmHg",
+                                    systolic != null ? systolic : 0,
+                                    diastolic != null ? diastolic : 0));
+                        }
+                    }
+
+                    // 血糖：简单使用硬编码阈值（可后续接入 HealthThreshold 个性化）
+                    if (glucose != null && glucose > 11.1) {
+                        if (currentLevel == null || "NOTICE".equals(currentLevel)) {
+                            currentLevel = "WARNING";
+                        }
+                        if (currentDescBuilder.length() > 0) {
+                            currentDescBuilder.append("；");
+                        }
+                        currentDescBuilder.append(String.format("血糖偏高：%.1f mmol/L", glucose));
+                    }
+
+                    // 心率
+                    if (heartRate != null && (heartRate > 120 || heartRate < 50)) {
+                        if (currentLevel == null || "NOTICE".equals(currentLevel)) {
+                            currentLevel = "WARNING";
+                        }
+                        if (currentDescBuilder.length() > 0) {
+                            currentDescBuilder.append("；");
+                        }
+                        currentDescBuilder.append(String.format("心率异常：%.0f 次/分", heartRate));
+                    }
+
+                    if (currentLevel != null) {
+                        // 使用日志创建时间作为异常时间，如果缺失则退回到日志日期的起始时间
+                        LocalDateTime currentTime = log.getCreatedAt() != null
+                                ? log.getCreatedAt()
+                                : log.getLogDate().atStartOfDay();
+                        if (vitalsRiskLevel == null
+                                || compareRiskLevel(currentLevel, vitalsRiskLevel) > 0
+                                || (compareRiskLevel(currentLevel, vitalsRiskLevel) == 0
+                                    && (vitalsRiskTime == null || currentTime.isAfter(vitalsRiskTime)))) {
+                            vitalsRiskType = "VITALS_WARNING";
+                            vitalsRiskLevel = currentLevel;
+                            vitalsRiskDesc = currentDescBuilder.toString();
+                            vitalsRiskTime = currentTime;
+                            vitalsImmediate = currentImmediate;
+                        }
+                    }
+                }
+
+                if (highBpCount >= 3 && vitalsRiskLevel != null) {
+                    vitalsImmediate = true;
+                    if (vitalsRiskDesc != null && !vitalsRiskDesc.contains("连续")) {
+                        vitalsRiskDesc = vitalsRiskDesc + "；近3次记录均为高血压，请尽快复查";
+                    }
+                }
+            }
+
+            // ---------- 中医风险 ----------
+            String tcmRiskType = null;
+            String tcmRiskDesc = null;
+            String tcmRiskLevel = null;
+            LocalDateTime tcmRiskTime = null;
+            boolean tcmImmediate = false;
+
+            ConstitutionAssessment tcm = latestTcmMap.get(userId);
+            if (tcm != null && tcm.getPrimaryType() != null) {
+                String primaryType = tcm.getPrimaryType();
+                List<String> highRiskTcm = List.of("痰湿质", "湿热质", "血瘀质", "特禀质");
+                if (highRiskTcm.contains(primaryType)) {
+                    tcmRiskType = "TCM_IMBALANCE";
+                    tcmRiskLevel = "WARNING";
+                    tcmRiskTime = tcm.getCreatedAt();
+                    tcmRiskDesc = "中医体质为" + primaryType + "，建议调整饮食与作息并加强随访";
+                    tcmImmediate = false;
+                }
+            }
+
+            // ---------- 聚合体征与中医风险 ----------
+            String finalRiskType = null;
+            String finalRiskDesc = null;
+            String finalRiskLevel = null;
+            LocalDateTime finalRiskTime = null;
+            boolean finalImmediate = false;
+
+            if (vitalsRiskLevel == null && tcmRiskLevel == null) {
+                continue;
+            } else if (vitalsRiskLevel != null && tcmRiskLevel == null) {
+                finalRiskType = vitalsRiskType;
+                finalRiskDesc = vitalsRiskDesc;
+                finalRiskLevel = vitalsRiskLevel;
+                finalRiskTime = vitalsRiskTime;
+                finalImmediate = vitalsImmediate;
+            } else if (vitalsRiskLevel == null && tcmRiskLevel != null) {
+                finalRiskType = tcmRiskType;
+                finalRiskDesc = tcmRiskDesc;
+                finalRiskLevel = tcmRiskLevel;
+                finalRiskTime = tcmRiskTime;
+                finalImmediate = tcmImmediate;
+            } else {
+                int cmp = compareRiskLevel(vitalsRiskLevel, tcmRiskLevel);
+                boolean vitalsHigher = cmp > 0 || (cmp == 0 && vitalsRiskTime != null && (tcmRiskTime == null || vitalsRiskTime.isAfter(tcmRiskTime)));
+                if (vitalsHigher) {
+                    finalRiskType = vitalsRiskType;
+                    finalRiskLevel = vitalsRiskLevel;
+                    finalRiskTime = vitalsRiskTime;
+                    finalImmediate = vitalsImmediate;
+                    if (tcmRiskDesc != null) {
+                        finalRiskDesc = vitalsRiskDesc != null
+                                ? vitalsRiskDesc + "；" + tcmRiskDesc
+                                : tcmRiskDesc;
+                    } else {
+                        finalRiskDesc = vitalsRiskDesc;
+                    }
+                } else {
+                    finalRiskType = tcmRiskType;
+                    finalRiskLevel = tcmRiskLevel;
+                    finalRiskTime = tcmRiskTime;
+                    finalImmediate = tcmImmediate;
+                    if (vitalsRiskDesc != null) {
+                        finalRiskDesc = tcmRiskDesc != null
+                                ? tcmRiskDesc + "；" + vitalsRiskDesc
+                                : vitalsRiskDesc;
+                    } else {
+                        finalRiskDesc = tcmRiskDesc;
+                    }
+                }
+            }
+
+            // 4. 构建标签与DTO
+            List<String> tags = new ArrayList<>();
+            Profile profile = profileRepository.findById(userId).orElse(null);
+            if (profile != null) {
+                try {
+                    if (profile.getHealthTags() != null && !profile.getHealthTags().isBlank()) {
+                        List<String> healthTags = objectMapper.readValue(profile.getHealthTags(), STRING_LIST_TYPE_REF);
+                        if (healthTags != null) {
+                            tags.addAll(healthTags);
+                        }
+                    }
+                    if (profile.getAllergies() != null && !profile.getAllergies().isBlank()) {
+                        List<String> allergies = objectMapper.readValue(profile.getAllergies(), STRING_LIST_TYPE_REF);
+                        if (allergies != null) {
+                            tags.addAll(allergies.stream().map(a -> "过敏:" + a).collect(Collectors.toList()));
+                        }
+                    }
+                } catch (Exception e) {
+                    // 标签解析失败不影响高风险判断
+                }
+            }
+            if (tags.isEmpty()) {
+                tags.add("高风险");
+            }
+
+            LocalDateTime lastAbnormalTime = Stream.of(vitalsRiskTime, tcmRiskTime)
+                    .filter(Objects::nonNull)
+                    .max(LocalDateTime::compareTo)
+                    .orElse(null);
+
+            result.add(new HighRiskMemberDto(
+                    userId,
+                    // 医生工作台按家庭维度展示高风险患者，这里取该患者绑定的第一个家庭ID
+                    bindings.stream()
+                            .map(FamilyDoctor::getFamily)
+                            .filter(Objects::nonNull)
+                            .map(Family::getId)
+                            .findFirst()
+                            .orElse(null),
+                    patient.getNickname(),
+                    userFamilyNameMap.getOrDefault(userId, null),
+                    tags,
+                    lastAbnormalTime,
+                    readAvatar(userId),
+                    finalRiskType,
+                    finalRiskDesc,
+                    finalRiskLevel,
+                    finalRiskTime,
+                    finalImmediate
+            ));
+        }
+
+        // 5. 按风险等级 + 风险时间排序（CRITICAL > WARNING > NOTICE）并限制 Top 5
+        result.sort((a, b) -> {
+            int levelA = mapRiskLevelOrder(a.riskLevel());
+            int levelB = mapRiskLevelOrder(b.riskLevel());
+            if (levelA != levelB) {
+                return Integer.compare(levelB, levelA);
+            }
+            LocalDateTime timeA = a.riskTime();
+            LocalDateTime timeB = b.riskTime();
+            if (timeA == null && timeB == null) return 0;
+            if (timeA == null) return 1;
+            if (timeB == null) return -1;
+            return timeB.compareTo(timeA);
+        });
+
+        return result.stream().limit(5).collect(Collectors.toList());
+    }
+
+    private List<ConsultationTaskDto> getPendingConsultations(User doctor) {
+        List<ConsultationSession> allSessions = consultationSessionRepository.findByDoctorOrderByLastMessageAtDesc(doctor);
+        return allSessions.stream()
+                .filter(session -> session != null && session.getPatient() != null && (session.getLastMessageAt() != null || session.getCreatedAt() != null))
+                .filter(session -> "ACTIVE".equals(session.getStatus()))
+                .filter(session -> session.getUnreadCountDoctor() != null && session.getUnreadCountDoctor() > 0)
+                // 等待时长按最后一条消息时间计算；若为空则退回创建时间
+                .sorted(Comparator.comparing(session ->
+                        session.getLastMessageAt() != null ? session.getLastMessageAt() : session.getCreatedAt()
+                ))
+                .map(session -> {
+                    User patient = session.getPatient();
+                    LocalDateTime referenceTime = session.getLastMessageAt() != null
+                            ? session.getLastMessageAt()
+                            : session.getCreatedAt();
+                    long waitingMinutes = java.time.Duration.between(referenceTime, LocalDateTime.now()).toMinutes();
+                    String waitingTimeFormatted = formatDuration(waitingMinutes);
+
+                    return ConsultationTaskDto.builder()
+                            .sessionId(session.getId())
+                            .patientName(patient.getNickname())
+                            .avatarUrl(readAvatar(patient.getId()))
+                            .requestSummary(session.getTriageSummary() != null ? session.getTriageSummary() : session.getPatientSymptoms()) // 优先使用AI摘要
+                            .suggestedDepartment("待分诊") // 暂时没有具体科室信息
+                            .waitingTime(waitingTimeFormatted)
+                            .build();
+                })
+                .limit(5)
+                .collect(Collectors.toList());
+    }
+
+    private String formatDuration(long minutes) {
+        if (minutes < 60) {
+            return minutes + "分钟";
+        } else if (minutes < 1440) {
+            return (minutes / 60) + "小时" + (minutes % 60) + "分钟";
+        } else {
+            long days = minutes / 1440;
+            long hours = (minutes % 1440) / 60;
+            long mins = minutes % 60;
+            return days + "天" + hours + "小时" + mins + "分钟";
+        }
+    }
+
+    @Override
+    public int sendSeasonalAdviceToAllPatients(Long doctorId) {
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new BusinessException(40401, "医生用户不存在"));
+
+        SeasonalWellnessDTO wellnessDTO = null;
+        String solarTerm;
+        String advice;
+        try {
+            wellnessDTO = seasonalWellnessService.getWellnessAdvice(doctorId);
+        } catch (Exception e) {
+            log.warn("Failed to load AI seasonal wellness advice for doctor {} when sending to patients: {}", doctorId, e.getMessage());
+        }
+        if (wellnessDTO != null) {
+            solarTerm = wellnessDTO.getSolarTerm() != null ? wellnessDTO.getSolarTerm() : com.healthfamily.utils.SolarTermUtil.getCurrentSolarTerm();
+            advice = wellnessDTO.getAdvice() != null
+                    ? wellnessDTO.getAdvice()
+                    : String.format("时值【%s】节气，建议根据节气特点调整生活作息和饮食习惯。", solarTerm);
+        } else {
+            solarTerm = com.healthfamily.utils.SolarTermUtil.getCurrentSolarTerm();
+            advice = String.format("时值【%s】节气，建议根据节气特点调整生活作息和饮食习惯。", solarTerm);
+        }
+
+        List<FamilyDoctor> bindings = familyDoctorRepository.findByDoctor_Id(doctorId);
+        if (bindings.isEmpty()) {
+            return 0;
+        }
+
+        LocalDateTime scheduledTime = LocalDateTime.now().plusMinutes(5);
+        int created = 0;
+
+        for (FamilyDoctor binding : bindings) {
+            Family family = binding.getFamily();
+            List<com.healthfamily.domain.entity.FamilyMember> members = familyMemberRepository.findByFamily(family);
+            for (com.healthfamily.domain.entity.FamilyMember fm : members) {
+                User patient = fm.getUser();
+                if (patient == null) {
+                    continue;
+                }
+                // 不给医生自己发
+                if (Objects.equals(patient.getId(), doctorId)) {
+                    continue;
+                }
+
+                ReminderRequest request = new ReminderRequest(
+                        "LIFESTYLE",
+                        "今日时令养生小贴士",
+                        advice,
+                        scheduledTime,
+                        "MEDIUM",
+                        "APP",
+                        java.util.Map.of("solarTerm", solarTerm),
+                        java.util.Map.of(
+                                "source", "DOCTOR_SEASONAL_ADVICE",
+                                "doctorId", doctorId,
+                                "familyId", family.getId(),
+                                "patientUserId", patient.getId()
+                        ),
+                        patient.getId(),
+                        family.getId()
+                );
+                try {
+                    healthReminderService.createReminder(doctorId, request);
+                    created++;
+                } catch (Exception e) {
+                    log.error("Failed to create seasonal reminder for patient {}: {}", patient.getId(), e.getMessage(), e);
+                }
+            }
+        }
+
+        log.info("Doctor {} sent seasonal advice to {} patients", doctorId, created);
+        return created;
     }
 
     private boolean checkAnomaly(Long userId, Map<String, Object> content) {

@@ -13,6 +13,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
+/**
+ * 系统Monitor控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/monitor")
 public class SystemMonitorController {
 
@@ -23,6 +29,10 @@ public class SystemMonitorController {
     }
 
     @GetMapping("/metrics")
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public Result<Map<String, Object>> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         

@@ -1,3 +1,9 @@
+/**
+ * 前端工具模块：logger.js
+ *
+ * 提供通用工具方法或跨模块复用能力，避免业务代码重复。
+ */
+
 export const log = (level, module, action, detail) => {
   try {
     const entry = {

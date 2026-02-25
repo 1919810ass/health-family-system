@@ -28,12 +28,24 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/families")
+/**
+ * 家庭控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @Slf4j
 public class FamilyController {
 
     private final FamilyService familyService;
 
     @PostMapping
+    /**
+     * 创建
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<FamilyResponse> createFamily(@AuthenticationPrincipal UserPrincipal principal,
                                                @Valid @RequestBody FamilyCreateRequest request) {
         return Result.success(familyService.createFamily(principal.getUserId(), request));
@@ -47,6 +59,12 @@ public class FamilyController {
     }
 
     @PostMapping("/join")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<FamilyResponse> joinByCode(@AuthenticationPrincipal UserPrincipal principal,
                                              @Valid @RequestBody FamilyInviteRequest request) {
         return Result.success(familyService.joinByCode(principal.getUserId(), request.inviteCode()));
@@ -59,6 +77,11 @@ public class FamilyController {
     }
 
     @GetMapping
+    /**
+     * 查询列表
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public Result<List<FamilyResponse>> listFamilies(@AuthenticationPrincipal UserPrincipal principal) {
         log.info("Request listFamilies for user: {}", principal.getUserId());
         return Result.success(familyService.listUserFamilies(principal.getUserId()));

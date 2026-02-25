@@ -5,6 +5,12 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.time.LocalDateTime;
 import java.util.List;
+/**
+ * 系统监测服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 import java.util.Map;
 
 public interface SystemMonitoringService {

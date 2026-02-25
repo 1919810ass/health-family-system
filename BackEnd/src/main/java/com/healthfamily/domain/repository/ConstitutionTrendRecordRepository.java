@@ -5,6 +5,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Constitution趋势Record数据访问接口
+ * <p>
+ * 基于 Spring Data JPA 的数据访问层，用于领域对象的 CRUD 与查询。
+ * </p>
+ */
 import java.util.List;
 
 public interface ConstitutionTrendRecordRepository extends JpaRepository<ConstitutionTrendRecord, Long> {

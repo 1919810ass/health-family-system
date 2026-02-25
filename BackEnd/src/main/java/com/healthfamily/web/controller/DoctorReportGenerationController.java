@@ -26,6 +26,12 @@ import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/api/doctor/report-generation")
+/**
+ * 医生报告Generation控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class DoctorReportGenerationController {
 
@@ -37,6 +43,11 @@ public class DoctorReportGenerationController {
 
     @GetMapping("/template")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public ResponseEntity<byte[]> downloadTemplate(@AuthenticationPrincipal UserPrincipal principal) {
         byte[] bytes = healthReportService.getReportTemplate();
 
@@ -56,6 +67,12 @@ public class DoctorReportGenerationController {
 
     @PostMapping("/docx")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    /**
+     * 生成
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public ResponseEntity<byte[]> generateDocx(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody @Valid GenerateReportRequest request) {
@@ -77,6 +94,12 @@ public class DoctorReportGenerationController {
     
     @PostMapping("/pdf")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    /**
+     * 生成
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public ResponseEntity<byte[]> generatePdf(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody @Valid GenerateReportRequest request) {
@@ -98,6 +121,12 @@ public class DoctorReportGenerationController {
 
     @PostMapping("/batch-docx")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    /**
+     * 生成
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public ResponseEntity<byte[]> generateBatchDocx(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody @Valid GenerateBatchReportRequest request) {
@@ -119,6 +148,12 @@ public class DoctorReportGenerationController {
 
     @PostMapping("/preview")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<ReportGenerationPreviewResponse> preview(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody @Valid GenerateReportRequest request) {
@@ -127,6 +162,12 @@ public class DoctorReportGenerationController {
 
     @PostMapping(value = "/stream-preview", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Flux<String> streamPreview(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestBody @Valid GenerateReportRequest request) {

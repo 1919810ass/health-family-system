@@ -188,6 +188,12 @@
 </template>
 
 <script setup>
+/**
+ * 组件：CustomReports.vue
+ *
+ * 业务说明：用于呈现对应页面/模块功能，并通过 API 层与后端进行数据交互。
+ */
+
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'

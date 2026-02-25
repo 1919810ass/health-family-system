@@ -36,6 +36,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * AI报告Analysis服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class AiReportAnalysisServiceImpl implements ReportAnalysisService {
 
@@ -55,6 +61,11 @@ public class AiReportAnalysisServiceImpl implements ReportAnalysisService {
     private List<String> availableVisionModels = List.of();
 
     @Override
+    /**
+     * 执行业务操作
+     * @param imageUrl 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> performOcr(String imageUrl) {
         log.info("Starting AI OCR for image: {}", imageUrl);
         
@@ -168,6 +179,11 @@ public class AiReportAnalysisServiceImpl implements ReportAnalysisService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param ocrData 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> analyzeReport(Map<String, Object> ocrData) {
         Map<String, Object> interpretation = new HashMap<>();
         Map<String, String> details = new HashMap<>();

@@ -1,3 +1,9 @@
+/**
+ * 前端配置模块：menuConfig.js
+ *
+ * 提供菜单、常量或运行时配置，供页面渲染与权限判断使用。
+ */
+
 
 export const MENU_CONFIG = {
   USER: [

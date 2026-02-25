@@ -37,6 +37,12 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
+/**
+ * 用户服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
@@ -53,6 +59,11 @@ public class UserServiceImpl implements UserService {
     private String uploadDir;
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public UserProfileResponse getProfile(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();
         Profile profile = profileRepository.findById(userId).orElse(null);
@@ -66,6 +77,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public UserProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {
         User user = userRepository.findById(userId).orElseThrow();
         if (request.nickname() != null) user.setNickname(request.nickname());
@@ -94,6 +111,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param file 业务参数
+     * @return 业务返回结果
+     */
     public String updateAvatar(Long userId, MultipartFile file) {
         String ext = Optional.ofNullable(file.getOriginalFilename())
                 .map(n -> n.contains(".") ? n.substring(n.lastIndexOf('.') + 1) : "jpg")
@@ -126,6 +149,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = userRepository.findById(userId).orElseThrow();
         if (!passwordEncoder.matches(request.oldPassword(), user.getPasswordHash())) {
@@ -137,6 +166,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public UpdateNotificationsRequest updateNotifications(Long userId, UpdateNotificationsRequest request) {
         User user = userRepository.findById(userId).orElseThrow();
         Profile profile = profileRepository.findById(userId).orElseGet(() -> {
@@ -184,6 +219,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    /**
+     * 查询列表
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public java.util.List<com.healthfamily.web.dto.FamilyResponse> listFamilies(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return familyMemberRepository.findByUser(user).stream()
@@ -198,6 +238,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * 切换
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public com.healthfamily.web.dto.FamilyResponse switchCurrentFamily(Long userId, Long familyId) {
         User user = userRepository.findById(userId).orElseThrow();
         Family family = familyRepository.findById(familyId).orElseThrow();
@@ -222,6 +268,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public UserProfileResponse updateHealthProfile(Long userId, ProfileHealthUpdateRequest request) {
         User user = userRepository.findById(userId).orElseThrow();
         Profile profile = profileRepository.findById(userId).orElseGet(() -> {
@@ -278,6 +330,11 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public HealthProfileResponse getHealthProfile(Long userId) {
         Profile profile = profileRepository.findById(userId).orElse(null);
         if (profile == null) {
@@ -320,6 +377,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param keyword 业务参数
+     * @param role 业务参数
+     * @param status 业务参数
+     * @param page 分页页码
+     * @param size 分页大小
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> getAdminUserList(String keyword, com.healthfamily.domain.constant.UserRole role, String status, int page, int size, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
         // 使用JPA的分页查询
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page - 1, size);
@@ -396,11 +464,21 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public User findById(Long id) {
         return userRepository.findById(id).orElse(null);
     }
 
     @Override
+    /**
+     * 创建
+     * @param user 业务参数
+     * @return 业务返回结果
+     */
     public User create(User user) {
         // 设置默认密码
         if (user.getPasswordHash() == null) {
@@ -410,6 +488,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param user 业务参数
+     * @return 业务返回结果
+     */
     public User update(Long id, User user) {
         User existingUser = userRepository.findById(id).orElse(null);
         if (existingUser == null) {
@@ -426,6 +510,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 删除
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean deleteById(Long id) {
         if (userRepository.existsById(id)) {
             userRepository.deleteById(id);
@@ -435,6 +524,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param status 业务参数
+     * @return 业务返回结果
+     */
     public boolean updateStatus(Long id, String status) {
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
@@ -465,6 +560,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @param password 业务参数
+     * @return 业务返回结果
+     */
     public boolean resetPassword(Long id, String password) {
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
@@ -477,6 +578,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean forceLogout(Long id) {
         User user = userRepository.findById(id).orElse(null);
         if (user == null) return false;
@@ -491,6 +597,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean lockUser(Long id) {
         User user = userRepository.findById(id).orElse(null);
         if (user == null) return false;
@@ -501,6 +612,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean unlockUser(Long id) {
         User user = userRepository.findById(id).orElse(null);
         if (user == null) return false;
@@ -513,6 +629,13 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @param approve 业务参数
+     * @param reason 业务参数
+     * @return 业务返回结果
+     */
     public boolean auditUser(Long id, boolean approve, String reason) {
         log.info("Auditing user id: {}, approve: {}", id, approve);
         User user = userRepository.findById(id).orElse(null);

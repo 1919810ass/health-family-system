@@ -21,6 +21,12 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
+/**
+ * 文件上传控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @Slf4j
 public class FileUploadController {
 
@@ -68,6 +74,12 @@ public class FileUploadController {
     }
 
     @GetMapping("/files/{date}/{filename}")
+    /**
+     * 获取
+     * @param date 日期
+     * @param filename 业务参数
+     * @return 业务返回结果
+     */
     public ResponseEntity<Resource> getFile(@PathVariable String date, @PathVariable String filename) {
         try {
             Path rootPath = Paths.get(uploadDir).toAbsolutePath().normalize();

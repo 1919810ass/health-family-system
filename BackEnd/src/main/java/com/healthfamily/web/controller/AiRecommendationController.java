@@ -17,6 +17,12 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * AI推荐控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/ai-recommendations")
 public class AiRecommendationController {
 

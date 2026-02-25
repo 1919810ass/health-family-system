@@ -12,6 +12,12 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/ai-assessment")
 @RequiredArgsConstructor
+/**
+ * AI测评控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @Tag(name = "AI中医体质测评", description = "AI驱动的动态体质测评相关接口")
 public class AiAssessmentController {
 

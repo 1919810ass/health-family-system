@@ -1,3 +1,9 @@
+/**
+ * 前端接口封装：aiChat.js
+ *
+ * 统一封装与后端 /api 路径下接口的调用，供页面与状态管理层复用。
+ */
+
 import { getToken } from '../utils/auth'
 
 export const chatStream = async (message, onMessage, onError, onComplete) => {

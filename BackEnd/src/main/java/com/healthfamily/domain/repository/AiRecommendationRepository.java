@@ -7,6 +7,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
 import java.util.List;
+/**
+ * AI推荐数据访问接口
+ * <p>
+ * 基于 Spring Data JPA 的数据访问层，用于领域对象的 CRUD 与查询。
+ * </p>
+ */
 import java.util.Optional;
 
 public interface AiRecommendationRepository extends JpaRepository<AiRecommendation, Long> {

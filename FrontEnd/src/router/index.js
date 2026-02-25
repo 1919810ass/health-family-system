@@ -1,3 +1,9 @@
+/**
+ * 前端路由配置：index.js
+ *
+ * 定义页面路由、权限控制与导航结构。
+ */
+
 import { createRouter, createWebHistory } from 'vue-router'
 import { getToken } from '../utils/auth'
 import { useUserStore } from '../stores/user'

@@ -11,12 +11,23 @@ import java.util.*;
 
 @Slf4j
 @Service
+/**
+ * 健康AITool服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class HealthAiToolServiceImpl implements HealthAiToolService {
 
     private final KnowledgeDocumentRepository knowledgeDocumentRepository;
 
     @Override
+    /**
+     * 执行业务操作
+     * @param drugName 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> queryDrugInfo(String drugName) {
         // 模拟药品信息查询（实际应该对接药品数据库或API）
         Map<String, Object> result = new HashMap<>();
@@ -32,6 +43,12 @@ public class HealthAiToolServiceImpl implements HealthAiToolService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param location 业务参数
+     * @param department 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> getNearbyHospitals(String location, String department) {
         // 模拟医院查询（实际应该对接地图API或医院数据库）
         Map<String, Object> result = new HashMap<>();
@@ -54,6 +71,12 @@ public class HealthAiToolServiceImpl implements HealthAiToolService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param keyword 业务参数
+     * @param category 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> queryHealthKnowledge(String keyword, String category) {
         // 从知识库查询
         List<KnowledgeDocument> documents;

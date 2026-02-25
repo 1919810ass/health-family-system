@@ -35,6 +35,12 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Service
+/**
+ * 认证服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
@@ -51,6 +57,11 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    /**
+     * 注册
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public TokenResponse register(RegisterRequest request) {
         userRepository.findByPhone(request.phone())
                 .ifPresent(user -> {
@@ -76,6 +87,11 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    /**
+     * 注册
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public TokenResponse registerAdmin(RegisterRequest request) {
         userRepository.findByPhone(request.phone())
                 .ifPresent(user -> {
@@ -97,6 +113,11 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    /**
+     * 登录
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public TokenResponse login(LoginRequest request) {
         if (securityDisabled) {
             // ... (securityDisabled logic remains same)
@@ -214,6 +235,11 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    /**
+     * 注册
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public TokenResponse registerDoctor(RegisterRequest request) {
         userRepository.findByPhone(request.phone())
                 .ifPresent(user -> { throw new BusinessException(40001, "手机号已注册"); });
@@ -296,6 +322,11 @@ public class AuthServiceImpl implements AuthService {
     
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param token 业务参数
+     * @return 业务返回结果
+     */
     public TokenResponse refresh(String token) {
         if (!jwtUtil.validateToken(token)) {
             throw new BusinessException(40102, "token无效或已过期");

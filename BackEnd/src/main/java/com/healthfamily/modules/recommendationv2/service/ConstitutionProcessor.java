@@ -9,6 +9,12 @@ import com.healthfamily.modules.recommendationv2.service.model.ConstitutionFeatu
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
+/**
+ * ConstitutionProcessor服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ConstitutionProcessor {
@@ -21,6 +27,18 @@ public class ConstitutionProcessor {
     this.repo = repo;
     this.ttlMs = ttlMs;
   }
+
+  /**
+
+   * 执行业务操作
+
+   * @param userId 家庭成员唯一标识
+
+   * @param lookback 业务参数
+
+   * @return 业务返回结果
+
+   */
 
   public ConstitutionFeatures load(Long userId, int lookback) {
     CacheEntry e = cache.get(userId);

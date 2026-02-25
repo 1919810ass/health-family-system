@@ -34,6 +34,12 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Service
+/**
+ * 中医体质测评AI服务
+ * <p>
+ * 承载平台业务功能，供上层调用或作为领域组件使用。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class TcmAssessmentAiService {
 

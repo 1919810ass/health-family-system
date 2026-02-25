@@ -1,3 +1,9 @@
+/**
+ * 前端工具模块：request.js
+ *
+ * 提供通用工具方法或跨模块复用能力，避免业务代码重复。
+ */
+
 import axios from 'axios'
 import dayjs from 'dayjs'
 import { error as logError, info as logInfo } from './logger'

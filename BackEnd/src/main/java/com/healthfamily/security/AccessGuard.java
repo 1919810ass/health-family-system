@@ -11,6 +11,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+/**
+ * AccessGuard安全组件
+ * <p>
+ * 负责认证鉴权、Token 解析、权限校验或安全相关的辅助能力。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class AccessGuard {
 

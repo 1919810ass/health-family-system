@@ -19,6 +19,12 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController("recommendationV2Controller")
+/**
+ * 推荐控制器
+ * <p>
+ * 属于业务子模块的核心组件，用于承载该模块的领域模型与服务逻辑。
+ * </p>
+ */
 @RequestMapping("/api/recommendations/v2")
 public class RecommendationController {
   private final RecommendationService service;

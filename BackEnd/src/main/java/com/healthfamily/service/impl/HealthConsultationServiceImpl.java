@@ -30,6 +30,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * 健康问诊服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class HealthConsultationServiceImpl implements HealthConsultationService {
 
@@ -44,6 +50,12 @@ public class HealthConsultationServiceImpl implements HealthConsultationService 
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public ConsultationResponse consult(Long userId, ConsultationRequest request) {
         User user = loadUser(userId);
         
@@ -102,6 +114,12 @@ public class HealthConsultationServiceImpl implements HealthConsultationService 
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Flux<String> consultStream(Long userId, ConsultationRequest request) {
         User user = loadUser(userId);
         String sessionId = request.sessionId();
@@ -505,6 +523,12 @@ public class HealthConsultationServiceImpl implements HealthConsultationService 
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param sessionId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public List<ConsultationResponse> getHistory(Long userId, String sessionId) {
         User user = loadUser(userId);
         List<HealthConsultation> consultations;
@@ -522,6 +546,13 @@ public class HealthConsultationServiceImpl implements HealthConsultationService 
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param consultationId 业务对象唯一标识
+     * @param userId 家庭成员唯一标识
+     * @param feedback 业务参数
+     * @return 无
+     */
     public void feedback(Long consultationId, Long userId, Integer feedback) {
         HealthConsultation consultation = consultationRepository.findById(consultationId)
                 .orElseThrow(() -> new RuntimeException("咨询记录不存在"));

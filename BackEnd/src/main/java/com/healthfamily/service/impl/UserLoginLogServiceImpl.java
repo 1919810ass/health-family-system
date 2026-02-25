@@ -13,6 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 @Service
+/**
+ * 用户Login日志服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class UserLoginLogServiceImpl implements UserLoginLogService {
     
@@ -20,6 +26,17 @@ public class UserLoginLogServiceImpl implements UserLoginLogService {
     
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param username 业务参数
+     * @param role 业务参数
+     * @param ipAddress 业务参数
+     * @param userAgent 业务参数
+     * @param status 业务参数
+     * @param loginType 业务参数
+     * @return 业务返回结果
+     */
     public UserLoginLogDto saveLoginLog(Long userId, String username, String role, String ipAddress, String userAgent, String status, String loginType) {
         UserLoginLog log = UserLoginLog.builder()
                 .userId(userId)
@@ -38,6 +55,13 @@ public class UserLoginLogServiceImpl implements UserLoginLogService {
     
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 获取
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @param pageable 业务参数
+     * @return 业务返回结果
+     */
     public Page<UserLoginLogDto> getLoginLogs(LocalDateTime startTime, LocalDateTime endTime, Pageable pageable) {
         try {
             return userLoginLogRepository.findByLoginTimeBetweenOrderByLoginTimeDesc(startTime, endTime, pageable)
@@ -52,6 +76,11 @@ public class UserLoginLogServiceImpl implements UserLoginLogService {
     
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 获取
+     * @param pageable 业务参数
+     * @return 业务返回结果
+     */
     public Page<UserLoginLogDto> getAllLoginLogs(Pageable pageable) {
         try {
             return userLoginLogRepository.findAllOrderByLoginTimeDesc(pageable)

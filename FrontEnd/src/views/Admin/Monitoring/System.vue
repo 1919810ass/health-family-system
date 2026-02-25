@@ -235,6 +235,12 @@
 </template>
 
 <script setup>
+/**
+ * 组件：System.vue
+ *
+ * 业务说明：用于呈现对应页面/模块功能，并通过 API 层与后端进行数据交互。
+ */
+
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Monitor, DataLine, Bell, Connection, Files, Cpu, Link, Refresh } from '@element-plus/icons-vue'

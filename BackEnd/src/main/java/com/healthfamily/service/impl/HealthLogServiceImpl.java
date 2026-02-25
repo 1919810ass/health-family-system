@@ -8,8 +8,11 @@ import com.healthfamily.domain.entity.HealthLog;
 import com.healthfamily.domain.entity.User;
 import com.healthfamily.domain.repository.HealthLogRepository;
 import com.healthfamily.domain.repository.UserRepository;
+import com.healthfamily.domain.repository.FamilyMemberRepository;
 import com.healthfamily.domain.constant.HealthDataSource;
 import com.healthfamily.service.HealthDataAiService;
+import com.healthfamily.service.MonitoringService;
+import com.healthfamily.web.dto.TelemetryIngestRequest;
 import com.healthfamily.service.HealthLogService;
 import com.healthfamily.web.dto.HealthLogRequest;
 import com.healthfamily.web.dto.HealthLogResponse;
@@ -31,6 +34,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * 健康日志服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class HealthLogServiceImpl implements HealthLogService {
 
@@ -40,9 +49,17 @@ public class HealthLogServiceImpl implements HealthLogService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final HealthDataAiService healthDataAiService;
+    private final MonitoringService monitoringService;
+    private final FamilyMemberRepository familyMemberRepository;
 
     @Override
     @Transactional
+    /**
+     * 创建
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public HealthLogResponse createLog(Long userId, HealthLogRequest request) {
         if (request == null) {
             throw new BusinessException(40001, "请求参数不能为空");
@@ -115,7 +132,62 @@ public class HealthLogServiceImpl implements HealthLogService {
                 .metadataJson(metadataJson)
                 .build();
         HealthLog saved = healthLogRepository.save(log);
+
+        // 异步触发监测服务，生成警报
+        if (saved.getType() == HealthLogType.VITALS) {
+            triggerMonitoring(saved);
+        }
         return toResponse(saved);
+    }
+
+    private void triggerMonitoring(HealthLog healthLog) {
+        log.info("[MONITORING_TRIGGER] Started for logId: {}", healthLog.getId());
+        try {
+            Long userId = healthLog.getUser().getId();
+            // 获取 familyId，这对于将警报与家庭关联至关重要
+            Long familyId = familyMemberRepository.findByUser(healthLog.getUser())
+                    .stream()
+                    .findFirst()
+                    .map(fm -> fm.getFamily().getId())
+                    .orElse(null);
+
+            Map<String, Object> content = fromJson(healthLog.getContentJson());
+
+            // 定义前端日志键到后端度量标准的映射
+            Map<String, String> metricMapping = Map.of(
+                "systolic", "BP_SYS",
+                "diastolic", "BP_DIA",
+                "heartRate", "HR",
+                "temperature", "TEMP",
+                "spo2", "SPO2",
+                "glucose", "GLUCOSE" // 假设血糖的度量标准是 GLUCOSE
+            );
+
+            for (Map.Entry<String, Object> entry : content.entrySet()) {
+                String frontendKey = entry.getKey();
+                String backendMetric = metricMapping.get(frontendKey);
+
+                if (backendMetric != null && entry.getValue() instanceof Number) {
+                    double value = ((Number) entry.getValue()).doubleValue();
+                    // 使用完整的构造函数创建请求
+                    TelemetryIngestRequest ingestRequest = new TelemetryIngestRequest(
+                            userId,
+                            familyId,
+                            backendMetric,
+                            value,
+                            healthLog.getLogDate().atStartOfDay(),
+                            healthLog.getDataSource().name()
+                    );
+
+                    // 调用监测服务
+                    monitoringService.ingest(userId, ingestRequest);
+                    log.info("Successfully triggered monitoring for userId: {}, metric: {}, value: {}", userId, backendMetric, value);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to trigger monitoring for logId: {}. Error: {}", healthLog.getId(), e.getMessage(), e);
+            // 即使触发失败，也不应影响主流程
+        }
     }
 
     private String extractDataType(Map<String, Object> content) {
@@ -158,6 +230,13 @@ public class HealthLogServiceImpl implements HealthLogService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param logId 日志唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public HealthLogResponse updateLog(Long userId, Long logId, HealthLogRequest request) {
         User user = loadUser(userId);
         HealthLog log = healthLogRepository.findByIdAndUser(logId, user)
@@ -177,6 +256,12 @@ public class HealthLogServiceImpl implements HealthLogService {
 
     @Override
     @Transactional
+    /**
+     * 删除
+     * @param userId 家庭成员唯一标识
+     * @param logId 日志唯一标识
+     * @return 无
+     */
     public void deleteLog(Long userId, Long logId) {
         log.info("Request to delete health log. UserId: {}, LogId: {}", userId, logId);
         User user = loadUser(userId);
@@ -190,6 +275,14 @@ public class HealthLogServiceImpl implements HealthLogService {
     }
 
     @Override
+    /**
+     * 查询列表
+     * @param userId 家庭成员唯一标识
+     * @param type 业务参数
+     * @param startDate 开始日期
+     * @param endDate 结束日期
+     * @return 业务返回结果
+     */
     public List<HealthLogResponse> listLogs(Long userId, HealthLogType type, LocalDate startDate, LocalDate endDate) {
         User user = loadUser(userId);
         List<HealthLog> logs = healthLogRepository.findByUserOrderByLogDateDesc(user);
@@ -201,6 +294,11 @@ public class HealthLogServiceImpl implements HealthLogService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public HealthLogStatisticsResponse getStatistics(Long userId) {
         User user = loadUser(userId);
         LocalDate today = LocalDate.now();
@@ -361,6 +459,11 @@ public class HealthLogServiceImpl implements HealthLogService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public List<HealthLogResponse> getAbnormalLogs(Long userId) {
         List<HealthLog> abnormalLogs = healthLogRepository.findByUser_IdAndIsAbnormalTrueOrderByLogDateDesc(userId);
         return abnormalLogs.stream()
@@ -423,6 +526,17 @@ public class HealthLogServiceImpl implements HealthLogService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param logType 业务参数
+     * @param keyword 业务参数
+     * @param page 分页页码
+     * @param size 分页大小
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public java.util.Map<String, Object> getAdminHealthLogList(Long userId, String logType, String keyword, int page, int size, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
         // 分页查询健康日志列表
         // 这里需要根据实际的分页需求实现，这里简化为返回所有日志
@@ -493,16 +607,32 @@ public class HealthLogServiceImpl implements HealthLogService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public HealthLog findById(Long id) {
         return healthLogRepository.findById(id).orElse(null);
     }
 
     @Override
+    /**
+     * 创建
+     * @param healthLog 业务参数
+     * @return 业务返回结果
+     */
     public HealthLog create(HealthLog healthLog) {
         return healthLogRepository.save(healthLog);
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param healthLog 业务参数
+     * @return 业务返回结果
+     */
     public HealthLog update(Long id, HealthLog healthLog) {
         HealthLog existingLog = healthLogRepository.findById(id).orElse(null);
         if (existingLog == null) {
@@ -521,6 +651,11 @@ public class HealthLogServiceImpl implements HealthLogService {
     }
 
     @Override
+    /**
+     * 删除
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean deleteById(Long id) {
         if (healthLogRepository.existsById(id)) {
             healthLogRepository.deleteById(id);
@@ -531,6 +666,10 @@ public class HealthLogServiceImpl implements HealthLogService {
 
     @Override
     @Transactional(readOnly = true)
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public Map<String, Object> getAdminStatistics() {
         Map<String, Object> stats = new HashMap<>();
         

@@ -26,6 +26,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+/**
+ * 系统监测服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class SystemMonitoringServiceImpl implements SystemMonitoringService {
 
@@ -37,6 +43,12 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     private final UserLoginLogRepository userLoginLogRepository;
 
     @Override
+    /**
+     * 获取
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public UserActivityStatsDto getUserActivityStats(LocalDateTime startTime, LocalDateTime endTime) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
@@ -122,6 +134,10 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public List<Map<String, Object>> getOnlineUsers() {
         return Arrays.asList(
             createUserMap(1001L, "张三", "MEMBER", "2024-01-15 14:30:22", "192.168.1.100", "Chrome/Windows", "北京"),
@@ -155,6 +171,12 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public List<Map<String, Object>> getBehaviorAnalysis(LocalDateTime startTime, LocalDateTime endTime) {
         return Arrays.asList(
             createFeatureUsageMap("健康日志", 3200),
@@ -166,6 +188,15 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param page 分页页码
+     * @param size 分页大小
+     * @param type 业务参数
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> getLoginLogs(int page, int size, String type, LocalDateTime startTime, LocalDateTime endTime) {
         List<Map<String, Object>> logs = Arrays.asList(
             createLoginLogMap(1001L, "张三", "2024-01-15 14:30:22", "192.168.1.100", "Mozilla/5.0...", "success", "北京"),
@@ -182,6 +213,12 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public DataReportDto getDataReports(LocalDateTime startTime, LocalDateTime endTime) {
         // 统计数据
         Long totalUsers = userRepository.count();
@@ -256,6 +293,10 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public List<QualityReportItemDto> getQualityReport() {
         return Arrays.asList(
             QualityReportItemDto.builder().metric("数据完整性").description("数据字段完整度").value("98.5%").status("良好").build(),
@@ -268,6 +309,11 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 生成
+     * @param config 业务参数
+     * @return 业务返回结果
+     */
     public CustomReportDto generateCustomReport(Map<String, Object> config) {
         List<Map<String, Object>> reportData = Arrays.asList(
             createReportItem("新增用户数", 1248L, "+12.5%"),
@@ -294,12 +340,22 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param templateName 业务参数
+     * @param config 业务参数
+     * @return 无
+     */
     public void saveReportTemplate(String templateName, Map<String, Object> config) {
         // 模拟保存模板
         System.out.println("保存报告模板: " + templateName + ", 配置: " + config);
     }
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public List<Map<String, Object>> getSavedTemplates() {
         return Arrays.asList(
             createTemplateMap("用户增长分析", "2024-01-15 10:30:22"),
@@ -309,6 +365,11 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param templateId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public Map<String, Object> getTemplate(String templateId) {
         Map<String, Object> template = new HashMap<>();
         template.put("id", templateId);
@@ -323,6 +384,12 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param params 业务参数
+     * @param response 业务参数
+     * @return 无
+     */
     public void exportReport(Map<String, Object> params, jakarta.servlet.http.HttpServletResponse response) {
         try {
             response.setContentType("application/pdf");
@@ -337,6 +404,10 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     @Override
     @Scheduled(fixedRate = 60000) // 每分钟检查一次
     @Transactional
+    /**
+     * 执行业务操作
+     * @return 无
+     */
     public void checkSystemHealth() {
         // 模拟系统健康检查逻辑
         // 1. 检查内存使用率
@@ -372,6 +443,13 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @param limit 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> getSystemAlerts(LocalDateTime startTime, LocalDateTime endTime, int limit) {
         List<Alert> alerts = alertRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(startTime, endTime);
         
@@ -399,6 +477,11 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 无
+     */
     public void acknowledgeAlert(Long id) {
         Alert alert = alertRepository.findById(id).orElseThrow(() -> new RuntimeException("Alert not found"));
         alert.setStatus(AlertStatus.ACKNOWLEDGED);
@@ -406,6 +489,11 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 无
+     */
     public void resolveAlert(Long id) {
         Alert alert = alertRepository.findById(id).orElseThrow(() -> new RuntimeException("Alert not found"));
         alert.setStatus(AlertStatus.RESOLVED);

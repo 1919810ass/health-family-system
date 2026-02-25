@@ -23,6 +23,12 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * Audit日志服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @Slf4j
 public class AuditLogServiceImpl implements AuditLogService {
 
@@ -32,6 +38,18 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /**
+     * 执行业务操作
+     * @param user 业务参数
+     * @param action 业务参数
+     * @param resource 业务参数
+     * @param level 业务参数
+     * @param result 业务参数
+     * @param ip 业务参数
+     * @param userAgent 业务参数
+     * @param extraJson 业务参数
+     * @return 无
+     */
     public void recordLog(User user, String action, String resource, SensitivityLevel level, AuditResult result, String ip, String userAgent, String extraJson) {
         try {
             AuditLog log = AuditLog.builder()
@@ -52,6 +70,13 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param start 业务参数
+     * @param end 业务参数
+     * @param result 业务参数
+     * @return 业务返回结果
+     */
     public List<AuditLog> getLogs(LocalDateTime start, LocalDateTime end, AuditResult result) {
         if (result != null) {
             return auditLogRepository.findByResultAndCreatedAtBetweenOrderByCreatedAtDesc(result, start, end);
@@ -60,11 +85,29 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public List<AuditLog> getUserLogs(Long userId) {
         return auditLogRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param action 业务参数
+     * @param resource 业务参数
+     * @param result 业务参数
+     * @param sensitivity 业务参数
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @param keyword 业务参数
+     * @param pageable 业务参数
+     * @return 业务返回结果
+     */
     public Page<AuditLog> searchLogs(Long userId, String action, String resource, AuditResult result, SensitivityLevel sensitivity, LocalDateTime startTime, LocalDateTime endTime, String keyword, Pageable pageable) {
         Specification<AuditLog> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();

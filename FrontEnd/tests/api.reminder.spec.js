@@ -1,3 +1,7 @@
+/**
+ * 前端模块：api.reminder.spec.js
+ */
+
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Use vi.hoisted to make the mock available for the hoisted vi.mock call

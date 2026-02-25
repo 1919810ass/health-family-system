@@ -16,6 +16,12 @@ import org.springframework.web.filter.GenericFilterBean;
 
 import java.io.IOException;
 
+/**
+ * JWTAuthenticationFilter安全组件
+ * <p>
+ * 负责认证鉴权、Token 解析、权限校验或安全相关的辅助能力。
+ * </p>
+ */
 @Component
 public class JwtAuthenticationFilter extends GenericFilterBean {
 

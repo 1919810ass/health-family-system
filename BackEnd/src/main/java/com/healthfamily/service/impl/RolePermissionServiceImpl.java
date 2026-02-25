@@ -11,6 +11,12 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * RolePermission服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @Service
 public class RolePermissionServiceImpl implements RolePermissionService {
 
@@ -56,11 +62,22 @@ public class RolePermissionServiceImpl implements RolePermissionService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param role 业务参数
+     * @return 业务返回结果
+     */
     public Set<Permission> getPermissions(UserRole role) {
         return rolePermissions.getOrDefault(role, Collections.emptySet());
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param role 业务参数
+     * @param permission 业务参数
+     * @return 业务返回结果
+     */
     public boolean hasPermission(UserRole role, Permission permission) {
         return getPermissions(role).contains(permission);
     }

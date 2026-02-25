@@ -16,6 +16,12 @@ import org.springframework.http.MediaType;
 @RestController
 @RequestMapping("/api/tcm-assessment")
 @RequiredArgsConstructor
+/**
+ * 中医体质测评控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @Tag(name = "中医体质评估", description = "中医体质评估相关接口")
 public class TcmAssessmentController {
 

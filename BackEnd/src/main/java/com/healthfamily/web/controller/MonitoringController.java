@@ -14,12 +14,24 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * 监测控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/monitor")
 public class MonitoringController {
 
     private final MonitoringService monitoringService;
 
     @PostMapping("/ingest")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<AlertResponse> ingest(@AuthenticationPrincipal UserPrincipal principal,
                                         @RequestBody TelemetryIngestRequest request) {
         Long userId = principal.getUserId();

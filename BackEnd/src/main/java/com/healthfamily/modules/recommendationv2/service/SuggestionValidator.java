@@ -7,6 +7,12 @@ import com.healthfamily.modules.recommendationv2.service.model.UserProfile;
 
 import java.util.ArrayList;
 import java.util.List;
+/**
+ * SuggestionValidator服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 import java.util.Locale;
 
 public class SuggestionValidator {
@@ -16,6 +22,20 @@ public class SuggestionValidator {
     public boolean contraindicationHit;
     public RuleV2.Category detected;
   }
+
+  /**
+
+   * 执行业务操作
+
+   * @param item 业务参数
+
+   * @param profile 业务参数
+
+   * @param pref 业务参数
+
+   * @return 业务返回结果
+
+   */
 
   public static Result validate(RecommendationItemDto item, UserProfile profile, Preferences pref) {
     Result r = new Result();

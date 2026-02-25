@@ -22,6 +22,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * Online问诊服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class OnlineConsultationServiceImpl implements OnlineConsultationService {
 
@@ -36,6 +42,13 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
 
     @Override
     @Transactional
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param patientUserId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public ConsultationSessionResponse getOrCreateSession(Long requesterId, Long patientUserId, Long familyId) {
         User requester = userRepository.findById(requesterId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -89,6 +102,12 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
 
     @Override
     @Transactional
+    /**
+     * 创建
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public ConsultationSessionResponse createSession(Long requesterId, CreateSessionRequest request) {
         User requester = userRepository.findById(requesterId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
@@ -109,6 +128,12 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
     }
 
     @Override
+    /**
+     * 查询列表
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public List<ConsultationSessionResponse> listSessionsForDoctor(Long doctorId, Long familyId) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -125,6 +150,12 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
     }
 
     @Override
+    /**
+     * 查询列表
+     * @param patientUserId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public List<ConsultationSessionResponse> listSessionsForPatient(Long patientUserId, Long familyId) {
         User patient = userRepository.findById(patientUserId)
                 .orElseThrow(() -> new BusinessException(40401, "患者不存在"));
@@ -139,6 +170,12 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param sessionId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public ConsultationSessionResponse getSession(Long requesterId, Long sessionId) {
         ConsultationSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new BusinessException(40406, "会话不存在"));
@@ -150,6 +187,12 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
     }
 
     @Override
+    /**
+     * 获取
+     * @param requesterId 业务对象唯一标识
+     * @param sessionId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public List<ConsultationMessageResponse> getMessages(Long requesterId, Long sessionId) {
         ConsultationSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new BusinessException(40406, "会话不存在"));
@@ -164,6 +207,12 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public ConsultationMessageResponse sendMessage(Long requesterId, ConsultationMessageRequest request) {
         ConsultationSession session = sessionRepository.findById(request.sessionId())
                 .orElseThrow(() -> new BusinessException(40406, "会话不存在"));
@@ -205,6 +254,12 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param sessionId 业务对象唯一标识
+     * @return 无
+     */
     public void markMessagesAsRead(Long requesterId, Long sessionId) {
         ConsultationSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new BusinessException(40406, "会话不存在"));
@@ -229,6 +284,12 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param sessionId 业务对象唯一标识
+     * @return 无
+     */
     public void closeSession(Long requesterId, Long sessionId) {
         ConsultationSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new BusinessException(40406, "会话不存在"));

@@ -19,6 +19,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * 医生监测服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
 
@@ -38,6 +44,12 @@ public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
 
     @Override
     @Transactional
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public EnhancedMonitoringDataResponse getEnhancedMonitoringData(Long doctorId, Long familyId) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
@@ -181,30 +193,33 @@ public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
             return b.createdAt().compareTo(a.createdAt()); // 时间降序
         });
 
-        // 4. 获取高风险患者列表
+        // 4. 获取高风险患者列表（基于最近7天的预警，扩展风险详情字段）
         List<HighRiskMemberDto> highRiskMembers = new ArrayList<>();
-        
-        // 基于已收集的alerts（包含数据库中的HealthAlert和实时检测的虚拟Alert）来识别高风险用户
-        // 过滤条件：最近7天有异常
+
         LocalDate sevenDaysAgo = today.minusDays(7);
-        
+
         // 按用户分组最近7天的异常
         Map<Long, List<HealthAlert>> userAlertsMap = alerts.stream()
-                .filter(a -> !a.getCreatedAt().toLocalDate().isBefore(sevenDaysAgo))
+                .filter(a -> a.getCreatedAt() != null && !a.getCreatedAt().toLocalDate().isBefore(sevenDaysAgo))
                 .collect(Collectors.groupingBy(a -> a.getUser().getId()));
 
         for (User user : viewableUsers) {
             List<HealthAlert> userRecentAlerts = userAlertsMap.get(user.getId());
 
-            if (userRecentAlerts == null || userRecentAlerts.isEmpty()) continue;
+            if (userRecentAlerts == null || userRecentAlerts.isEmpty()) {
+                continue;
+            }
 
+            // 4.1 基础标签
             List<String> tags = new ArrayList<>();
             Profile profile = profileRepository.findById(user.getId()).orElse(null);
             if (profile != null) {
                 try {
                     if (profile.getHealthTags() != null && !profile.getHealthTags().isBlank()) {
                         List<String> healthTags = objectMapper.readValue(profile.getHealthTags(), STRING_LIST_TYPE);
-                        if (healthTags != null) tags.addAll(healthTags);
+                        if (healthTags != null) {
+                            tags.addAll(healthTags);
+                        }
                     }
                     if (profile.getAllergies() != null && !profile.getAllergies().isBlank()) {
                         List<String> allergies = objectMapper.readValue(profile.getAllergies(), STRING_LIST_TYPE);
@@ -221,27 +236,78 @@ public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
                 tags.add("高风险");
             }
 
-            // 获取最后异常时间
+            // 4.2 选取该患者最近且等级最高的一条预警，作为体征风险来源
+            HealthAlert mostSevereAlert = userRecentAlerts.stream()
+                    .filter(a -> a.getSeverity() != null)
+                    .sorted((a, b) -> {
+                        int orderA = getSeverityOrder(a.getSeverity().name());
+                        int orderB = getSeverityOrder(b.getSeverity().name());
+                        if (orderA != orderB) {
+                            return Integer.compare(orderB, orderA); // 严重程度降序
+                        }
+                        return b.getCreatedAt().compareTo(a.getCreatedAt()); // 时间降序
+                    })
+                    .findFirst()
+                    .orElse(null);
+
             LocalDateTime lastAbnormalTime = userRecentAlerts.stream()
                     .map(HealthAlert::getCreatedAt)
+                    .filter(Objects::nonNull)
                     .max(LocalDateTime::compareTo)
                     .orElse(null);
 
+            String riskType = null;
+            String riskDescription = null;
+            String riskLevel = null;
+            LocalDateTime riskTime = null;
+            boolean requiresImmediateAction = false;
+
+            if (mostSevereAlert != null) {
+                riskType = "VITALS_WARNING";
+                // 将 AlertSeverity 映射到 UI 使用的等级
+                riskLevel = switch (mostSevereAlert.getSeverity()) {
+                    case CRITICAL -> "CRITICAL";
+                    case HIGH, MEDIUM -> "WARNING";
+                    case LOW -> "NOTICE";
+                };
+                riskTime = mostSevereAlert.getCreatedAt();
+                requiresImmediateAction = mostSevereAlert.getSeverity() == AlertSeverity.CRITICAL;
+
+                String metric = mostSevereAlert.getMetric() != null ? mostSevereAlert.getMetric() : "体征";
+                String valueStr = mostSevereAlert.getValue() != null ? String.format("%.2f", mostSevereAlert.getValue()) : "-";
+                String thresholdStr = String.format("%.2f", mostSevereAlert.getThreshold() != null ? mostSevereAlert.getThreshold() : 0.0);
+                riskDescription = String.format("%s异常：当前值 %s，阈值 %s", metric, valueStr, thresholdStr);
+            }
+
             highRiskMembers.add(new HighRiskMemberDto(
                     user.getId(),
+                    family.getId(),
                     user.getNickname(),
                     family.getName(),
                     tags,
                     lastAbnormalTime,
-                    readAvatar(user.getId())
+                    readAvatar(user.getId()),
+                    riskType,
+                    riskDescription,
+                    riskLevel,
+                    riskTime,
+                    requiresImmediateAction
             ));
         }
 
+        // 按风险等级 + 风险时间排序：CRITICAL > WARNING > NOTICE，其次按风险时间倒序
         highRiskMembers.sort((a, b) -> {
-            if (a.lastAbnormalTime() == null && b.lastAbnormalTime() == null) return 0;
-            if (a.lastAbnormalTime() == null) return 1;
-            if (b.lastAbnormalTime() == null) return -1;
-            return b.lastAbnormalTime().compareTo(a.lastAbnormalTime());
+            int levelA = mapRiskLevelOrder(a.riskLevel());
+            int levelB = mapRiskLevelOrder(b.riskLevel());
+            if (levelA != levelB) {
+                return Integer.compare(levelB, levelA);
+            }
+            LocalDateTime timeA = a.riskTime();
+            LocalDateTime timeB = b.riskTime();
+            if (timeA == null && timeB == null) return 0;
+            if (timeA == null) return 1;
+            if (timeB == null) return -1;
+            return timeB.compareTo(timeA);
         });
         highRiskMembers = highRiskMembers.stream().limit(10).collect(Collectors.toList());
 
@@ -270,6 +336,13 @@ public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
 
     @Override
     @Transactional
+    /**
+     * 处理
+     * @param doctorId 医生唯一标识
+     * @param alertId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void handleAlert(Long doctorId, Long alertId, HandleAlertRequest request) {
         // 如果是虚拟Alert（ID < 0），需要先创建真实的HealthAlert
         HealthAlert alert;
@@ -373,6 +446,12 @@ public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void sendPatientNotification(Long doctorId, SendNotificationRequest request) {
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
@@ -395,6 +474,13 @@ public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param doctorId 医生唯一标识
+     * @param familyId 家庭唯一标识
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public List<HandlingRecordResponse> getHandlingHistory(Long doctorId, Long familyId, Long userId) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
@@ -419,6 +505,12 @@ public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param doctorId 医生唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void batchHandleAlerts(Long doctorId, BatchHandleRequest request) {
         for (Long alertId : request.alertIds()) {
             HandleAlertRequest singleRequest = new HandleAlertRequest(
@@ -469,6 +561,21 @@ public class DoctorMonitoringServiceImpl implements DoctorMonitoringService {
             case "HIGH" -> 3;
             case "MEDIUM" -> 2;
             case "LOW" -> 1;
+            default -> 0;
+        };
+    }
+
+    /**
+     * 将高风险DTO中的riskLevel映射为排序用的权重
+     */
+    private int mapRiskLevelOrder(String riskLevel) {
+        if (riskLevel == null) {
+            return 0;
+        }
+        return switch (riskLevel) {
+            case "CRITICAL" -> 3;
+            case "WARNING" -> 2;
+            case "NOTICE" -> 1;
             default -> 0;
         };
     }

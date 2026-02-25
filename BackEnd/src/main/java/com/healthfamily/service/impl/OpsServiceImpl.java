@@ -34,6 +34,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+/**
+ * Ops服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class OpsServiceImpl implements OpsService {
 
@@ -49,6 +55,14 @@ public class OpsServiceImpl implements OpsService {
     private final OllamaLegacyClient ollamaLegacyClient;
 
     @Override
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param module 业务参数
+     * @param action 业务参数
+     * @param detail 业务参数
+     * @return 无
+     */
     public void recordOperation(Long userId, String module, String action, String detail) {
         User u = userRepository.findById(userId).orElse(null);
         SystemLog log = SystemLog.builder()
@@ -63,6 +77,14 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param type 业务参数
+     * @param start 业务参数
+     * @param end 业务参数
+     * @param limit 业务参数
+     * @return 业务返回结果
+     */
     public List<SystemLog> queryLogs(SystemLogType type, LocalDateTime start, LocalDateTime end, int limit) {
         List<SystemLog> list = systemLogRepository.findByTypeAndCreatedAtBetweenOrderByCreatedAtDesc(type, start, end);
         if (limit > 0 && list.size() > limit) {
@@ -72,6 +94,13 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param type 业务参数
+     * @param start 业务参数
+     * @param end 业务参数
+     * @return 业务返回结果
+     */
     public String analyzeLogsWithAI(SystemLogType type, LocalDateTime start, LocalDateTime end) {
         List<SystemLog> logs = queryLogs(type, start, end, 100);
         String plain = logs.stream()
@@ -92,6 +121,12 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param start 业务参数
+     * @param end 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> systemReport(LocalDate start, LocalDate end) {
         List<User> users = userRepository.findAll();
         int totalUsers = users.size();
@@ -112,6 +147,13 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param familyId 家庭唯一标识
+     * @param start 业务参数
+     * @param end 业务参数
+     * @return 业务返回结果
+     */
     public Map<String, Object> familyTrendReport(Long familyId, LocalDate start, LocalDate end) {
         Family family = familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
         List<FamilyMember> members = familyMemberRepository.findByFamily(family);
@@ -147,6 +189,10 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public Map<String, Object> getSettings() {
         Map<String, Object> map = new HashMap<>();
         systemSettingRepository.findAll().forEach(s -> map.put(s.getKey(), parseJsonSafe(s.getValue())));
@@ -154,6 +200,11 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param payload 请求体数据
+     * @return 无
+     */
     public void updateSettings(Map<String, Object> payload) {
         for (Map.Entry<String, Object> e : payload.entrySet()) {
             String key = e.getKey();
@@ -166,6 +217,10 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public Map<String, Object> getSystemConfig() {
         Map<String, Object> config = new HashMap<>();
         systemSettingRepository.findAll().forEach(s -> config.put(s.getKey(), parseJsonSafe(s.getValue())));
@@ -173,6 +228,11 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param config 业务参数
+     * @return 无
+     */
     public void updateSystemConfig(Map<String, Object> config) {
         String version = "v" + System.currentTimeMillis();
         for (Map.Entry<String, Object> e : config.entrySet()) {
@@ -198,6 +258,10 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public Map<String, Object> getSystemMonitoring() {
         Map<String, Object> monitoring = new HashMap<>();
         
@@ -226,6 +290,10 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @return 无
+     */
     public void backupSystemConfig() {
         // Create a dedicated backup version
         String version = "backup-" + System.currentTimeMillis();
@@ -241,6 +309,11 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param version 业务参数
+     * @return 无
+     */
     public void restoreSystemConfig(String version) {
         // Restore settings from a specific version
         // Note: This logic assumes the version string is unique across all keys for a single "commit"
@@ -274,6 +347,10 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @return 无
+     */
     public void resetSystemConfig() {
         // Reset logic: Clear all settings? Or set to default?
         // Let's clear for now as "Factory Reset"
@@ -281,6 +358,10 @@ public class OpsServiceImpl implements OpsService {
     }
 
     @Override
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public List<Map<String, Object>> getSystemConfigHistory() {
         List<SystemSettingHistory> allHistory = systemSettingHistoryRepository.findAll();
         

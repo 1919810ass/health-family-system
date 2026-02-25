@@ -21,6 +21,12 @@ import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @Service
+/**
+ * 安全服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class SecurityServiceImpl implements SecurityService {
 
@@ -42,6 +48,11 @@ public class SecurityServiceImpl implements SecurityService {
     private final TcmPersonalizedPlanRepository tcmPersonalizedPlanRepository;
 
     @Override
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public String exportUserDataBase64(Long userId) {
         User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("用户不存在"));
         
@@ -120,6 +131,11 @@ public class SecurityServiceImpl implements SecurityService {
 
     @Override
     @Transactional
+    /**
+     * 删除
+     * @param userId 家庭成员唯一标识
+     * @return 无
+     */
     public void deleteUserData(Long userId) {
         User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("用户不存在"));
         log.info("开始删除用户数据: {}", userId);
@@ -155,6 +171,11 @@ public class SecurityServiceImpl implements SecurityService {
     }
     
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public Map<String, Object> getPrivacySettings(Long userId) {
         return profileRepository.findById(userId)
                 .map(profile -> {
@@ -173,6 +194,12 @@ public class SecurityServiceImpl implements SecurityService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param settings 业务参数
+     * @return 无
+     */
     public void updatePrivacySettings(Long userId, Map<String, Object> settings) {
         Profile profile = profileRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户档案不存在"));
@@ -195,6 +222,12 @@ public class SecurityServiceImpl implements SecurityService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param userId 家庭成员唯一标识
+     * @param scope 业务参数
+     * @return 业务返回结果
+     */
     public boolean isAiAnalysisAllowed(Long userId, String scope) {
         Map<String, Object> settings = getPrivacySettings(userId);
         

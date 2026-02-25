@@ -1,3 +1,9 @@
+/**
+ * 前端状态管理模块：user.js
+ *
+ * 存储与管理全局/模块级状态，并封装与接口交互的动作。
+ */
+
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getProfile as apiGetProfile, updateProfile as apiUpdateProfile, updateAvatar as apiUpdateAvatar, changePassword as apiChangePassword, updateNotifications as apiUpdateNotifications } from '../api/user'

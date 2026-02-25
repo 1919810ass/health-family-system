@@ -35,6 +35,12 @@ import java.nio.file.Paths;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * 用户控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/user")
 public class UserController {
 

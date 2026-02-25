@@ -30,6 +30,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         "com.healthfamily.modules.recommendationv2.domain"
 })
 @EnableJpaAuditing
+/**
+ * 健康家庭Application
+ * <p>
+ * 承载平台业务功能，供上层调用或作为领域组件使用。
+ * </p>
+ */
 @EnableConfigurationProperties(RecommendationProperties.class)
 public class HealthFamilyApplication {
 

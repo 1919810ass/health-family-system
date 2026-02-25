@@ -8,6 +8,12 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
+/**
+ * 安全配置配置类
+ * <p>
+ * 集中定义框架与组件的装配、参数及运行时行为（如安全、异步、HTTP等）。
+ * </p>
+ */
 @Configuration("recommendationSecurityConfig")
 public class SecurityConfig {
   @Bean(name = "recommendationSecurityFilterChain")

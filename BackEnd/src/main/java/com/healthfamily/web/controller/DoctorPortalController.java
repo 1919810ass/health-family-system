@@ -14,6 +14,8 @@ import com.healthfamily.web.dto.DoctorNoteRequest;
 import com.healthfamily.web.dto.DoctorNoteResponse;
 import com.healthfamily.web.dto.RecommendationGenerateRequest;
 import com.healthfamily.web.dto.RecommendationGenerateResponse;
+import com.healthfamily.web.dto.DoctorWorkbenchDto;
+import com.healthfamily.web.dto.HandleRiskRequest;
 import com.healthfamily.web.dto.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,12 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * 医生Portal控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/doctor")
 public class DoctorPortalController {
 
@@ -44,6 +52,11 @@ public class DoctorPortalController {
     private final RecommendationService recommendationService;
 
     @GetMapping("/families")
+    /**
+     * 执行业务操作
+     * @param principal 当前登录用户
+     * @return 业务返回结果
+     */
     public Result<List<DoctorFamilyDto>> myFamilies(@AuthenticationPrincipal UserPrincipal principal) {
         Long doctorId = principal.getUserId();
         List<FamilyDoctor> list = familyDoctorRepository.findByDoctor_Id(doctorId);
@@ -559,6 +572,90 @@ public class DoctorPortalController {
         } catch (Exception e) {
             log.error("更新医生设置失败: doctorId={}", doctorId, e);
             return Result.error(500, "更新医生设置失败");
+        }
+    }
+
+    // ==================== 新版工作台API ====================
+
+    /**
+     * 获取医生工作台聚合数据
+     * GET /api/doctor/workbench
+     */
+    @GetMapping("/workbench")
+    public Result<com.healthfamily.web.dto.DoctorWorkbenchDto> getWorkbench(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        Long doctorId = principal.getUserId();
+        try {
+            return Result.success(doctorService.getWorkbenchDashboard(doctorId));
+        } catch (Exception e) {
+            log.error("获取医生工作台数据失败: doctorId={}", doctorId, e);
+            return Result.error(500, "获取工作台数据失败");
+        }
+    }
+
+    /**
+     * 工作台高风险患者标记已处理
+     * POST /api/doctor/workbench/handle-risk
+     */
+    @PostMapping("/workbench/handle-risk")
+    public Result<Void> handleRisk(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody HandleRiskRequest request) {
+        Long doctorId = principal.getUserId();
+        try {
+            doctorService.handleRisk(doctorId, request);
+            return Result.success();
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("工作台标记高风险患者已处理失败: doctorId={}, patientId={}", doctorId, request.getPatientId(), e);
+            return Result.error(500, "标记已处理失败");
+        }
+    }
+
+    /**
+     * 获取患者的AI健康摘要（流式）
+     * GET /api/doctor/patient/{patientId}/ai-summary
+     */
+    @GetMapping(value = "/patient/{patientId}/ai-summary", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public reactor.core.publisher.Flux<String> getPatientAiSummary(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable("patientId") Long patientId) {
+        Long doctorId = principal.getUserId();
+        log.info("开始生成患者AI健康摘要: doctorId={}, patientId={}", doctorId, patientId);
+        return doctorService.generatePatientHealthSummaryStream(doctorId, patientId);
+    }
+
+    /**
+     * 获取医生工作台聚合数据
+     * GET /api/doctor/workbench/dashboard
+     */
+    @GetMapping("/workbench/dashboard")
+    public Result<com.healthfamily.web.dto.DoctorWorkbenchDto> getWorkbenchDashboard(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        Long doctorId = principal.getUserId();
+        try {
+            return Result.success(doctorService.getWorkbenchDashboard(doctorId));
+        } catch (Exception e) {
+            log.error("获取医生工作台数据失败: doctorId={}", doctorId, e);
+            return Result.error(500, "获取工作台数据失败");
+        }
+    }
+
+    /**
+     * 一键发送今日时令养生小贴士给所有绑定患者
+     * POST /api/doctor/seasonal-advice/send
+     */
+    @PostMapping("/seasonal-advice/send")
+    public Result<Integer> sendSeasonalAdviceToPatients(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        Long doctorId = principal.getUserId();
+        try {
+            int count = doctorService.sendSeasonalAdviceToAllPatients(doctorId);
+            return Result.success(count);
+        } catch (Exception e) {
+            log.error("发送时令小贴士失败: doctorId={}", doctorId, e);
+            return Result.error(500, "发送时令小贴士失败");
         }
     }
 }

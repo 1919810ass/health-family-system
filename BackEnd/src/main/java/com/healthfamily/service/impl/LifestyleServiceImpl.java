@@ -38,6 +38,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * Lifestyle服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class LifestyleServiceImpl implements LifestyleService {
 
@@ -54,6 +60,12 @@ public class LifestyleServiceImpl implements LifestyleService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param file 业务参数
+     * @return 业务返回结果
+     */
     public ImageUploadResponse uploadDietImage(Long requesterId, MultipartFile file) {
         String ext = Optional.ofNullable(file.getOriginalFilename())
                 .map(n -> n.contains(".") ? n.substring(n.lastIndexOf('.') + 1) : "jpg")
@@ -80,6 +92,12 @@ public class LifestyleServiceImpl implements LifestyleService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public DietIngestResponse ingestDiet(Long requesterId, DietIngestRequest request) {
         User user = userRepository.findById(request.userId() != null ? request.userId() : requesterId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
@@ -155,6 +173,12 @@ public class LifestyleServiceImpl implements LifestyleService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public List<RecipeRecommendResponse> recommendRecipes(Long requesterId, RecipeRecommendRequest request) {
         List<RecipeRecommendResponse> list = new ArrayList<>();
         try {
@@ -178,6 +202,14 @@ public class LifestyleServiceImpl implements LifestyleService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param familyId 家庭唯一标识
+     * @param dp 业务参数
+     * @param epsilon 业务参数
+     * @return 业务返回结果
+     */
     public String analyzeDietWeekly(Long requesterId, Long familyId, Boolean dp, Double epsilon) {
         log.info("Starting weekly diet analysis for user: {}, familyId: {}", requesterId, familyId);
         // 临时放宽时间范围到30天，以便调试
@@ -232,6 +264,12 @@ public class LifestyleServiceImpl implements LifestyleService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void recordExercise(Long requesterId, ExerciseRecordRequest request) {
         log.info("Recording exercise for user: {}", requesterId);
         // Validation handled by @Valid in controller
@@ -279,6 +317,11 @@ public class LifestyleServiceImpl implements LifestyleService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public String suggestExercise(Long requesterId) {
         try {
             String prompt = """
@@ -298,6 +341,12 @@ public class LifestyleServiceImpl implements LifestyleService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void recordSleep(Long requesterId, SleepRecordRequest request) {
         log.info("Recording sleep for user: {}", requesterId);
         // Validation handled by @Valid in controller
@@ -327,6 +376,11 @@ public class LifestyleServiceImpl implements LifestyleService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public String analyzeSleep(Long requesterId) {
         try {
             String prompt = """
@@ -345,6 +399,12 @@ public class LifestyleServiceImpl implements LifestyleService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void recordMood(Long requesterId, MoodRecordRequest request) {
         User user = userRepository.findById(request.userId() != null ? request.userId() : requesterId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
@@ -377,6 +437,12 @@ public class LifestyleServiceImpl implements LifestyleService {
 
     @Override
     @Transactional
+    /**
+     * 执行业务操作
+     * @param requesterId 业务对象唯一标识
+     * @param request 请求体数据
+     * @return 无
+     */
     public void recordVitals(Long requesterId, VitalsRecordRequest request) {
         User user = userRepository.findById(request.userId() != null ? request.userId() : requesterId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));

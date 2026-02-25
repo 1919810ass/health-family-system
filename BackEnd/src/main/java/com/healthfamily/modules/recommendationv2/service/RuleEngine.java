@@ -14,6 +14,12 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 规则Engine服务接口
+ * <p>
+ * 定义业务服务能力边界，供控制器层调用并由实现类落地。
+ * </p>
+ */
 @Service
 public class RuleEngine {
   private final RuleV2Repository ruleRepository;
@@ -34,6 +40,22 @@ public class RuleEngine {
     this.lambdaDistance = lambdaDistance;
     this.lambdaAdherence = lambdaAdherence;
   }
+
+  /**
+
+   * 生成
+
+   * @param profile 业务参数
+
+   * @param summary 业务参数
+
+   * @param preferences 业务参数
+
+   * @param maxItems 业务参数
+
+   * @return 业务返回结果
+
+   */
 
   public List<CandidateItem> generate(UserProfile profile, LogsSummary summary, Preferences preferences, int maxItems) {
     List<RuleV2> rules = new ArrayList<>();
@@ -72,6 +94,24 @@ public class RuleEngine {
     if (dedup.size() > maxItems) return dedup.subList(0, maxItems);
     return dedup;
   }
+
+  /**
+
+   * 生成
+
+   * @param profile 业务参数
+
+   * @param summary 业务参数
+
+   * @param preferences 业务参数
+
+   * @param maxItems 业务参数
+
+   * @param category 业务参数
+
+   * @return 业务返回结果
+
+   */
 
   public List<CandidateItem> generateByCategory(UserProfile profile, LogsSummary summary, Preferences preferences, int maxItems, RuleV2.Category category) {
     List<RuleV2> rules = new ArrayList<>();

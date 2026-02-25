@@ -28,6 +28,12 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @EntityListeners(AuditingEntityListener.class)
+/**
+ * 家庭实体类
+ * <p>
+ * 用于持久化领域数据，通常与数据库表一一对应，承载业务状态与属性。
+ * </p>
+ */
 @Table(name = "families")
 public class Family {
 

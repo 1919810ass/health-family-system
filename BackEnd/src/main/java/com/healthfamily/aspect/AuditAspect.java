@@ -26,6 +26,12 @@ import java.util.Map;
 @Aspect
 @Component
 @Slf4j
+/**
+ * AuditAspect切面类
+ * <p>
+ * 通过 AOP 方式对关键业务动作进行统一拦截与增强（如审计、日志、鉴权）。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class AuditAspect {
 

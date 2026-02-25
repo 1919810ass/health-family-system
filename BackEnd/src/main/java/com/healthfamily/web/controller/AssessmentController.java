@@ -22,17 +22,33 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
+/**
+ * 测评控制器
+ * <p>
+ * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
+ * </p>
+ */
 @RequestMapping("/api/assessments")
 public class AssessmentController {
 
     private final AssessmentService assessmentService;
 
     @GetMapping("/schema")
+    /**
+     * 获取
+     * @return 业务返回结果
+     */
     public Result<AssessmentSchemaResponse> getSchema() {
         return Result.success(assessmentService.getSchema());
     }
 
     @PostMapping
+    /**
+     * 提交
+     * @param principal 当前登录用户
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public Result<AssessmentResponse> submitAssessment(@AuthenticationPrincipal UserPrincipal principal,
                                                        @Valid @RequestBody AssessmentSubmitRequest request) {
         return Result.success(assessmentService.submitAssessment(principal.getUserId(), request));

@@ -33,6 +33,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+/**
+ * 健康提醒服务Impl实现类
+ * <p>
+ * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
+ * </p>
+ */
 @RequiredArgsConstructor
 public class HealthReminderServiceImpl implements HealthReminderService {
 
@@ -46,6 +52,12 @@ public class HealthReminderServiceImpl implements HealthReminderService {
 
     @Override
     @Transactional
+    /**
+     * 创建
+     * @param userId 家庭成员唯一标识
+     * @param request 请求体数据
+     * @return 业务返回结果
+     */
     public ReminderResponse createReminder(Long userId, ReminderRequest request) {
         User creator = loadUser(userId);
         
@@ -118,6 +130,12 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param status 业务参数
+     * @return 业务返回结果
+     */
     public List<ReminderResponse> getUserReminders(Long userId, String status) {
         List<HealthReminder> reminders;
 
@@ -155,6 +173,11 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public List<ReminderResponse> getUserTodoReminders(Long userId) {
         // 查询用户作为提醒拥有者或分配者的提醒
         List<HealthReminder> reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByScheduledTimeAsc(userId, userId);
@@ -174,6 +197,12 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public List<ReminderResponse> getFamilyReminders(Long userId, Long familyId) {
         // 验证用户是否是家庭成员
         com.healthfamily.domain.entity.Family family = familyRepository.findById(familyId)
@@ -199,6 +228,13 @@ public class HealthReminderServiceImpl implements HealthReminderService {
 
     @Override
     @Transactional
+    /**
+     * 更新
+     * @param userId 家庭成员唯一标识
+     * @param reminderId 业务对象唯一标识
+     * @param status 业务参数
+     * @return 业务返回结果
+     */
     public ReminderResponse updateReminderStatus(Long userId, Long reminderId, String status) {
         HealthReminder reminder = reminderRepository.findById(reminderId)
                 .orElseThrow(() -> new RuntimeException("提醒不存在"));
@@ -219,6 +255,12 @@ public class HealthReminderServiceImpl implements HealthReminderService {
 
     @Override
     @Transactional
+    /**
+     * 删除
+     * @param userId 家庭成员唯一标识
+     * @param reminderId 业务对象唯一标识
+     * @return 无
+     */
     public void deleteReminder(Long userId, Long reminderId) {
         HealthReminder reminder = reminderRepository.findById(reminderId)
                 .orElseThrow(() -> new RuntimeException("提醒不存在"));
@@ -261,6 +303,11 @@ public class HealthReminderServiceImpl implements HealthReminderService {
 
     @Override
     @Transactional
+    /**
+     * 生成
+     * @param userId 家庭成员唯一标识
+     * @return 业务返回结果
+     */
     public List<ReminderResponse> generateSmartReminders(Long userId) {
         User user = loadUser(userId);
         List<ReminderResponse> reminders = new ArrayList<>();
@@ -370,6 +417,12 @@ public class HealthReminderServiceImpl implements HealthReminderService {
 
     @Override
     @Transactional
+    /**
+     * 生成
+     * @param adminId 业务对象唯一标识
+     * @param targetUserId 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public List<ReminderResponse> generateSmartRemindersForUser(Long adminId, Long targetUserId) {
         // 验证管理员权限
         User admin = loadUser(adminId);
@@ -939,6 +992,12 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     // 生成协作提醒：针对家庭协作任务（如记录饮食）未完成的情况
     @Override
     @Transactional
+    /**
+     * 生成
+     * @param userId 家庭成员唯一标识
+     * @param familyId 家庭唯一标识
+     * @return 业务返回结果
+     */
     public List<ReminderResponse> generateSmartReminders(Long userId, Long familyId) {
         // 验证用户是否是家庭成员
         com.healthfamily.domain.entity.Family family = familyRepository.findById(familyId)
@@ -1159,6 +1218,10 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     }
 
     @Scheduled(fixedRate = 60000) // 每分钟检查一次
+    /**
+     * 执行业务操作
+     * @return 无
+     */
     public void processPendingReminders() {
         LocalDateTime now = LocalDateTime.now();
         List<HealthReminder> pendingReminders = reminderRepository
@@ -1247,6 +1310,18 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     }
 
     @Override
+    /**
+     * 获取
+     * @param userId 家庭成员唯一标识
+     * @param reminderType 业务参数
+     * @param status 业务参数
+     * @param keyword 业务参数
+     * @param page 分页页码
+     * @param size 分页大小
+     * @param startTime 业务参数
+     * @param endTime 业务参数
+     * @return 业务返回结果
+     */
     public java.util.Map<String, Object> getAdminReminderList(Long userId, String reminderType, String status, String keyword, int page, int size, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
         // 分页查询健康提醒列表
         // 这里需要根据实际的分页需求实现，这里简化为返回所有提醒
@@ -1333,16 +1408,32 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     }
 
     @Override
+    /**
+     * 执行业务操作
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public HealthReminder findById(Long id) {
         return reminderRepository.findById(id).orElse(null);
     }
 
     @Override
+    /**
+     * 创建
+     * @param reminder 业务参数
+     * @return 业务返回结果
+     */
     public HealthReminder create(HealthReminder reminder) {
         return reminderRepository.save(reminder);
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param reminder 业务参数
+     * @return 业务返回结果
+     */
     public HealthReminder update(Long id, HealthReminder reminder) {
         HealthReminder existingReminder = reminderRepository.findById(id).orElse(null);
         if (existingReminder == null) {
@@ -1364,6 +1455,11 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     }
 
     @Override
+    /**
+     * 删除
+     * @param id 业务对象唯一标识
+     * @return 业务返回结果
+     */
     public boolean deleteById(Long id) {
         if (reminderRepository.existsById(id)) {
             reminderRepository.deleteById(id);
@@ -1373,6 +1469,12 @@ public class HealthReminderServiceImpl implements HealthReminderService {
     }
 
     @Override
+    /**
+     * 更新
+     * @param id 业务对象唯一标识
+     * @param status 业务参数
+     * @return 业务返回结果
+     */
     public boolean updateStatus(Long id, String status) {
         HealthReminder reminder = reminderRepository.findById(id).orElse(null);
         if (reminder == null) {
