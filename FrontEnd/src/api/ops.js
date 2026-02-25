@@ -12,6 +12,10 @@ export const systemReport = (params) => request.get('/admin/ops/reports/system',
 export const familyTrendReport = (params) => request.get('/admin/ops/reports/family-trend', { params })
 export const getSettings = () => request.get('/admin/ops/settings')
 export const updateSettings = (data) => request.put('/admin/ops/settings', data)
+export const aiSystemDiagnose = () => request.get('/admin/ops/ai-diagnose')
+export const fetchErrorLogs = () => request.get('/admin/ops/logs/errors')
+export const getMaintenanceMode = () => request.get('/admin/ops/maintenance')
+export const setMaintenanceMode = (enable) => request.post('/admin/ops/maintenance', { enable })
 
 // 新增：获取登录日志
 export const fetchLoginLogs = (params) => request.get('/admin/logs/login', { params })

@@ -19,6 +19,7 @@ import com.healthfamily.domain.repository.SystemSettingRepository;
 import com.healthfamily.domain.repository.SystemSettingHistoryRepository;
 import com.healthfamily.domain.repository.UserRepository;
 import com.healthfamily.service.OpsService;
+import com.healthfamily.service.SystemMonitoringService;
 import com.healthfamily.ai.OllamaLegacyClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.model.ChatModel;
@@ -32,6 +33,8 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import jakarta.annotation.PostConstruct;
 
 @Service
 /**
@@ -50,9 +53,33 @@ public class OpsServiceImpl implements OpsService {
     private final FamilyRepository familyRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final HealthLogRepository healthLogRepository;
+    private final SystemMonitoringService systemMonitoringService;
     private final ObjectMapper objectMapper;
     private final ChatModel chatModel;
     private final OllamaLegacyClient ollamaLegacyClient;
+
+    private volatile boolean maintenanceMode = false;
+    private static final String MAINTENANCE_KEY = "sys_maintenance_mode";
+
+    @PostConstruct
+    public void init() {
+        systemSettingRepository.findByKey(MAINTENANCE_KEY)
+                .ifPresent(s -> maintenanceMode = "true".equalsIgnoreCase(s.getValue()));
+    }
+
+    @Override
+    public boolean getMaintenanceMode() {
+        return maintenanceMode;
+    }
+
+    @Override
+    public void setMaintenanceMode(boolean enable) {
+        this.maintenanceMode = enable;
+        SystemSetting setting = systemSettingRepository.findByKey(MAINTENANCE_KEY)
+                .orElse(SystemSetting.builder().key(MAINTENANCE_KEY).build());
+        setting.setValue(String.valueOf(enable));
+        systemSettingRepository.save(setting);
+    }
 
     @Override
     /**
@@ -389,6 +416,60 @@ public class OpsServiceImpl implements OpsService {
                     return t2.compareTo(t1);
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public String analyzeSystemHealth() {
+        // 1. 获取实时指标
+        Map<String, Object> metrics = systemMonitoringService.getRealTimeMetrics();
+        Object cpuObj = metrics.get("cpuUsage");
+        Object memObj = metrics.get("memoryUsage");
+        String cpu = cpuObj != null ? cpuObj.toString() : "Unknown";
+        String mem = memObj != null ? memObj.toString() : "Unknown";
+        
+        // 2. 获取异常日志
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusMinutes(30);
+        List<String> levels = List.of("ERROR", "WARN");
+        List<SystemLog> logs = systemLogRepository.findByLevelInAndCreatedAtBetweenOrderByCreatedAtDesc(levels, start, end);
+        
+        // 限制日志数量
+        if (logs.size() > 20) {
+            logs = logs.subList(0, 20);
+        }
+        
+        String logsText = logs.isEmpty() ? "无最近异常日志" : logs.stream()
+                .map(l -> String.format("[%s] %s: %s", l.getCreatedAt(), l.getLevel(), l.getDetail()))
+                .collect(Collectors.joining("\n"));
+
+        // 3. 构建 Prompt
+        String promptText = String.format(
+            "你是一名高级运维工程师。当前系统状态如下：CPU使用率 %s%%，内存使用率 %s%%。\n" +
+            "最近出现了以下异常日志：\n%s\n" +
+            "请根据这些信息分析系统健康状况，指出潜在风险，并给出简短的排查或优化建议。",
+            cpu, mem, logsText
+        );
+        
+        // 4. 调用 AI
+        try {
+            Prompt prompt = new Prompt(new UserMessage(promptText));
+            return chatModel.call(prompt).getResult().getOutput().getContent();
+        } catch (Exception e) {
+             // Fallback
+             try {
+                 String legacy = ollamaLegacyClient.generate(promptText, null, null);
+                 return legacy != null && !legacy.isBlank() ? legacy : "AI分析暂时不可用，请稍后重试。";
+             } catch (Exception ex) {
+                 return "AI分析服务异常: " + ex.getMessage();
+             }
+        }
+    }
+
+    @Override
+    public List<SystemLog> getRecentErrorLogs() {
+        return systemLogRepository.findTop20ByLevelInOrderByCreatedAtDesc(
+            Arrays.asList("ERROR", "FATAL", "CRITICAL", "WARN")
+        );
     }
 
     private Object parseJsonSafe(String json) {

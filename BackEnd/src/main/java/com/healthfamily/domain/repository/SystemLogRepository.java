@@ -15,4 +15,6 @@ import java.util.List;
 
 public interface SystemLogRepository extends JpaRepository<SystemLog, Long> {
     List<SystemLog> findByTypeAndCreatedAtBetweenOrderByCreatedAtDesc(SystemLogType type, LocalDateTime start, LocalDateTime end);
+    List<SystemLog> findByLevelInAndCreatedAtBetweenOrderByCreatedAtDesc(List<String> levels, LocalDateTime start, LocalDateTime end);
+    List<SystemLog> findTop20ByLevelInOrderByCreatedAtDesc(List<String> levels);
 }

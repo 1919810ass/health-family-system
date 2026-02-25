@@ -53,6 +53,16 @@ request.interceptors.response.use(
   async (error) => {
     if (error.response) {
       const { status } = error.response
+      
+      // Maintenance Mode Handling
+      if (status === 503) {
+        if (!window.location.hash.includes('/maintenance')) {
+           // Redirect to maintenance page
+           window.location.href = '/#/maintenance'
+        }
+        return Promise.reject(error)
+      }
+
       if (status === 401) {
         removeToken()
         const redirected = error?.response?.request?.responseURL?.includes('/login')

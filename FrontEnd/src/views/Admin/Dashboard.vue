@@ -4,10 +4,9 @@
     <div class="page-header stagger-anim" style="--delay: 0.05s">
       <div class="header-content">
         <h1 class="page-title">管理后台仪表板</h1>
-        <p class="page-subtitle">系统运行状态与关键指标监控</p>
       </div>
       <div class="header-actions">
-        <el-button type="primary" round v-particles class="refresh-btn" @click="loadAllData">
+        <el-button type="primary" size="small" round v-particles class="refresh-btn" @click="loadAllData">
           <el-icon><Refresh /></el-icon>
           刷新数据
         </el-button>
@@ -25,7 +24,7 @@
         <div class="metric-content">
           <div class="metric-header">
             <div class="metric-icon-box" :style="{ backgroundColor: metric.color + '20', color: metric.color }">
-              <el-icon :size="20">
+              <el-icon :size="16">
                 <component :is="metric.icon" />
               </el-icon>
             </div>
@@ -44,17 +43,17 @@
       </div>
     </div>
 
-    <!-- 3. 中间监控区 (Middle Section) - flex: 0 0 35% -->
+    <!-- 3. 中间监控区 (Middle Section) -->
     <div class="status-section stagger-anim" style="--delay: 0.3s">
-      <el-row :gutter="16" class="full-height-row">
-        <el-col :span="16" class="full-height-col">
-          <div class="glass-card stagger-anim" style="--delay: 0.8s"> 
+      <el-row :gutter="12" class="full-height-row">
+        <el-col :span="14" class="full-height-col">
+          <div class="glass-card monitor-card stagger-anim" style="--delay: 0.8s"> 
             <div class="card-header"> 
               <div class="header-left"> 
                 <div class="icon-box primary"><el-icon><Monitor /></el-icon></div> 
                 <span class="title">服务器实时监控</span> 
               </div> 
-              <el-tag type="success" effect="dark" round>运行中</el-tag> 
+              <el-tag type="success" effect="dark" round size="small">运行中</el-tag> 
             </div> 
             
             <div class="monitor-grid"> 
@@ -64,7 +63,7 @@
                   type="dashboard"  
                   :percentage="Number(serverMetrics.cpuUsage || 0)"  
                   :status="serverMetrics.cpuUsage ? '' : 'warning'"
-                  :width="100" 
+                  :width="85" 
                   :color= "[ 
                     { color: '#67C23A', percentage: 40 }, 
                     { color: '#E6A23C', percentage: 80 }, 
@@ -84,7 +83,7 @@
                   type="dashboard"  
                   :percentage="Number(serverMetrics.memoryUsage || 0)"  
                   :status="serverMetrics.memoryUsage ? '' : 'warning'"
-                  :width="100" 
+                  :width="85" 
                   :color= "[ 
                     { color: '#409EFF', percentage: 60 }, 
                     { color: '#E6A23C', percentage: 90 } 
@@ -116,7 +115,7 @@
             </div> 
           </div>
         </el-col>
-        <el-col :span="8" class="full-height-col">
+        <el-col :span="10" class="full-height-col">
           <div class="glass-card console-card">
             <div class="card-header">
               <div class="header-left">
@@ -125,16 +124,11 @@
                 </div>
                 <span class="title">智能运维控制台</span>
               </div>
+              <el-button size="small" type="primary" round @click="handleAiDiagnose" v-particles>
+                AI 诊断
+              </el-button>
             </div>
             <div class="ops-console">
-              <div class="ops-summary glass-subcard">
-                <div class="summary-text">
-                  活跃线程数：{{ serverMetrics.activeThreads || '--' }}
-                </div>
-                <el-button size="small" type="primary" @click="handleAiDiagnose" v-particles>
-                  AI 诊断
-                </el-button>
-              </div>
               <div class="ops-controls glass-subcard">
                 <div class="control-row">
                   <span class="control-label">监控处理器</span>
@@ -150,7 +144,7 @@
                   <span class="control-label">维护模式</span>
                   <el-switch v-model="maintenanceMode" size="small" @change="onMaintenanceToggle" />
                 </div>
-                <div class="control-row" style="margin-top: 8px; justify-content: flex-end;">
+                <div class="control-row" style="margin-top: 4px; justify-content: flex-end;">
                   <el-button size="small" type="danger" plain @click="handleQuickAction('clean')">
                     一键清理
                   </el-button>
@@ -162,7 +156,7 @@
       </el-row>
     </div>
 
-    <!-- 4. 底部日志区 (Bottom Section) - flex: 1 -->
+    <!-- 4. 底部日志区 (Bottom Section) -->
     <div class="activity-section stagger-anim" style="--delay: 0.4s">
       <div class="glass-card logs-card">
         <el-tabs v-model="activeTab" class="full-height-tabs">
@@ -171,12 +165,13 @@
               :data="errorLogs" 
               style="width: 100%" 
               height="100%"
+              size="small"
               class="custom-table" 
               :row-class-name="errorRowClass"
             >
-              <el-table-column prop="time" label="时间" width="180" />
-              <el-table-column prop="service" label="服务" width="140" />
-              <el-table-column prop="level" label="级别" width="100">
+              <el-table-column prop="time" label="时间" width="160" />
+              <el-table-column prop="service" label="服务" width="120" />
+              <el-table-column prop="level" label="级别" width="90">
                 <template #default="{ row }">
                   <el-tag size="small" type="danger" effect="dark">{{ row.level }}</el-tag>
                 </template>
@@ -196,20 +191,21 @@
                   :data="loginLogs" 
                   style="width: 100%" 
                   height="100%"
+                  size="small"
                   v-loading="loading.activities"
                   class="custom-table"
                 >
-                  <el-table-column prop="username" label="用户名" width="120" />
-                  <el-table-column prop="role" label="角色" width="120">
+                  <el-table-column prop="username" label="用户名" width="100" />
+                  <el-table-column prop="role" label="角色" width="100">
                     <template #default="{ row }">
                       <el-tag :type="getRoleTagType(row.role)" size="small" round>
                         {{ formatRole(row.role) }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="ipAddress" label="IP地址" width="140" />
-                  <el-table-column prop="loginTime" label="时间" width="180" />
-                  <el-table-column prop="status" label="状态" width="100">
+                  <el-table-column prop="ipAddress" label="IP地址" width="130" />
+                  <el-table-column prop="loginTime" label="时间" width="160" />
+                  <el-table-column prop="status" label="状态" width="80">
                     <template #default="{ row }">
                       <el-tag :type="row.status === 'SUCCESS' ? 'success' : 'danger'" size="small">
                         {{ row.status === 'SUCCESS' ? '成功' : '失败' }}
@@ -241,7 +237,9 @@
 <script setup> 
  import { ref, onMounted, onUnmounted, computed } from 'vue' 
  import { useRouter } from 'vue-router' 
- import { ElMessage, ElNotification, ElLoading } from 'element-plus' 
+ import { ElMessage, ElNotification, ElLoading, ElMessageBox } from 'element-plus' 
+ import { marked } from 'marked'
+ import dayjs from 'dayjs'
  import { 
    User, House, DataAnalysis, Monitor, Setting, CaretTop, CaretBottom, 
    UserFilled, Tickets, ChatLineRound, View, Refresh, Lightning, ArrowRight, 
@@ -249,7 +247,7 @@
  } from '@element-plus/icons-vue' // 确保引入了 Cpu, Connection 等图标 
  
  // API 引入 
- import { fetchLoginLogs } from '@/api/ops' 
+ import { fetchLoginLogs, aiSystemDiagnose, fetchErrorLogs, getMaintenanceMode, setMaintenanceMode } from '@/api/ops' 
  import { getDataReports, getUserActivityStats } from '@/api/admin' 
  import { getSystemMetrics } from '@/api/monitor' 
  
@@ -275,10 +273,7 @@
  
  // --- 3. 登录日志与交互状态 --- 
  const loginLogs = ref([]) 
- const errorLogs = ref([
-   { time: '2024-03-20 10:24:01', service: 'AuthService', level: 'CRITICAL', message: 'JWT Signature verification failed' },
-   { time: '2024-03-20 11:05:12', service: 'Database', level: 'WARNING', message: 'Connection pool near limit (95%)' }
- ])
+ const errorLogs = ref([])
  const loading = ref({ activities: false }) 
  const activeTab = ref('access')
  const runningDiagnosis = ref(false)
@@ -296,6 +291,14 @@
    // 开启实时监控轮询 (每 3 秒刷新一次) 
    fetchRealTimeMetrics() 
    monitorTimer = setInterval(fetchRealTimeMetrics, 3000) 
+   
+   // Check initial maintenance status
+   try {
+     const res = await getMaintenanceMode()
+     maintenanceMode.value = res.data
+   } catch (e) {
+     console.error("Failed to fetch maintenance status", e)
+   }
  }) 
  
  onUnmounted(() => { 
@@ -306,9 +309,27 @@
  const loadAllData = async () => {
    await Promise.allSettled([
      loadDashboardData(),
-     loadLoginLogs()
+     loadLoginLogs(),
+     loadErrorLogs()
    ])
    ElMessage.success('仪表盘数据已更新')
+ }
+
+ // 加载异常日志
+ const loadErrorLogs = async () => {
+    try {
+      const res = await fetchErrorLogs()
+      if (res.data) {
+        errorLogs.value = res.data.map(log => ({
+          time: dayjs(log.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+          service: log.module || 'System',
+          level: log.level,
+          message: log.detail || log.action || 'No detail'
+        }))
+      }
+    } catch (e) {
+      console.error('获取异常日志失败', e)
+    }
  }
 
  // 获取统计大盘数据 (优化了错误处理和并发请求)
@@ -399,23 +420,32 @@
  } 
 
  // AI 诊断功能实现 
-  const handleAiDiagnose = () => { 
-    const loading = ElLoading.service({ 
+  const handleAiDiagnose = async () => { 
+    const loadingInstance = ElLoading.service({ 
       lock: true, 
       text: 'AI 正在分析系统日志与性能指标...', 
       background: 'rgba(0, 0, 0, 0.7)', 
     }) 
     
-    // 模拟 AI 分析过程 (或者你可以调用真实的后端 /api/ops/ai-analysis 接口) 
-    setTimeout(() => { 
-      loading.close() 
-      ElNotification({ 
-        title: 'AI 诊断报告', 
-        message: '系统运行平稳。检测到 CPU 在 14:00 出现短暂波峰，建议关注定时任务调度。数据库连接池健康度 98%。', 
-        type: 'success', 
-        duration: 6000 
-      }) 
-    }, 2000) 
+    try {
+      const res = await aiSystemDiagnose()
+      const diagnosis = res.data || 'AI 未返回任何建议。'
+      // Use marked.parse if available, otherwise just use text
+      const htmlContent = marked.parse ? marked.parse(diagnosis) : diagnosis
+      
+      loadingInstance.close()
+      
+      ElMessageBox.alert(htmlContent, 'AI 智能运维诊断报告', {
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '我知道了',
+        customClass: 'ai-diagnosis-message-box',
+        callback: () => {}
+      })
+    } catch (error) {
+      loadingInstance.close()
+      console.error("AI Diagnose failed:", error)
+      ElMessage.error('AI 诊断失败，请稍后重试')
+    }
   } 
   
   // 快捷操作功能实现 
@@ -428,11 +458,17 @@
   }
  
   // 维护模式切换
- const onMaintenanceToggle = (val) => {
-   ElMessage({
-     message: val ? '系统已进入维护模式，非管理操作将被拦截。' : '系统已恢复正常运行模式。',
-     type: val ? 'warning' : 'success'
-   })
+ const onMaintenanceToggle = async (val) => {
+   try {
+     await setMaintenanceMode(val)
+     ElMessage({
+       message: val ? '系统已进入维护模式，非管理操作将被拦截。' : '系统已恢复正常运行模式。',
+       type: val ? 'warning' : 'success'
+     })
+   } catch (e) {
+     maintenanceMode.value = !val // Revert on error
+     ElMessage.error('切换维护模式失败')
+   }
  }
 
  // 表格样式
@@ -476,42 +512,40 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 16px;
+  padding: 12px;
   background: radial-gradient(circle at top right, rgba(map.get(vars.$colors, 'primary'), 0.05), transparent),
               radial-gradient(circle at bottom left, rgba(map.get(vars.$colors, 'info'), 0.05), transparent);
-  gap: 16px;
+  gap: 12px;
 
   // 1. Header
   .page-header {
-    flex: 0 0 auto;
+    flex: 0 0 40px;
     display: flex;
     justify-content: space-between;
     align-items: center;
 
     .header-content {
       .page-title {
-        font-size: 22px;
+        font-size: 18px;
         font-weight: 800;
         margin: 0;
         @include mixins.text-gradient(linear-gradient(135deg, map.get(vars.$colors, 'primary'), map.get(vars.$colors, 'info')));
       }
       .page-subtitle {
-        color: map.get(vars.$colors, 'text-secondary');
-        margin: 2px 0 0 0;
-        font-size: 12px;
+        display: none;
       }
     }
   }
 
   // 2. Metrics Grid (固定高度)
   .metrics-grid {
-    flex: 0 0 110px;
+    flex: 0 0 90px;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
+    gap: 12px;
 
     .metric-card {
-      padding: 12px 16px;
+      padding: 10px 14px;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -520,25 +554,25 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
 
         .metric-icon-box {
-          width: 32px;
-          height: 32px;
-          border-radius: 10px;
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
         .metric-trend {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 700;
           display: flex;
           align-items: center;
           gap: 2px;
-          padding: 2px 6px;
-          border-radius: 10px;
+          padding: 1px 5px;
+          border-radius: 8px;
           &.up { color: map.get(vars.$colors, 'danger'); background: rgba(map.get(vars.$colors, 'danger'), 0.1); }
           &.down { color: map.get(vars.$colors, 'success'); background: rgba(map.get(vars.$colors, 'success'), 0.1); }
         }
@@ -546,10 +580,10 @@
 
       .metric-info {
         .metric-value {
-          font-size: 24px;
+          font-size: 20px;
           font-weight: 800;
-          line-height: 1;
-          margin-bottom: 4px;
+          line-height: 1.2;
+          margin-bottom: 2px;
         }
         .metric-title {
           font-size: 12px;
@@ -559,10 +593,10 @@
     }
   }
 
-  // 3. Middle Section (35% 高度)
+  // 3. Middle Section (固定高度)
   .status-section {
-    flex: 0 0 35%;
-    min-height: 0;
+    flex: 0 0 250px;
+    min-height: 250px;
 
     .full-height-row { height: 100%; }
     .full-height-col { height: 100%; }
@@ -571,71 +605,31 @@
       height: 100%;
       display: flex;
       flex-direction: column;
-      padding: 16px;
+      padding: 12px;
     }
 
     .card-header {
       flex: 0 0 auto;
       display: flex;
       align-items: center;
-      margin-bottom: 12px;
+      justify-content: space-between;
+      margin-bottom: 8px;
       .header-left {
         display: flex;
         align-items: center;
         gap: 8px;
         .icon-box {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
+          width: 28px;
+          height: 28px;
+          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
           &.primary { background: rgba(map.get(vars.$colors, 'primary'), 0.1); color: map.get(vars.$colors, 'primary'); }
           &.warning { background: rgba(map.get(vars.$colors, 'warning'), 0.1); color: map.get(vars.$colors, 'warning'); }
+          .el-icon { font-size: 16px; }
         }
-        .title { font-size: 15px; font-weight: 700; }
-      }
-    }
-
-    .charts-wrap {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      min-height: 0;
-      
-      .chart-item {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
-        padding: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-
-        .chart-title { 
-          font-size: 12px; 
-          font-weight: 700; 
-          color: map.get(vars.$colors, 'text-secondary'); 
-          margin-bottom: 12px;
-          width: 100%;
-          text-align: left;
-        }
-
-        .progress-display {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          flex: 1;
-
-          .progress-label {
-            margin-top: -15px;
-            font-size: 11px;
-            color: map.get(vars.$colors, 'text-secondary');
-            font-weight: 500;
-          }
-        }
+        .title { font-size: 14px; font-weight: 700; }
       }
     }
 
@@ -643,32 +637,25 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       overflow-y: auto;
       
       .glass-subcard {
         background: rgba(255, 255, 255, 0.25);
         border: 1px solid rgba(255, 255, 255, 0.4);
         border-radius: 8px;
-        padding: 10px;
+        padding: 8px;
       }
       
-      .ops-summary {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        .summary-text { font-size: 13px; font-weight: 700; color: map.get(vars.$colors, 'success'); }
-      }
-
       .ops-controls {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
         .control-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          font-size: 13px;
+          font-size: 12px;
           .control-label { font-weight: 600; }
         }
       }
@@ -682,7 +669,7 @@
 
     .logs-card {
       height: 100%;
-      padding: 0 16px 12px 16px;
+      padding: 0 12px 8px 12px;
       display: flex;
       flex-direction: column;
     }
@@ -692,6 +679,10 @@
       display: flex;
       flex-direction: column;
       
+      :deep(.el-tabs__header) {
+        margin-bottom: 8px;
+      }
+
       :deep(.el-tabs__content) {
         flex: 1;
         min-height: 0;
@@ -711,7 +702,7 @@
 
     .tab-toolbar {
       flex: 0 0 auto;
-      padding: 4px 0;
+      padding: 2px 0;
     }
 
     .table-container {
@@ -723,7 +714,7 @@
       flex: 0 0 auto;
       display: flex;
       justify-content: flex-end;
-      padding-top: 8px;
+      padding-top: 4px;
     }
   }
 
@@ -760,13 +751,13 @@
   :deep(th.el-table__cell) {
     background: rgba(map.get(vars.$colors, 'primary'), 0.05) !important;
     font-size: 12px;
-    height: 36px;
-    padding: 4px 0;
+    height: 32px;
+    padding: 0;
   }
   
   :deep(td.el-table__cell) {
     font-size: 12px;
-    padding: 6px 0;
+    padding: 4px 0;
   }
 
   :deep(.critical-row) {
@@ -788,29 +779,51 @@
   display : flex; 
   justify-content : space-around; 
   align-items : center; 
-  padding: 10px 0 ; 
+  padding: 4px 0 ; 
+  height: calc(100% - 30px);
 } 
 .monitor-item  { 
   display : flex; 
   flex-direction : column; 
   align-items : center; 
-  gap: 8px ; 
-  .label { font-size: 12px; color: #909399 ; } 
-  .percentage-value { font-size: 16px; font-weight : bold; } 
+  gap: 4px ; 
+  .label { font-size: 11px; color: #909399 ; } 
+  .percentage-value { font-size: 14px; font-weight : bold; } 
+  .percentage-label { font-size: 10px; }
 } 
 .monitor-list  { 
   display : flex; 
   flex-direction : column; 
-  gap: 12px ; 
-  min-width: 120px ; 
+  gap: 8px ; 
+  min-width: 110px ; 
   
   .list-row  { 
     display : flex; 
     justify-content : space-between; 
-    font-size: 13px ; 
+    font-size: 12px ; 
     color: #606266 ; 
     .val { font-weight: 600; color: #303133 ; } 
     .text-danger { color: #F56C6C ; } 
   } 
+}
+</style>
+
+<style lang="scss">
+.ai-diagnosis-message-box {
+  width: 600px;
+  max-width: 90vw;
+  
+  .el-message-box__message {
+    max-height: 60vh;
+    overflow-y: auto;
+    text-align: left;
+    line-height: 1.6;
+    
+    p { margin-bottom: 10px; }
+    ul, ol { padding-left: 20px; margin-bottom: 10px; }
+    h1, h2, h3, h4 { margin-top: 12px; margin-bottom: 6px; font-weight: 600; }
+    code { background: #f4f4f5; padding: 2px 4px; border-radius: 4px; color: #909399; }
+    pre { background: #f4f4f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+  }
 }
 </style>

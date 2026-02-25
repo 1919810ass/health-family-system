@@ -31,4 +31,12 @@ public interface OpsService {
     void restoreSystemConfig(String backupId);
     void resetSystemConfig();
     List<Map<String, Object>> getSystemConfigHistory();
+    String analyzeSystemHealth();
+    
+    // 异常日志查询
+    List<SystemLog> getRecentErrorLogs();
+
+    // 系统维护模式
+    boolean getMaintenanceMode();
+    void setMaintenanceMode(boolean enable);
 }

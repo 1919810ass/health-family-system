@@ -1,6 +1,7 @@
 package com.healthfamily.service.impl;
 
 import com.healthfamily.common.exception.BusinessException;
+import com.healthfamily.common.exception.MaintenanceException;
 import com.healthfamily.domain.constant.AuditResult;
 import com.healthfamily.domain.constant.SensitivityLevel;
 import com.healthfamily.domain.constant.UserRole;
@@ -12,6 +13,7 @@ import com.healthfamily.security.JwtUtil;
 import com.healthfamily.security.UserPrincipal;
 import com.healthfamily.service.AuditLogService;
 import com.healthfamily.service.AuthService;
+import com.healthfamily.service.OpsService;
 import com.healthfamily.service.UserLoginLogService;
 import com.healthfamily.web.dto.LoginRequest;
 import com.healthfamily.web.dto.RegisterRequest;
@@ -46,6 +48,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final SystemSettingRepository systemSettingRepository;
+    private final OpsService opsService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
@@ -178,6 +181,11 @@ public class AuthServiceImpl implements AuthService {
             // Re-fetch user to be sure
             user = userRepository.findById(principal.getUserId())
                     .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
+            
+            // Check Maintenance Mode
+            if (opsService.getMaintenanceMode() && user.getRole() != UserRole.ADMIN) {
+                 throw new MaintenanceException("系统正在维护中，仅管理员可登录");
+            }
             
             // Reset lock info on success
             user.setLastLoginAt(LocalDateTime.now());

@@ -1,6 +1,7 @@
 package com.healthfamily.web.controller;
 
 import com.healthfamily.domain.constant.SystemLogType;
+import com.healthfamily.domain.entity.SystemLog;
 import com.healthfamily.service.OpsService;
 import com.healthfamily.web.dto.Result;
 import lombok.RequiredArgsConstructor;
@@ -33,11 +34,35 @@ public class OpsAdminController {
         return Result.success(opsService.queryLogs(type, start, end, limit));
     }
 
+    @GetMapping("/logs/errors")
+    public Result<List<SystemLog>> getErrorLogs() {
+        return Result.success(opsService.getRecentErrorLogs());
+    }
+
     @PostMapping("/logs/ai-analysis")
     public Result<String> analyze(@RequestParam(name = "type") SystemLogType type,
                                   @RequestParam(name = "start") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
                                   @RequestParam(name = "end") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         return Result.success(opsService.analyzeLogsWithAI(type, start, end));
+    }
+
+    @GetMapping("/ai-diagnose")
+    public Result<String> aiDiagnose() {
+        return Result.success(opsService.analyzeSystemHealth());
+    }
+
+    @GetMapping("/maintenance")
+    public Result<Boolean> getMaintenanceMode() {
+        return Result.success(opsService.getMaintenanceMode());
+    }
+
+    @PostMapping("/maintenance")
+    public Result<Void> setMaintenanceMode(@RequestBody Map<String, Boolean> payload) {
+        Boolean enable = payload.get("enable");
+        if (enable != null) {
+            opsService.setMaintenanceMode(enable);
+        }
+        return Result.success();
     }
 
     @GetMapping("/reports/system")

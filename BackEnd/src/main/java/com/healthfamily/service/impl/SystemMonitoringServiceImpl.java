@@ -24,6 +24,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.lang.management.ManagementFactory;
+import com.sun.management.OperatingSystemMXBean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 /**
@@ -34,6 +38,8 @@ import java.util.stream.Collectors;
  */
 @RequiredArgsConstructor
 public class SystemMonitoringServiceImpl implements SystemMonitoringService {
+
+    private static final Logger log = LoggerFactory.getLogger(SystemMonitoringServiceImpl.class);
 
     private final UserRepository userRepository;
     private final FamilyRepository familyRepository;
@@ -572,5 +578,43 @@ public class SystemMonitoringServiceImpl implements SystemMonitoringService {
         template.put("name", name);
         template.put("updatedAt", updatedAt);
         return template;
+    }
+
+    @Override
+    public Map<String, Object> getRealTimeMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+        
+        // 使用 com.sun.management.OperatingSystemMXBean 获取真实系统级指标
+        OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+        
+        // 1. CPU Usage (System-wide)
+        // getCpuLoad() returns a value between 0.0 and 1.0. If negative, it's unavailable.
+        double cpuLoad = osBean.getCpuLoad();
+        if (cpuLoad < 0) {
+            cpuLoad = 0.0; // Fallback or handle unavailable
+            log.warn("System CPU Load unavailable, defaulting to 0.0");
+        }
+        double cpuUsagePercent = cpuLoad * 100.0;
+        
+        // 2. Memory Usage (System-wide Physical Memory)
+        long totalPhysicalMemory = osBean.getTotalMemorySize();
+        long freePhysicalMemory = osBean.getFreeMemorySize();
+        long usedPhysicalMemory = totalPhysicalMemory - freePhysicalMemory;
+        double memoryUsagePercent = ((double) usedPhysicalMemory / totalPhysicalMemory) * 100.0;
+
+        // Debug logging for verification
+        log.info("[Metrics Sample] Timestamp: {}, CPU: {}%, Mem Used: {}/{} bytes ({}%)", 
+                System.currentTimeMillis(), 
+                String.format("%.2f", cpuUsagePercent),
+                usedPhysicalMemory, 
+                totalPhysicalMemory, 
+                String.format("%.2f", memoryUsagePercent));
+
+        metrics.put("cpuUsage", String.format("%.1f", cpuUsagePercent));
+        metrics.put("memoryUsage", String.format("%.1f", memoryUsagePercent));
+        metrics.put("activeThreads", ManagementFactory.getThreadMXBean().getThreadCount());
+        metrics.put("processors", osBean.getAvailableProcessors());
+        
+        return metrics;
     }
 }

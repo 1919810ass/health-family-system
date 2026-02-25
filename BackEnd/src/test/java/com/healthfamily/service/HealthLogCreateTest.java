@@ -8,6 +8,7 @@ import com.healthfamily.domain.entity.HealthLog;
 import com.healthfamily.domain.entity.User;
 import com.healthfamily.domain.repository.HealthLogRepository;
 import com.healthfamily.domain.repository.UserRepository;
+import com.healthfamily.domain.repository.FamilyMemberRepository;
 import com.healthfamily.service.impl.HealthLogServiceImpl;
 import com.healthfamily.web.dto.HealthLogRequest;
 import com.healthfamily.web.dto.HealthLogResponse;
@@ -43,6 +44,12 @@ class HealthLogCreateTest {
 
     @Mock
     private HealthDataAiService healthDataAiService;
+    
+    @Mock
+    private MonitoringService monitoringService;
+    
+    @Mock
+    private FamilyMemberRepository familyMemberRepository;
 
     private HealthLogServiceImpl healthLogService;
 
@@ -57,7 +64,14 @@ class HealthLogCreateTest {
                 .role(UserRole.MEMBER)
                 .status(1)
                 .build();
-        healthLogService = new HealthLogServiceImpl(healthLogRepository, userRepository, new ObjectMapper(), healthDataAiService);
+        healthLogService = new HealthLogServiceImpl(
+            healthLogRepository, 
+            userRepository, 
+            new ObjectMapper(), 
+            healthDataAiService,
+            monitoringService,
+            familyMemberRepository
+        );
     }
 
     @Test

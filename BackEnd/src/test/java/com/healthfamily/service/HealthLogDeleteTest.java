@@ -5,9 +5,11 @@ import com.healthfamily.common.exception.BusinessException;
 import com.healthfamily.domain.constant.UserRole;
 import com.healthfamily.domain.entity.HealthLog;
 import com.healthfamily.domain.entity.User;
+import com.healthfamily.domain.repository.FamilyMemberRepository;
 import com.healthfamily.domain.repository.HealthLogRepository;
 import com.healthfamily.domain.repository.UserRepository;
 import com.healthfamily.service.HealthDataAiService;
+import com.healthfamily.service.MonitoringService;
 import com.healthfamily.service.impl.HealthLogServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,12 @@ class HealthLogDeleteTest {
 
     @Mock
     private HealthDataAiService healthDataAiService;
+    
+    @Mock
+    private MonitoringService monitoringService;
+    
+    @Mock
+    private FamilyMemberRepository familyMemberRepository;
 
     @InjectMocks
     private HealthLogServiceImpl healthLogService;

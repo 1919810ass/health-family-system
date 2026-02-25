@@ -44,6 +44,12 @@ const routes = [
     meta: { public: true, title: '管理员注册' },
   },
   {
+    path: '/maintenance',
+    name: 'maintenance',
+    component: () => import('../views/Error/Maintenance.vue'),
+    meta: { public: true, title: '系统维护' },
+  },
+  {
     path: '/',
     component: () => import('../components/Layout/BaseLayout.vue'),
     children: [

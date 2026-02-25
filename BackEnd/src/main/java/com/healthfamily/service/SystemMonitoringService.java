@@ -37,4 +37,7 @@ public interface SystemMonitoringService {
     Map<String, Object> getSystemAlerts(LocalDateTime startTime, LocalDateTime endTime, int limit);
     void acknowledgeAlert(Long id);
     void resolveAlert(Long id);
+
+    // AI Diagnosis Support
+    Map<String, Object> getRealTimeMetrics();
 }

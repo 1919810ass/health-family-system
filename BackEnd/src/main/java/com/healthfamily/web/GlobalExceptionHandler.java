@@ -85,6 +85,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.ok(Result.error(40103, "账号已被锁定"));
     }
 
+    @ExceptionHandler(com.healthfamily.common.exception.MaintenanceException.class)
+    public ResponseEntity<Result<Void>> handleMaintenanceException(com.healthfamily.common.exception.MaintenanceException ex) {
+        log.warn("Maintenance mode active: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Result.error(503, ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> handleOther(Exception ex, WebRequest request) {
         log.error("Unhandled exception at {}: {}", request.getDescription(false), ex.getMessage(), ex);
