@@ -29,8 +29,7 @@
       
       <el-select v-model="disease" placeholder="疾病类型" style="width: 150px" clearable>
         <el-option label="全部" value="" />
-        <el-option label="高血压" value="hypertension" />
-        <el-option label="糖尿病" value="diabetes" />
+        <el-option v-for="tag in predefinedTags" :key="tag" :label="tag" :value="tag" />
       </el-select>
       
       <el-select v-model="risk" placeholder="风险等级" style="width: 150px" clearable>
@@ -294,9 +293,27 @@ const filtered = computed(() => {
   })
 })
 
+// 重点管理状态缓存（用于响应式更新）
+const importantStates = ref({})
+
+// 监听成员列表变化，初始化重点管理状态
+watch(members, (newMembers) => {
+  if (newMembers) {
+    newMembers.forEach(m => {
+      const key = `doctor_patient_important_${m.userId}`
+      // 优先读取localStorage中的状态
+      importantStates.value[m.userId] = localStorage.getItem(key) === 'true'
+    })
+  }
+}, { immediate: true, deep: true })
+
 // 检查患者是否为重点管理
 const isPatientImportant = (userId) => {
   if (!userId) return false
+  // 优先读取响应式状态，如果没有则读取localStorage
+  if (importantStates.value[userId] !== undefined) {
+    return importantStates.value[userId]
+  }
   const key = `doctor_patient_important_${userId}`
   return localStorage.getItem(key) === 'true'
 }
@@ -305,11 +322,16 @@ const isPatientImportant = (userId) => {
 const toggleImportant = async (userId) => {
   if (!userId || !familyId.value) return
   const key = `doctor_patient_important_${userId}`
-  const current = localStorage.getItem(key) === 'true'
+  
+  // 获取当前状态并反转
+  const current = importantStates.value[userId]
   const newValue = !current
   
+  // 立即更新响应式状态，触发UI刷新
+  importantStates.value[userId] = newValue
+  
   try {
-    // 乐观更新
+    // 同步更新本地存储
     localStorage.setItem(key, String(newValue))
     ElMessage.success(newValue ? '已设为重点管理' : '已取消重点管理')
     
@@ -317,6 +339,7 @@ const toggleImportant = async (userId) => {
     await togglePatientImportant(familyId.value, userId, newValue)
   } catch(e) {
     // 失败回滚
+    importantStates.value[userId] = current
     localStorage.setItem(key, String(current))
     ElMessage.error('操作失败')
   }

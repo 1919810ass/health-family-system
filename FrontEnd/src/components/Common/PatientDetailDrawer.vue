@@ -311,6 +311,7 @@
 
 <script setup>
 import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElInput, ElButton } from 'element-plus'
 import { Star, StarFilled, Refresh, Plus, MagicStick, Microphone } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
@@ -326,6 +327,8 @@ import {
 import { getResult } from '../../api/assessment'
 import { getConstitutionName, CONSTITUTION_NAMES } from '../../utils/tcm-constants'
 import dayjs from 'dayjs'
+
+const router = useRouter()
 
 const props = defineProps({
   modelValue: {
@@ -762,7 +765,12 @@ const viewLogs = () => {
     ElMessage.warning('患者未开启数据共享，无法查看健康日志')
     return
   }
-  emit('view-logs', props.patientUserId)
+  if (!props.patientUserId) {
+    ElMessage.error('患者ID不存在，无法跳转')
+    return
+  }
+  visible.value = false
+  router.push(`/doctor/patients/${props.patientUserId}/logs`)
 }
 
 const viewRecommendations = () => {
@@ -771,11 +779,21 @@ const viewRecommendations = () => {
     ElMessage.warning('患者未开启数据共享，无法查看健康建议')
     return
   }
-  emit('view-recommendations', props.patientUserId)
+  if (!props.patientUserId) {
+    ElMessage.error('患者ID不存在，无法跳转')
+    return
+  }
+  visible.value = false
+  router.push(`/doctor/patients/${props.patientUserId}/recommendations`)
 }
 
 const createFollowupPlan = () => {
-  emit('create-followup-plan', props.patientUserId)
+  if (!props.patientUserId) {
+    ElMessage.error('患者ID不存在，无法跳转')
+    return
+  }
+  visible.value = false
+  router.push(`/doctor/plans?patientUserId=${props.patientUserId}`)
 }
 
 // 病历记录相关方法

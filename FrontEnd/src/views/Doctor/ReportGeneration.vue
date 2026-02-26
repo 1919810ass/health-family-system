@@ -197,7 +197,7 @@
     <!-- 并发监控对话框 -->
     <el-dialog
       v-model="monitorVisible"
-      title="R9000P 高性能并发计算监控"
+      title="高性能并发计算监控"
       width="900px"
       :close-on-click-modal="false"
       :close-on-press-escape="false"
@@ -209,13 +209,18 @@
           <div class="dashboard-card">
             <div class="card-icon blue"><el-icon><Connection /></el-icon></div>
             <div class="card-content">
-              <div class="label">活跃线程数</div>
+              <div class="label">
+                活跃线程数
+                <el-tooltip content="当前系统活跃线程总数 / CPU核心数" placement="top">
+                  <el-icon class="info-icon"><InfoFilled /></el-icon>
+                </el-tooltip>
+              </div>
               <div class="value">
                 {{ currentMetrics.activeThreads || 0 }}
-                <span v-if="currentMetrics.reportActiveThreads > 0" class="sub-value">
-                  ({{ currentMetrics.reportActiveThreads }} running)
-                </span>
-                <span class="unit">/ {{ currentMetrics.processors || 32 }}</span>
+                <span class="unit small">/ {{ currentMetrics.processors || 32 }} Core</span>
+              </div>
+              <div v-if="currentMetrics.reportActiveThreads > 0" class="sub-text">
+                {{ currentMetrics.reportActiveThreads }} 个任务正在运行
               </div>
             </div>
           </div>
@@ -309,7 +314,7 @@
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useDoctorStore } from '@/stores/doctor'
 import { ElMessage } from 'element-plus'
-import { Document, Files, DataLine, Cpu, Connection, Loading } from '@element-plus/icons-vue'
+import { Document, Files, DataLine, Cpu, Connection, Loading, InfoFilled } from '@element-plus/icons-vue'
 import { generateReportDocx, generateReportPdf, downloadReportTemplate, generateReportPreview, generateBatchReportZip, getSystemMetrics } from '@/api/doctor'
 import { getToken } from '@/utils/auth'
 
@@ -1174,23 +1179,46 @@ const handleGenerateBatch = async () => {
       font-size: 12px;
       color: vars.$text-secondary-color;
       margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      
+      .info-icon {
+        font-size: 13px;
+        cursor: help;
+        opacity: 0.7;
+        &:hover { opacity: 1; color: vars.$primary-color; }
+      }
     }
     .value {
       font-size: 24px;
       font-weight: 800;
       color: vars.$text-main-color;
       line-height: 1;
+      display: flex;
+      align-items: baseline;
+
       .unit {
         font-size: 12px;
         font-weight: 400;
         color: vars.$text-secondary-color;
         margin-left: 4px;
+        &.small {
+          font-size: 11px;
+          opacity: 0.8;
+        }
       }
       .sub-value {
         font-size: 14px;
         color: vars.$success-color;
         margin-left: 4px;
       }
+    }
+    .sub-text {
+      font-size: 11px;
+      color: vars.$success-color;
+      margin-top: 4px;
+      font-weight: 500;
     }
   }
 }
