@@ -18,6 +18,8 @@ public record FamilyMemberResponse(
         String avatar,
         String role,
         List<String> tags,
-        String lastActive
+        String lastActive,
+        Boolean shareToDoctor,
+        Boolean shareToFamily
 ) {
 }

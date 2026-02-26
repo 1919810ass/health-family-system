@@ -24,7 +24,9 @@ public record PatientDetailResponse(
         Map<String, Integer> logStatistics,  // 日志统计 { "diet": 10, "sleep": 7, ... }
         List<RecommendationSummary> recentRecommendations,  // 近期建议摘要
         List<String> healthTags,  // 健康标签（疾病/风险）
-        String riskLevel  // 风险等级：LOW, MEDIUM, HIGH
+        String riskLevel,  // 风险等级：LOW, MEDIUM, HIGH
+        Boolean shareToDoctor, // 是否共享给医生
+        Boolean shareToFamily // 是否共享给家庭成员
 ) {
     public record AssessmentSummary(
             Long assessmentId,

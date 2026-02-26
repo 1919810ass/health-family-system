@@ -20,6 +20,9 @@ import com.healthfamily.domain.repository.TcmPersonalizedPlanRepository;
 import com.healthfamily.domain.repository.ConstitutionTrendRecordRepository;
 import com.healthfamily.domain.repository.FamilyTcmHealthOverviewRepository;
 import com.healthfamily.domain.repository.UserRepository;
+import com.healthfamily.domain.repository.FamilyDoctorRepository;
+import com.healthfamily.domain.constant.UserRole;
+import com.healthfamily.domain.entity.FamilyDoctor;
 import com.healthfamily.service.AssessmentService;
 import com.healthfamily.web.dto.AssessmentHistoryResponse;
 import com.healthfamily.web.dto.AssessmentResponse;
@@ -119,6 +122,7 @@ public class AssessmentServiceImpl implements AssessmentService {
     
     private final ConstitutionAssessmentRepository assessmentRepository;
     private final UserRepository userRepository;
+    private final FamilyDoctorRepository familyDoctorRepository;
     private final FamilyRepository familyRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final ProfileRepository profileRepository;
@@ -198,6 +202,8 @@ public class AssessmentServiceImpl implements AssessmentService {
      * @param assessmentId 业务对象唯一标识
      * @return 业务返回结果
      */
+
+    @Transactional(readOnly = true)
     public AssessmentResponse getAssessment(Long userId, Long assessmentId) {
         ConstitutionAssessment assessment = assessmentRepository.findById(assessmentId)
                 .orElseThrow(() -> new BusinessException(40403, "测评不存在"));
@@ -205,9 +211,33 @@ public class AssessmentServiceImpl implements AssessmentService {
         if (assessmentUser == null) {
             throw new BusinessException(40403, "测评对应的用户信息不存在");
         }
-        if (!assessmentUser.getId().equals(userId)) {
+        
+        // 权限校验逻辑修改：兼容医生查看
+        boolean hasAccess = false;
+        if (assessmentUser.getId().equals(userId)) {
+            hasAccess = true;
+        } else {
+            User currentUser = userRepository.findById(userId)
+                    .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
+            
+            if (currentUser.getRole() == UserRole.DOCTOR) {
+                // 医生查看权限校验：检查医生是否与患者所在的任一家庭有签约关系
+                List<Family> patientFamilies = familyMemberRepository.findFamiliesByUser(assessmentUser);
+                List<FamilyDoctor> doctorRelations = familyDoctorRepository.findByDoctor(currentUser);
+                
+                // 只要医生签约的家庭中包含患者所在的任一家庭，即视为有权查看
+                // 注意：这里比较的是 Family 对象，依赖 equals/hashCode，或者比较 ID
+                hasAccess = doctorRelations.stream()
+                        .map(FamilyDoctor::getFamily)
+                        .anyMatch(doctorFamily -> patientFamilies.stream()
+                                .anyMatch(patientFamily -> patientFamily.getId().equals(doctorFamily.getId())));
+            }
+        }
+
+        if (!hasAccess) {
             throw new BusinessException(40301, "无权查看该测评报告");
         }
+
         Map<String, Double> scores = fromJson(assessment.getScoreVector(), SCORE_TYPE);
         Map<String, Object> report = fromJson(assessment.getReportJson(), REPORT_TYPE);
         return toResponse(assessment, scores, report);

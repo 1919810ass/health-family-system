@@ -256,7 +256,9 @@ public class DoctorServiceImpl implements DoctorService {
                                 null, // avatar
                                 null, // role
                                 java.util.Collections.emptyList(), // tags
-                                null // lastActive
+                                null, // lastActive
+                                false, // shareToDoctor
+                                false // shareToFamily
                         );
                     }
 
@@ -297,6 +299,10 @@ public class DoctorServiceImpl implements DoctorService {
                     String lastActive = user.getLastLoginAt() != null ? 
                         user.getLastLoginAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : 
                         (user.getUpdatedAt() != null ? user.getUpdatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "从未登录");
+                    
+                    // 获取隐私设置
+                    boolean shareToDoctor = canViewMemberData(user.getId(), true);
+                    boolean shareToFamily = canViewMemberData(user.getId(), false);
 
                     return new com.healthfamily.web.dto.FamilyMemberResponse(
                             m.getId(),
@@ -308,7 +314,9 @@ public class DoctorServiceImpl implements DoctorService {
                             avatar,
                             user.getRole() != null ? user.getRole().name() : null,
                             tags,
-                            lastActive
+                            lastActive,
+                            shareToDoctor,
+                            shareToFamily
                     );
                 })
                 .toList();
@@ -901,6 +909,10 @@ public class DoctorServiceImpl implements DoctorService {
             riskLevel = "MEDIUM";
         }
 
+        // 获取隐私共享设置
+        boolean shareToDoctor = canViewMemberData(patientUserId, true);
+        boolean shareToFamily = canViewMemberData(patientUserId, false);
+
         return new PatientDetailResponse(
                 patient.getId(),
                 patient.getNickname(),
@@ -915,7 +927,9 @@ public class DoctorServiceImpl implements DoctorService {
                 logStatistics,
                 recentRecommendations,
                 healthTags,
-                riskLevel
+                riskLevel,
+                shareToDoctor,
+                shareToFamily
         );
     }
 

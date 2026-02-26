@@ -48,6 +48,12 @@
                   {{ formatTime(detail.latestAssessment.createdAt) }}
                 </el-descriptions-item>
               </el-descriptions>
+              
+              <!-- 体质雷达图 -->
+              <div class="chart-container" style="position: relative; margin-top: 16px; z-index: 1;">
+                 <div v-if="assessmentDetail && Object.keys(getScores()).length > 0" ref="chartRef" style="height: 300px; width: 100%;"></div>
+                 <el-empty v-else-if="!loading" description="暂无详细体质数据" :image-size="60" style="height: 300px;" />
+              </div>
             </div>
             <el-empty v-else description="暂无体质测评记录" :image-size="80" />
 
@@ -117,9 +123,9 @@
           <!-- 快速操作 -->
           <el-card class="section-card">
             <template #header>快速操作</template>
-            <div class="action-buttons">
-              <el-button type="primary" :disabled="shareDisabled" @click="viewLogs">查看日志</el-button>
-              <el-button type="success" :disabled="shareDisabled" @click="viewRecommendations">查看建议</el-button>
+            <div class="action-buttons" style="position: relative; z-index: 2;">
+              <el-button type="primary" @click="viewLogs">查看日志</el-button>
+              <el-button type="success" @click="viewRecommendations">查看建议</el-button>
               <el-button type="warning" @click="createFollowupPlan">创建随访计划</el-button>
             </div>
           </el-card>
@@ -304,9 +310,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, h } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
+import { ElMessage, ElMessageBox, ElInput, ElButton } from 'element-plus'
 import { Star, StarFilled, Refresh, Plus, MagicStick, Microphone } from '@element-plus/icons-vue'
+import * as echarts from 'echarts'
 import { 
   getPatientDetail, 
   togglePatientImportant,
@@ -316,7 +323,8 @@ import {
   deleteDoctorNote,
   generateRecommendationForPatient
 } from '../../api/doctor'
-import { getConstitutionName } from '../../utils/tcm-constants'
+import { getResult } from '../../api/assessment'
+import { getConstitutionName, CONSTITUTION_NAMES } from '../../utils/tcm-constants'
 import dayjs from 'dayjs'
 
 const props = defineProps({
@@ -338,7 +346,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'viewLogs', 'viewRecommendations', 'createFollowupPlan'])
+const emit = defineEmits(['update:modelValue', 'view-logs', 'view-recommendations', 'create-followup-plan'])
 
 const visible = computed({
   get: () => props.modelValue,
@@ -352,6 +360,9 @@ const drawerSize = computed(() => {
 const loading = ref(false)
 const detail = ref(null)
 const isImportant = ref(false)
+const assessmentDetail = ref(null)
+const chartRef = ref(null)
+let chartInstance = null
 
 // Tab管理
 const activeTab = ref('overview')
@@ -382,7 +393,21 @@ const noteFormRules = {
 
 // 诊断工具相关
 const generatingRecommendation = ref(false)
-const shareDisabled = computed(() => props.shareToFamily === false)
+const shareDisabled = computed(() => {
+  // 1. 优先从详情数据中判断 (最准确)
+  if (detail.value) {
+    // 如果有明确的 shareToDoctor 字段
+    if (detail.value.shareToDoctor === true || detail.value.share_to_doctor === true) return false
+    // 如果没有 shareToDoctor，但有 shareToFamily (兼容旧逻辑)
+    if (detail.value.shareToFamily === true || detail.value.share_to_family === true) return false
+    
+    // 如果明确为 false
+    if (detail.value.shareToDoctor === false) return true
+  }
+  
+  // 2. 回退到 Props 传入的值
+  return props.shareToFamily === false
+})
 
 // Voice Dictation
 const isListening = ref(false);
@@ -483,11 +508,21 @@ const handleMarkRiskHandled = async () => {
 
 // 监听抽屉打开，加载数据
 watch(visible, async (newVal) => {
-  if (newVal && props.familyId && props.patientUserId) {
-    await loadDetail()
-    loadImportantStatus()
-    if (activeTab.value === 'notes') {
-      await loadNotes()
+  if (newVal) {
+    // 确保 Drawer 动画开始后，尝试 resize 图表以适应当前宽度
+    nextTick(() => {
+      // 延迟一点以等待动画完成，确保宽度正确
+      setTimeout(() => {
+        handleResize()
+      }, 300)
+    })
+
+    if (props.familyId && props.patientUserId) {
+      await loadDetail()
+      loadImportantStatus()
+      if (activeTab.value === 'notes') {
+        await loadNotes()
+      }
     }
   }
 })
@@ -503,9 +538,35 @@ const loadDetail = async () => {
   if (!props.familyId || !props.patientUserId) return
   
   loading.value = true
+  assessmentDetail.value = null
   try {
     const res = await getPatientDetail(props.familyId, props.patientUserId)
     detail.value = res?.data || null
+    
+    // 加载体质详情
+    if (detail.value?.latestAssessment) {
+      try {
+        const detailRes = await getResult(detail.value.latestAssessment.assessmentId)
+        assessmentDetail.value = detailRes?.data
+        
+        // 确保DOM更新后初始化图表
+        nextTick(() => {
+          // 增加延迟，确保 Drawer 动画完成且 DOM 尺寸正确
+          setTimeout(() => {
+            initChart()
+          }, 100)
+        })
+      } catch (e) {
+        console.error('加载体质详情失败:', e)
+        if (e.response && e.response.status === 403) {
+           ElMessage.error('无权查看该患者的详细体质报告')
+        } else {
+           ElMessage.error('加载体质详情失败')
+        }
+      }
+    } else {
+      assessmentDetail.value = null
+    }
   } catch (error) {
     console.error('加载患者详情失败:', error)
     ElMessage.error('加载患者详情失败')
@@ -513,6 +574,77 @@ const loadDetail = async () => {
     loading.value = false
   }
 }
+
+const getScores = () => {
+  if (!assessmentDetail.value) return {}
+  return assessmentDetail.value.report?.scores || assessmentDetail.value.scores || {}
+}
+
+const initChart = () => {
+  if (!visible.value) return
+  const scores = getScores()
+  if (!chartRef.value || Object.keys(scores).length === 0) return
+  
+  // 检查容器宽度，如果是隐藏状态（宽度为0），延迟重试
+  if (chartRef.value.clientWidth === 0) {
+      setTimeout(() => {
+          initChart()
+      }, 200)
+      return
+  }
+  
+  if (chartInstance) {
+    chartInstance.dispose()
+  }
+  
+  chartInstance = echarts.init(chartRef.value)
+  
+  // 准备数据
+  const keys = Object.keys(CONSTITUTION_NAMES)
+  const indicator = keys.map(key => ({
+    name: CONSTITUTION_NAMES[key],
+    max: 100
+  }))
+  
+  const values = keys.map(key => scores[key] || 0)
+  
+  const option = {
+    tooltip: {},
+    radar: {
+      indicator: indicator,
+      radius: '65%',
+      center: ['50%', '50%']
+    },
+    series: [{
+      name: '体质得分',
+      type: 'radar',
+      data: [{
+        value: values,
+        name: '体质得分'
+      }],
+      areaStyle: {
+        opacity: 0.2
+      }
+    }]
+  }
+  
+  chartInstance.setOption(option)
+}
+
+const handleResize = () => {
+  chartInstance && chartInstance.resize()
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  if (chartInstance) {
+    chartInstance.dispose()
+  }
+})
 
 const loadImportantStatus = () => {
   const key = `doctor_patient_important_${props.patientUserId}`
@@ -625,23 +757,25 @@ const getRiskText = (riskLevel) => {
 }
 
 const viewLogs = () => {
+  console.log('点击查看日志, shareDisabled:', shareDisabled.value)
   if (shareDisabled.value) {
     ElMessage.warning('患者未开启数据共享，无法查看健康日志')
     return
   }
-  emit('viewLogs', props.patientUserId)
+  emit('view-logs', props.patientUserId)
 }
 
 const viewRecommendations = () => {
+  console.log('点击查看建议, shareDisabled:', shareDisabled.value)
   if (shareDisabled.value) {
     ElMessage.warning('患者未开启数据共享，无法查看健康建议')
     return
   }
-  emit('viewRecommendations', props.patientUserId)
+  emit('view-recommendations', props.patientUserId)
 }
 
 const createFollowupPlan = () => {
-  emit('createFollowupPlan', props.patientUserId)
+  emit('create-followup-plan', props.patientUserId)
 }
 
 // 病历记录相关方法

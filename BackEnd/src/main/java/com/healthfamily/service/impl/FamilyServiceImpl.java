@@ -247,7 +247,9 @@ public class FamilyServiceImpl implements FamilyService {
                     null, // avatar
                     member.getRole() != null ? member.getRole().name() : (member.getAdmin() ? MemberRole.ADMIN.name() : MemberRole.MEMBER.name()),
                     java.util.Collections.emptyList(), // tags
-                    null // lastActive
+                    null, // lastActive
+                    false, // shareToDoctor
+                    false // shareToFamily
             );
         }
         
@@ -289,6 +291,21 @@ public class FamilyServiceImpl implements FamilyService {
             user.getLastLoginAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : 
             (user.getUpdatedAt() != null ? user.getUpdatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "从未登录");
         
+        // 获取隐私设置
+        boolean shareToDoctor = false;
+        boolean shareToFamily = false;
+        if (profile != null && profile.getPreferences() != null && !profile.getPreferences().isBlank()) {
+            try {
+                java.util.Map<?, ?> map = objectMapper.readValue(profile.getPreferences(), java.util.Map.class);
+                Object sd = map.get("shareToDoctor");
+                if (sd instanceof Boolean) shareToDoctor = (Boolean) sd;
+                Object sf = map.get("shareToFamily");
+                if (sf instanceof Boolean) shareToFamily = (Boolean) sf;
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        
         return new FamilyMemberResponse(
                 member.getId(),
                 user.getId(),
@@ -299,7 +316,9 @@ public class FamilyServiceImpl implements FamilyService {
                 avatar,
                 member.getRole() != null ? member.getRole().name() : (member.getAdmin() ? MemberRole.ADMIN.name() : MemberRole.MEMBER.name()),
                 tags,
-                lastActive
+                lastActive,
+                shareToDoctor,
+                shareToFamily
         );
     }
 

@@ -159,6 +159,7 @@
       @view-logs="handleViewLogs"
       @view-recommendations="handleViewRecommendations"
       @create-followup-plan="handleCreateFollowupPlan"
+      @refresh="loadMembers"
     />
     
     <!-- 标签编辑弹窗 -->
@@ -246,6 +247,10 @@ const currentPatientUserId = ref(null)
 const currentPatientShareToFamily = ref(undefined)
 
 const getShareFlag = (member) => {
+  // 优先检查共享给医生的字段
+  if (member?.shareToDoctor === true || member?.share_to_doctor === true) return true
+  
+  // 兼容旧字段或通用共享字段
   const val = member?.shareToFamily ?? member?.share_to_family ?? member?.dataShare ?? member?.data_share
   if (val === undefined || val === null) return undefined
   return !!val
@@ -379,21 +384,28 @@ const viewDetail = (row) => {
 }
 
 const viewLogs = (row) => {
-  if (isShareOffByUserId(row?.userId)) {
-    ElMessage.warning('患者未开启数据共享，无法查看健康日志')
-    return
-  }
+  // 暂时移除isShareOffByUserId的拦截，因为从抽屉跳转时可能无法正确判断，交由详情页控制
+  // if (isShareOffByUserId(row?.userId)) {
+  //   ElMessage.warning('患者未开启数据共享，无法查看健康日志')
+  //   return
+  // }
+  console.log('viewLogs跳转:', row?.userId)
   // 跳转到医生端的健康日志页面，保持在医生布局内
-  router.push(`/doctor/patients/${row.userId}/logs`)
+  router.push(`/doctor/patients/${row.userId}/logs`).catch(err => {
+    console.error('跳转失败:', err)
+  })
 }
 
 const viewRecommendations = (row) => {
-  if (isShareOffByUserId(row?.userId)) {
-    ElMessage.warning('患者未开启数据共享，无法查看健康建议')
-    return
-  }
+  // if (isShareOffByUserId(row?.userId)) {
+  //   ElMessage.warning('患者未开启数据共享，无法查看健康建议')
+  //   return
+  // }
+  console.log('viewRecommendations跳转:', row?.userId)
   // 跳转到医生端的健康建议页面，保持在医生布局内
-  router.push(`/doctor/patients/${row.userId}/recommendations`)
+  router.push(`/doctor/patients/${row.userId}/recommendations`).catch(err => {
+    console.error('跳转失败:', err)
+  })
 }
 
 const createFollowupPlan = (row) => {
@@ -461,18 +473,38 @@ const handleCommand = (command, row) => {
 }
 
 // 处理抽屉中的操作事件
-const handleViewLogs = (userId) => {
+const handleViewLogs = (payload) => {
+  // 兼容 payload 是事件对象或直接是 userId 的情况
+  const userId = typeof payload === 'object' ? payload.userId : payload
+  console.log('handleViewLogs触发:', userId, typeof userId)
   drawerVisible.value = false
+  if (!userId) {
+     console.error('userId is invalid:', userId)
+     return
+  }
+  // 确保 viewLogs 接收到的是对象结构 { userId: ... }
   viewLogs({ userId })
 }
 
-const handleViewRecommendations = (userId) => {
+const handleViewRecommendations = (payload) => {
+  const userId = typeof payload === 'object' ? payload.userId : payload
+  console.log('handleViewRecommendations触发:', userId, typeof userId)
   drawerVisible.value = false
+  if (!userId) {
+     console.error('userId is invalid:', userId)
+     return
+  }
   viewRecommendations({ userId })
 }
 
-const handleCreateFollowupPlan = (userId) => {
+const handleCreateFollowupPlan = (payload) => {
+  const userId = typeof payload === 'object' ? payload.userId : payload
+  console.log('handleCreateFollowupPlan触发:', userId)
   drawerVisible.value = false
+  if (!userId) {
+     console.error('userId is invalid:', userId)
+     return
+  }
   createFollowupPlan({ userId })
 }
 
