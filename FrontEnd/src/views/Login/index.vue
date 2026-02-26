@@ -48,7 +48,7 @@
           <div class="form-options">
             <!-- 即使后端没做，前端放个checkbox看起来更完善 -->
             <el-checkbox v-model="rememberMe">记住我</el-checkbox>
-            <el-link type="primary" :underline="false" class="forgot-pwd">忘记密码？</el-link>
+            <el-link type="primary" underline="never" class="forgot-pwd">忘记密码？</el-link>
           </div>
 
           <el-form-item>
@@ -67,9 +67,9 @@
 
         <div class="login-footer">
           <span>还没有账号？</span>
-          <el-link type="primary" @click="goRegister" :underline="false">立即注册</el-link>
+          <el-link type="primary" @click="goRegister" underline="never">立即注册</el-link>
           <span class="divider">|</span>
-          <el-link type="primary" @click="goDoctorLogin" :underline="false">医生登录</el-link>
+          <el-link type="primary" @click="goDoctorLogin" underline="never">医生登录</el-link>
         </div>
       </el-card>
     </div>

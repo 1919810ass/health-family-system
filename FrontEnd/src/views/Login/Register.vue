@@ -88,7 +88,7 @@
 
         <div class="register-footer">
           <span>已有账号？</span>
-          <el-link type="primary" :underline="false" @click="goLogin">返回登录</el-link>
+          <el-link type="primary" underline="never" @click="goLogin">返回登录</el-link>
         </div>
       </el-card>
 

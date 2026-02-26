@@ -72,9 +72,9 @@
 
         <div class="login-footer">
           <span>还没有医生账号？</span>
-          <el-link type="primary" :underline="false" @click="goRegister">立即注册</el-link>
+          <el-link type="primary" underline="never" @click="goRegister">立即注册</el-link>
           <span class="divider">|</span>
-          <el-link type="primary" :underline="false" @click="goUserLogin">普通用户登录</el-link>
+          <el-link type="primary" underline="never" @click="goUserLogin">普通用户登录</el-link>
         </div>
       </el-card>
     </div>

@@ -6,6 +6,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import { getToken } from '../utils/auth'
+import { cancelAllPendingRequests } from '../utils/request'
 import { useUserStore } from '../stores/user'
 import { ElMessage } from 'element-plus'
 
@@ -434,6 +435,9 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
+  // 切换路由时，取消所有未完成的请求
+  cancelAllPendingRequests()
+
   // 构建页面标题，支持层级结构
   let pageTitle = '健康家庭'
   if (to.meta.parentTitle && to.meta.title) {

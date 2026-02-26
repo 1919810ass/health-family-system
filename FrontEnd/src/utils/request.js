@@ -16,8 +16,65 @@ const request = axios.create({
   timeout: 120000,
 })
 
+// 存储当前挂起的请求
+const pendingRequests = new Map()
+
+/**
+ * 添加请求到 pendingRequests
+ * @param {Object} config Axios 请求配置
+ */
+const addPendingRequest = (config) => {
+  // 这里不进行重复请求检查，仅生成 Controller 并记录
+  // 如果需要取消重复请求，需要根据 url/method/params 生成稳定的 key
+  const controller = new AbortController()
+  config.signal = controller.signal
+  const key = generateRequestKey(config)
+  if (!pendingRequests.has(key)) {
+    pendingRequests.set(key, controller)
+  }
+}
+
+/**
+ * 从 pendingRequests 中移除请求
+ * @param {Object} config Axios 请求配置
+ */
+const removePendingRequest = (config) => {
+  const key = generateRequestKey(config)
+  if (pendingRequests.has(key)) {
+    // 注意：这里不调用 abort()，只是从 map 中移除
+    // 因为请求已经完成（成功或失败），不需要再 abort
+    pendingRequests.delete(key)
+  }
+}
+
+/**
+ * 生成请求的唯一标识
+ * @param {Object} config Axios 请求配置
+ * @returns {string} 请求标识
+ */
+const generateRequestKey = (config) => {
+  // 使用 symbol 或随机 ID 确保唯一性，避免因 data 序列化差异导致 key 不一致
+  if (!config.__requestId) {
+    config.__requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  }
+  return config.__requestId
+}
+
+/**
+ * 取消所有挂起的请求
+ */
+export const cancelAllPendingRequests = () => {
+  for (const [key, controller] of pendingRequests) {
+    controller.abort()
+  }
+  pendingRequests.clear()
+}
+
 request.interceptors.request.use(
   (config) => {
+    // 添加到 pendingRequests
+    addPendingRequest(config)
+
     const token = getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
@@ -35,11 +92,15 @@ request.interceptors.request.use(
     logInfo('HTTP', 'REQUEST', { url: config.url, method: config.method, ts: dayjs().toISOString() })
     return config
   },
-  (error) => Promise.reject(error),
+  (error) => {
+    removePendingRequest(error.config || {})
+    return Promise.reject(error)
+  },
 )
 
 request.interceptors.response.use(
   (response) => {
+    removePendingRequest(response.config)
     const ct = response?.headers?.['content-type'] || ''
     const isHtml = typeof response?.data === 'string' && response.data.startsWith('<!doctype html')
     if (ct.includes('text/html') || isHtml) {
@@ -51,6 +112,12 @@ request.interceptors.response.use(
     return response.data
   },
   async (error) => {
+    removePendingRequest(error.config || {})
+    // 如果是取消请求，直接抛出，不进行统一错误处理
+    if (axios.isCancel(error)) {
+      return Promise.reject(error)
+    }
+
     if (error.response) {
       const { status } = error.response
       

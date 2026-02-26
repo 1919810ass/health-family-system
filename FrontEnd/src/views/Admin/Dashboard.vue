@@ -221,7 +221,7 @@
                   :page-sizes="[10, 20, 50]"
                   layout="total, prev, pager, next"
                   :total="totalLogs"
-                  small
+                  size="small"
                   @size-change="handleSizeChange"
                   @current-change="handleCurrentChange"
                 />
@@ -235,7 +235,7 @@
 </template>
 
 <script setup> 
- import { ref, onMounted, onUnmounted, computed } from 'vue' 
+ import { ref, onMounted, onUnmounted, computed, markRaw } from 'vue' 
  import { useRouter } from 'vue-router' 
  import { ElMessage, ElNotification, ElLoading, ElMessageBox } from 'element-plus' 
  import { marked } from 'marked'
@@ -265,10 +265,10 @@
  
  // --- 2. 统计卡片数据 (Dashboard Cards) --- 
  const metrics = ref([ 
-   { title: '总用户数', value: '0', icon: User, color: '#409EFF' }, 
-   { title: '活跃用户(周)', value: '0', icon: UserFilled, color: '#67C23A' }, 
-   { title: '家庭总数', value: '0', icon: House, color: '#E6A23C' }, 
-   { title: '健康日志', value: '0', icon: Tickets, color: '#F56C6C' }, 
+   { title: '总用户数', value: '0', icon: markRaw(User), color: '#409EFF' }, 
+   { title: '活跃用户(周)', value: '0', icon: markRaw(UserFilled), color: '#67C23A' }, 
+   { title: '家庭总数', value: '0', icon: markRaw(House), color: '#E6A23C' }, 
+   { title: '健康日志', value: '0', icon: markRaw(Tickets), color: '#F56C6C' }, 
  ]) 
  
  // --- 3. 登录日志与交互状态 --- 
@@ -352,10 +352,10 @@
  
      // 更新卡片数据，增加默认值防止 null
      metrics.value = [
-       { title: '总用户数', value: (report?.totalUsers || 0).toLocaleString(), icon: User, color: '#409EFF' },
-       { title: '活跃用户', value: (activity?.weeklyActiveUsers || 0).toLocaleString(), icon: UserFilled, color: '#67C23A' },
-       { title: '家庭总数', value: (report?.totalFamilies || 0).toLocaleString(), icon: House, color: '#E6A23C' },
-       { title: '健康日志', value: (report?.totalHealthLogs || 0).toLocaleString(), icon: Tickets, color: '#F56C6C' }
+       { title: '总用户数', value: (report?.totalUsers || 0).toLocaleString(), icon: markRaw(User), color: '#409EFF' },
+       { title: '活跃用户', value: (activity?.weeklyActiveUsers || 0).toLocaleString(), icon: markRaw(UserFilled), color: '#67C23A' },
+       { title: '家庭总数', value: (report?.totalFamilies || 0).toLocaleString(), icon: markRaw(House), color: '#E6A23C' },
+       { title: '健康日志', value: (report?.totalHealthLogs || 0).toLocaleString(), icon: markRaw(Tickets), color: '#F56C6C' }
      ]
    } catch (error) {
      console.error("Dashboard statistics failed:", error)
@@ -496,7 +496,7 @@
 
  const getRoleTagType = (role) => {
    const map = { 'ADMIN': 'danger', 'USER': 'info', 'DOCTOR': 'success' }
-   return map[role] || ''
+   return map[role] || 'info'
  }
  
  const goTo = (path) => router.push(path) 

@@ -482,12 +482,13 @@ const loadUsers = async () => {
       }
     })
     pagination.total = Number(data.total) || list.length || 0
+    loading.value = false
   } catch (error) {
+    if (error.code === 'ERR_CANCELED') return
     ElMessage.error('加载用户列表失败')
     console.error('Error loading users:', error)
     users.value = [] // 出错时清空列表
     pagination.total = 0
-  } finally {
     loading.value = false
   }
 }
