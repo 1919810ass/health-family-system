@@ -53,6 +53,7 @@ public interface DoctorService {
     com.healthfamily.web.dto.HealthPlanResponse createHealthPlan(Long doctorId, Long familyId, com.healthfamily.web.dto.HealthPlanRequest request);
     com.healthfamily.web.dto.HealthPlanResponse updateHealthPlan(Long doctorId, Long planId, com.healthfamily.web.dto.HealthPlanRequest request);
     void deleteHealthPlan(Long doctorId, Long planId);
+    void batchDeleteHealthPlans(Long doctorId, java.util.List<Long> planIds);
     java.util.List<com.healthfamily.web.dto.HealthPlanResponse> getHealthPlansCalendar(Long doctorId, Long patientUserId, String startDate, String endDate);
     
     // 随访任务相关方法
@@ -60,6 +61,7 @@ public interface DoctorService {
     com.healthfamily.web.dto.FollowUpTaskResponse createFollowUpTask(Long doctorId, Long familyId, Long patientUserId, com.healthfamily.web.dto.CreateFollowUpTaskRequest request);
     com.healthfamily.web.dto.FollowUpTaskResponse updateFollowUpTask(Long doctorId, Long taskId, com.healthfamily.web.dto.UpdateFollowUpTaskRequest request);
     void deleteFollowUpTask(Long doctorId, Long taskId);
+    void batchDeleteFollowUpTasks(Long doctorId, java.util.List<Long> taskIds);
     
     // 数据统计相关方法
     com.healthfamily.web.dto.DoctorStatsResponse getStatistics(Long doctorId, Long familyId, java.time.LocalDate startDate, java.time.LocalDate endDate);

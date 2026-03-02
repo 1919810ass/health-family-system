@@ -97,6 +97,7 @@ public class DoctorServiceImpl implements DoctorService {
     private final AiRecommendationRepository aiRecommendationRepository;
     private final DoctorNoteRepository doctorNoteRepository;
     private final HealthPlanRepository healthPlanRepository;
+    private final FollowUpTaskRepository followUpTaskRepository; // 新增
     private final com.healthfamily.domain.repository.ConsultationSessionRepository consultationSessionRepository;
     private final DoctorProfileRepository doctorProfileRepository;
     private final com.healthfamily.domain.repository.DoctorRatingRepository doctorRatingRepository;
@@ -1974,6 +1975,8 @@ public class DoctorServiceImpl implements DoctorService {
                 .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
         
         List<HealthPlan> plans;
+        List<com.healthfamily.domain.entity.HealthReminder> allReminders;
+        
         if (patientUserId != null) {
             // 查询特定患者的计划
             User patient = userRepository.findById(patientUserId)
@@ -1995,6 +1998,12 @@ public class DoctorServiceImpl implements DoctorService {
             } else {
                 plans = healthPlanRepository.findByDoctorAndPatientOrderByCreatedAtDesc(doctor, patient);
             }
+            
+            // 查询该患者的所有随访提醒
+            allReminders = healthReminderRepository.findByUserAndTypeOrderByScheduledTimeDesc(
+                patient, com.healthfamily.domain.constant.ReminderType.FOLLOW_UP
+            );
+            
         } else {
             // 查询该家庭的所有计划
             plans = healthPlanRepository.findByDoctorAndFamilyOrderByCreatedAtDesc(doctor, family);
@@ -2010,8 +2019,19 @@ public class DoctorServiceImpl implements DoctorService {
                         .filter(p -> p.getType().name().equals(type))
                         .collect(Collectors.toList());
             }
+            
+            // 查询该家庭的所有随访提醒
+            allReminders = healthReminderRepository.findByFamily_IdOrderByScheduledTimeAsc(familyId)
+                .stream()
+                .filter(r -> r.getType() == com.healthfamily.domain.constant.ReminderType.FOLLOW_UP)
+                .collect(Collectors.toList());
         }
         
+        // 在返回前，为每个计划动态计算完成度
+        for (HealthPlan plan : plans) {
+            updateCompletionRate(plan, allReminders);
+        }
+
         return plans.stream()
                 .map(this::toHealthPlanResponse)
                 .collect(Collectors.toList());
@@ -2231,6 +2251,31 @@ public class DoctorServiceImpl implements DoctorService {
         HealthPlan plan = healthPlanRepository.findByIdAndDoctor(planId, doctor)
                 .orElseThrow(() -> new BusinessException(40408, "健康计划不存在或无权限访问"));
         healthPlanRepository.delete(plan);
+    }
+
+    @Override
+    @Transactional
+    /**
+     * 批量删除
+     * @param doctorId 医生唯一标识
+     * @param planIds 计划唯一标识列表
+     * @return 无
+     */
+    public void batchDeleteHealthPlans(Long doctorId, List<Long> planIds) {
+        if (planIds == null || planIds.isEmpty()) return;
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new BusinessException(40401, "医生不存在"));
+        
+        List<HealthPlan> plans = healthPlanRepository.findAllById(planIds);
+        
+        // 验证权限
+        for (HealthPlan plan : plans) {
+            if (!plan.getDoctor().getId().equals(doctorId)) {
+                throw new BusinessException(40301, "无权删除计划: " + plan.getId());
+            }
+        }
+        
+        healthPlanRepository.deleteAll(plans);
     }
 
     @Override
@@ -2500,6 +2545,12 @@ public class DoctorServiceImpl implements DoctorService {
                 if (meta.containsKey("result")) result = (String) meta.get("result");
             } catch (Exception e) {}
         }
+
+        // 如果关联了健康计划，更新计划的完成度
+        if (planId != null) {
+            final Long pid = planId;
+            healthPlanRepository.findById(planId).ifPresent(this::updateCompletionRate);
+        }
         
         return new com.healthfamily.web.dto.FollowUpTaskResponse(
                 reminder.getId(),
@@ -2531,6 +2582,66 @@ public class DoctorServiceImpl implements DoctorService {
         }
         
         healthReminderRepository.delete(reminder);
+    }
+
+    @Override
+    @Transactional
+    public void batchDeleteFollowUpTasks(Long doctorId, List<Long> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) return;
+        List<com.healthfamily.domain.entity.HealthReminder> reminders = healthReminderRepository.findAllById(taskIds);
+        
+        // Verify ownership
+        for (com.healthfamily.domain.entity.HealthReminder reminder : reminders) {
+             if (reminder.getCreator() != null && !reminder.getCreator().getId().equals(doctorId)) {
+                throw new BusinessException(40301, "无权删除任务: " + reminder.getId());
+            }
+        }
+        healthReminderRepository.deleteAll(reminders);
+    }
+
+    private void updateCompletionRate(HealthPlan plan) {
+        if (plan == null) return;
+        // 查找该计划的所有提醒
+        List<com.healthfamily.domain.entity.HealthReminder> reminders = healthReminderRepository.findByUserAndTypeOrderByScheduledTimeDesc(
+                plan.getPatient(), com.healthfamily.domain.constant.ReminderType.FOLLOW_UP
+        );
+        updateCompletionRate(plan, reminders);
+        healthPlanRepository.save(plan);
+    }
+    
+    private void updateCompletionRate(HealthPlan plan, List<com.healthfamily.domain.entity.HealthReminder> allReminders) {
+        if (plan == null || allReminders == null) return;
+        
+        long total = 0;
+        long completed = 0;
+        
+        for (com.healthfamily.domain.entity.HealthReminder r : allReminders) {
+            // 过滤属于该计划的提醒
+            if (isReminderForPlan(r, plan.getId())) {
+                total++;
+                if (r.getStatus() == com.healthfamily.domain.constant.ReminderStatus.COMPLETED) {
+                    completed++;
+                }
+            }
+        }
+        
+        if (total > 0) {
+            plan.setCompletionRate(BigDecimal.valueOf((double) completed / total));
+        } else {
+            plan.setCompletionRate(BigDecimal.ZERO);
+        }
+    }
+
+    private boolean isReminderForPlan(com.healthfamily.domain.entity.HealthReminder reminder, Long planId) {
+        if (reminder == null || reminder.getMetadataJson() == null || planId == null) return false;
+        try {
+            Map<String, Object> meta = objectMapper.readValue(reminder.getMetadataJson(), new TypeReference<Map<String, Object>>() {});
+            if (meta.containsKey("planId")) {
+                Long pid = ((Number) meta.get("planId")).longValue();
+                return planId.equals(pid);
+            }
+        } catch (Exception e) {}
+        return false;
     }
     
     // ==================== 数据统计相关方法 ====================

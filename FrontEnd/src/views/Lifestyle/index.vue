@@ -15,20 +15,8 @@
         <el-row :gutter="20">
           <el-col :xs="24" :md="12" class="stagger-anim" style="--delay: 0.1s">
             <el-card class="glass-card" shadow="hover">
-              <template #header><span class="card-title"><el-icon><Camera /></el-icon> 拍照/描述记录</span></template>
+              <template #header><span class="card-title"><el-icon><Notebook /></el-icon> 描述记录</span></template>
               <el-form :model="dietForm" label-width="100px">
-                <el-form-item label="上传图片">
-                  <el-upload
-                    class="avatar-uploader glass-upload"
-                    action="#"
-                    :show-file-list="false"
-                    :before-upload="beforeAvatarUpload"
-                    :http-request="handleUpload"
-                  >
-                    <img v-if="dietForm.imageUrl" :src="dietForm.imageUrl" class="avatar" />
-                    <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
-                  </el-upload>
-                </el-form-item>
                 <el-form-item label="饮食描述">
                   <el-input v-model="dietForm.description" type="textarea" placeholder="午餐：米饭、青菜、鱼" class="glass-input" :rows="3" />
                 </el-form-item>
@@ -36,8 +24,8 @@
                   <el-input v-model="dietForm.quantity" placeholder="例如：200g, 1碗, 半份" class="glass-input" />
                 </el-form-item>
                 <el-form-item>
-                  <el-button type="primary" :loading="dietLoading || uploadLoading" @click="ingestDietAction" round>
-                    {{ dietLoading ? '正在记录...' : (uploadLoading ? '正在识别图片...' : '识别并记录') }}
+                  <el-button type="primary" :loading="dietLoading" @click="ingestDietAction" round>
+                    {{ dietLoading ? '正在记录...' : '记录' }}
                   </el-button>
                 </el-form-item>
               </el-form>
@@ -309,8 +297,8 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Camera, DataLine, Food, Bicycle, Moon, Sunrise, ChatDotRound, Monitor } from '@element-plus/icons-vue'
-import { ingestDiet, weeklyDietReport, recommendRecipes, recordExercise, suggestExercise, recordSleep, analyzeSleep, uploadDietImage, recordMood, recordVitals } from '../../api/lifestyle'
+import { Plus, Notebook, DataLine, Food, Bicycle, Moon, Sunrise, ChatDotRound, Monitor } from '@element-plus/icons-vue'
+import { ingestDiet, weeklyDietReport, recommendRecipes, recordExercise, suggestExercise, recordSleep, analyzeSleep, recordMood, recordVitals } from '../../api/lifestyle'
 import dayjs from 'dayjs'
 import { useLogStore } from '../../stores'
 
@@ -319,7 +307,6 @@ const logStore = useLogStore()
 
 const dietForm = ref({ imageUrl: '', description: '', quantity: '' })
 const dietLoading = ref(false)
-const uploadLoading = ref(false)
 const dietItems = ref([])
 const dietTotal = ref(0)
 const reportLoading = ref(false)
@@ -327,47 +314,6 @@ const weeklyReport = ref('')
 const tags = ref([])
 const recipes = ref([])
 const recipeLoading = ref(false)
-
-const beforeAvatarUpload = (rawFile) => {
-  if (rawFile.type !== 'image/jpeg' && rawFile.type !== 'image/png' && rawFile.type !== 'image/gif') {
-    ElMessage.error('Avatar picture must be JPG/PNG/GIF format!')
-    return false
-  }
-  if (rawFile.size / 1024 / 1024 > 5) {
-    ElMessage.error('Avatar picture size can not exceed 5MB!')
-    return false
-  }
-  return true
-}
-
-const handleUpload = async (options) => {
-  uploadLoading.value = true
-  const formData = new FormData()
-  formData.append('file', options.file)
-  try {
-    const res = await uploadDietImage(formData)
-    if (res.code === 0) {
-        // Handle new response format: { url, recognizedFood, confidence }
-        const data = res.data
-        if (typeof data === 'string') {
-           dietForm.value.imageUrl = data
-        } else {
-           dietForm.value.imageUrl = data.url
-           if (data.recognizedFood) {
-               dietForm.value.description = `识别结果: ${data.recognizedFood} (置信度: ${(data.confidence * 100).toFixed(0)}%)`
-               ElMessage.success(`已识别为：${data.recognizedFood}`)
-           }
-        }
-        ElMessage.success('上传成功')
-    } else {
-        ElMessage.error(res.message || '上传失败')
-    }
-  } catch (e) {
-    ElMessage.error('上传失败')
-  } finally {
-    uploadLoading.value = false
-  }
-}
 
 const sportForm = ref({ type: 'run', durationMinutes: 30, distanceKm: 3, steps: 5000 })
 const sportLoading = ref(false)

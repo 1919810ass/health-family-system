@@ -97,4 +97,62 @@ public class DoctorController {
     }
 
     // 病历记录相关API
+
+    /**
+     * 删除健康计划
+     *
+     * @param principal 当前登录用户
+     * @param id        健康计划ID
+     * @return 业务返回结果
+     */
+    @DeleteMapping("/health-plans/{id}")
+    public Result<Void> deleteHealthPlan(@AuthenticationPrincipal UserPrincipal principal,
+                                         @PathVariable("id") Long id) {
+        doctorService.deleteHealthPlan(principal.getUserId(), id);
+        return Result.success();
+    }
+
+    /**
+     * 批量删除健康计划
+     *
+     * @param principal 当前登录用户
+     * @param ids       健康计划ID列表
+     * @return 业务返回结果
+     */
+    @DeleteMapping("/health-plans/batch")
+    public Result<Void> batchDeleteHealthPlans(@AuthenticationPrincipal UserPrincipal principal,
+                                               @RequestBody java.util.List<Long> ids) {
+        doctorService.batchDeleteHealthPlans(principal.getUserId(), ids);
+        return Result.success();
+    }
+
+    // 随访任务相关API
+
+    /**
+     * 删除随访任务
+     *
+     * @param principal 当前登录用户
+     * @param id        随访任务ID
+     * @return 业务返回结果
+     */
+    @DeleteMapping("/follow-up-tasks/{id}")
+    public Result<Void> deleteFollowUpTask(@AuthenticationPrincipal UserPrincipal principal,
+                                           @PathVariable("id") Long id) {
+        doctorService.deleteFollowUpTask(principal.getUserId(), id);
+        return Result.success();
+    }
+
+    /**
+     * 批量删除随访任务
+     *
+     * @param principal 当前登录用户
+     * @param ids       随访任务ID列表
+     * @return 业务返回结果
+     */
+    @DeleteMapping("/follow-up-tasks/batch")
+    public Result<Void> batchDeleteFollowUpTasks(@AuthenticationPrincipal UserPrincipal principal,
+                                                 @RequestBody java.util.List<Long> ids) {
+        doctorService.batchDeleteFollowUpTasks(principal.getUserId(), ids);
+        return Result.success();
+    }
 }

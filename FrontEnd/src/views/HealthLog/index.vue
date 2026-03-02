@@ -32,17 +32,6 @@
             </template>
           </el-calendar>
           <el-button type="primary" round class="add-btn mt-16" @click="handleAdd" v-particles>+ 添加记录</el-button>
-          <el-button 
-            v-if="offlineDrafts.length > 0" 
-            type="warning" 
-            round
-            :icon="Connection" 
-            class="add-btn mt-8" 
-            style="margin-left: 0" 
-            @click="syncDrafts"
-          >
-            同步 {{ offlineDrafts.length }} 条草稿
-          </el-button>
         </div>
 
         <!-- 右侧记录 & 趋势 -->
@@ -211,83 +200,10 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
-        <el-tab-pane label="语音录入" name="voice">
-          <div style="margin-top: 20px">
-            <el-button :disabled="recording" @click="startVoiceInput" type="primary" size="large" style="width: 100%">
-              <el-icon v-if="!recording"><Microphone /></el-icon>
-              <span v-if="!recording">点击开始语音录入</span>
-              <span v-else>正在录音...</span>
-            </el-button>
-            <el-input
-              v-model="voiceText"
-              type="textarea"
-              :rows="3"
-              placeholder="或直接输入语音转文字后的文本，如：记录今天血压 130/85"
-              style="margin-top: 16px"
-            />
-            <el-button @click="parseVoice" :loading="parsingVoice" style="margin-top: 12px" type="success">解析语音</el-button>
-            <div v-if="parsedVoiceData" style="margin-top: 16px; padding: 12px; background: #f5f7fa; border-radius: 4px">
-              <div>解析结果：{{ parsedVoiceData.type }} - {{ parsedVoiceData.value }}{{ parsedVoiceData.unit }}</div>
-            </div>
-          </div>
-        </el-tab-pane>
-        <el-tab-pane label="OCR识别" name="ocr">
-          <div style="margin-top: 20px">
-            <el-upload
-              :auto-upload="false"
-              :on-change="handleImageSelect"
-              :show-file-list="false"
-              accept="image/*"
-              drag
-            >
-              <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-              <div class="el-upload__text">将医疗报告图片拖到此处，或<em>点击上传</em></div>
-            </el-upload>
-            <el-button v-if="selectedImage" @click="parseOcr" :loading="parsingOcr" type="primary" style="margin-top: 16px; width: 100%">
-              识别图片
-            </el-button>
-            <div v-if="ocrResult" style="margin-top: 16px; padding: 12px; background: #f5f7fa; border-radius: 4px; max-height: 300px; overflow-y: auto">
-              <div v-for="(item, idx) in ocrResult.items" :key="idx" style="margin-bottom: 8px">
-                <el-tag :type="item.isAbnormal ? 'danger' : 'success'">{{ item.name }}</el-tag>
-                <span style="margin-left: 8px">{{ item.value }} {{ item.unit }}</span>
-              </div>
-            </div>
-          </div>
-        </el-tab-pane>
-        <el-tab-pane label="设备同步" name="device">
-          <div style="margin-top: 20px">
-            <el-alert type="info" :closable="false" style="margin-bottom: 16px">
-              模拟设备数据同步（实际使用时需要对接真实设备）
-            </el-alert>
-            <el-form :model="deviceForm" label-width="100px">
-              <el-form-item label="设备类型">
-                <el-select v-model="deviceForm.deviceType" placeholder="选择设备" style="width: 100%">
-                  <el-option label="苹果 Watch" value="APPLE_WATCH" />
-                  <el-option label="华为手环" value="HUAWEI_BAND" />
-                  <el-option label="血压计" value="BLOOD_PRESSURE_MONITOR" />
-                  <el-option label="血糖仪" value="GLUCOSE_METER" />
-                  <el-option label="体脂秤" value="BODY_SCALE" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="设备ID">
-                <el-input v-model="deviceForm.deviceId" placeholder="设备唯一标识" />
-              </el-form-item>
-              <el-form-item label="同步日期">
-                <el-date-picker v-model="deviceForm.logDate" type="date" format="YYYY-MM-DD" value-format="YYYY-MM-DD" style="width: 100%" />
-        </el-form-item>
-              <el-form-item label="数据">
-                <el-input v-model="deviceForm.dataJson" type="textarea" :rows="4" placeholder='JSON格式，如：{"value": 130, "unit": "mmHg"}' />
-        </el-form-item>
-      </el-form>
-            <el-button @click="syncDevice" :loading="syncingDevice" type="primary" style="width: 100%">同步数据</el-button>
-          </div>
-        </el-tab-pane>
       </el-tabs>
       <template #footer>
         <el-button @click="addVisible = false">取消</el-button>
-        <el-button v-if="inputMode === 'manual'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
-        <el-button v-else-if="inputMode === 'voice' && parsedVoiceData" type="primary" @click="saveVoiceData" :loading="saving">保存</el-button>
-        <el-button v-else-if="inputMode === 'ocr' && ocrResult" type="primary" @click="saveOcrData" :loading="saving">保存</el-button>
+        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -303,10 +219,10 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Microphone, UploadFilled, Delete, Plus, Connection, Notebook } from '@element-plus/icons-vue'
+import { Check, Delete, Plus, Notebook } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { useLogStore } from '../../stores'
-import { getLogs, createLog, getStatistics, parseVoiceInput, parseOcrData, syncDeviceData, optimizeDietText, optimizeInput, deleteLog } from '../../api/log'
+import { getLogs, createLog, getStatistics, optimizeDietText, optimizeInput, deleteLog } from '../../api/log'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
@@ -324,7 +240,6 @@ const targetUserId = computed(() => route.query.userId || route.query.patientUse
 const logs = ref([])
 const calendarMarks = ref({})
 const trends = ref([])
-const offlineDrafts = ref([]) // Added for offline storage
 
 const addVisible = ref(false)
 const saving = ref(false)
@@ -343,26 +258,6 @@ const entryTips = {
   sport: '填写运动类型与时长(分钟)，可选距离(公里)，如“跑步 30 分钟 距离 5 公里”',
   mood: '填写情绪类型与强度(1-5)，如“焦虑 3”，可补充触发事件简述'
 }
-
-// 语音录入相关
-const recording = ref(false)
-const voiceText = ref('')
-const parsingVoice = ref(false)
-const parsedVoiceData = ref(null)
-
-// OCR相关
-const selectedImage = ref(null)
-const parsingOcr = ref(false)
-const ocrResult = ref(null)
-
-// 设备同步相关
-const syncingDevice = ref(false)
-const deviceForm = ref({
-  deviceType: '',
-  deviceId: '',
-  logDate: dayjs().format('YYYY-MM-DD'),
-  dataJson: ''
-})
 
 // 饮食优化相关
 const dietItems = ref([])
@@ -417,19 +312,6 @@ function dateKey(date) {
 }
 
 onMounted(async () => {
-  // Load drafts
-  const drafts = localStorage.getItem('health_log_drafts')
-  if (drafts) {
-    try {
-      offlineDrafts.value = JSON.parse(drafts)
-      if (offlineDrafts.value.length > 0) {
-        ElMessage.info(`您有 ${offlineDrafts.value.length} 条离线草稿待同步`)
-      }
-    } catch (e) {
-      console.error('Failed to parse drafts', e)
-    }
-  }
-
   // Handle Route Query
   if (route.query.mode === 'create') {
     if (route.query.type) {
@@ -631,92 +513,6 @@ async function loadTrends() {
   }
 }
 
-function saveToOffline() {
-  const draft = {
-    form: JSON.parse(JSON.stringify(addForm.value)),
-    activeTab: activeTab.value,
-    timestamp: Date.now(),
-    dateStr: selectedDay.value,
-    dietItems: JSON.parse(JSON.stringify(dietItems.value)),
-    dietTotal: dietTotal.value,
-    id: Date.now()
-  }
-  offlineDrafts.value.push(draft)
-  localStorage.setItem('health_log_drafts', JSON.stringify(offlineDrafts.value))
-  ElMessage.success('已保存为离线草稿')
-  addVisible.value = false
-}
-
-async function syncDrafts() {
-  if (offlineDrafts.value.length === 0) return
-  
-  const loading = ElMessage.loading({
-    message: '正在同步草稿...',
-    duration: 0
-  })
-  
-  let successCount = 0
-  const remainingDrafts = []
-  
-  for (const draft of offlineDrafts.value) {
-    try {
-      const type = mapType(draft.activeTab)
-      let logDate = draft.dateStr
-      const timeStr = draft.form.time ? dayjs(draft.form.time).format('HH:mm') : dayjs().format('HH:mm')
-      
-      if (draft.activeTab === 'vital') {
-         if (draft.form.vitalItems && draft.form.vitalItems.length) {
-            for (const item of draft.form.vitalItems) {
-                 await createLog({
-                    logDate,
-                    type: 'VITALS',
-                    content: {
-                        type: item.type,
-                        value: item.value,
-                        unit: item.unit,
-                        time: timeStr
-                },
-                score: null
-             }, targetUserId.value)
-        }
-     }
-  } else {
-     let content = {
-        time: timeStr,
-        note: draft.form.content
-     }
-     if (draft.activeTab === 'diet' && draft.dietItems && draft.dietItems.length) {
-        content.items = draft.dietItems
-        content.totalCalories = draft.dietTotal
-     }
-     
-     await createLog({
-        logDate,
-        type,
-        content,
-        score: null
-     }, targetUserId.value)
-  }
-  successCount++
-    } catch (e) {
-      console.error('Sync failed for draft', draft, e)
-      remainingDrafts.push(draft)
-    }
-  }
-  
-  offlineDrafts.value = remainingDrafts
-  localStorage.setItem('health_log_drafts', JSON.stringify(remainingDrafts))
-  
-  loading.close()
-  if (successCount > 0) {
-    ElMessage.success(`成功同步 ${successCount} 条草稿`)
-    loadLogs()
-    loadTrends()
-  } else if (remainingDrafts.length > 0) {
-    ElMessage.warning('部分草稿同步失败，请稍后重试')
-  }
-}
-
 function handleAdd() {
   addVisible.value = true
   inputMode.value = 'manual'
@@ -736,18 +532,8 @@ function handleAdd() {
     sleepLatency: null,
     wakeUpLatency: null
   }
-  voiceText.value = ''
-  parsedVoiceData.value = null
-  selectedImage.value = null
-  ocrResult.value = null
   dietItems.value = []
   dietTotal.value = null
-}
-
-// 语音录入
-function startVoiceInput() {
-  // 这里可以集成Web Speech API
-  ElMessage.info('语音录入功能需要浏览器支持，请直接输入文本')
 }
 
 async function optimizeDiet() {
@@ -887,171 +673,6 @@ function applyVitalOptimized() {
       const typeMap = { 'mmol/L': '血糖', '°C': '体温', 'bpm': '心率', 'kg': '体重' }
       addForm.value.vitalType = typeMap[u] || addForm.value.vitalType
     }
-  }
-}
-
-async function parseVoice() {
-  if (!voiceText.value.trim()) {
-    ElMessage.warning('请输入语音文本')
-    return
-  }
-  
-  parsingVoice.value = true
-  try {
-    const res = await parseVoiceInput({ voiceText: voiceText.value })
-    if (res && res.data) {
-      parsedVoiceData.value = res.data
-      ElMessage.success('解析成功')
-    }
-  } catch (e) {
-    console.error('解析语音失败:', e)
-    ElMessage.error('解析失败：' + (e.response?.data?.message || e.message))
-  } finally {
-    parsingVoice.value = false
-  }
-}
-
-async function saveVoiceData() {
-  if (!parsedVoiceData.value) {
-    ElMessage.warning('请先解析语音数据')
-    return
-  }
-  
-  saving.value = true
-  try {
-    const content = {}
-    if (parsedVoiceData.value.type === '血压' && parsedVoiceData.value.systolic) {
-      content.systolic = parsedVoiceData.value.systolic
-      content.diastolic = parsedVoiceData.value.diastolic
-    } else {
-      content.value = parsedVoiceData.value.value
-      content.unit = parsedVoiceData.value.unit
-    }
-    content._dataSource = 'VOICE'
-    
-    await createLog({
-      logDate: parsedVoiceData.value.date || selectedDay.value,
-      type: 'VITALS',
-      content,
-      score: null
-    })
-    ElMessage.success('保存成功')
-    addVisible.value = false
-    await loadLogs()
-    await loadCalendarMarks()
-    await loadTrends()
-  } catch (e) {
-    console.error('保存失败:', e)
-    ElMessage.error('保存失败')
-  } finally {
-    saving.value = false
-  }
-}
-
-// OCR识别
-function handleImageSelect(file) {
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    const base64 = e.target.result.split(',')[1] // 移除data:image/...;base64,前缀
-    selectedImage.value = base64
-  }
-  reader.readAsDataURL(file.raw)
-}
-
-async function parseOcr() {
-  if (!selectedImage.value) {
-    ElMessage.warning('请先选择图片')
-    return
-  }
-  
-  parsingOcr.value = true
-  try {
-    const res = await parseOcrData({ imageBase64: selectedImage.value }, targetUserId.value)
-    if (res && res.data) {
-      ocrResult.value = res.data
-      ElMessage.success('识别成功')
-    }
-  } catch (e) {
-    console.error('OCR识别失败:', e)
-    ElMessage.error('识别失败：' + (e.response?.data?.message || e.message))
-  } finally {
-    parsingOcr.value = false
-  }
-}
-
-async function saveOcrData() {
-  if (!ocrResult.value || !ocrResult.value.items || ocrResult.value.items.length === 0) {
-    ElMessage.warning('没有可保存的数据')
-    return
-  }
-  
-  saving.value = true
-  try {
-    // 保存每个检查项
-    for (const item of ocrResult.value.items) {
-      const content = {
-        name: item.name,
-        value: item.value,
-        unit: item.unit,
-        normalRange: item.normalRange,
-        _dataSource: 'OCR'
-      }
-      
-      await createLog({
-        logDate: ocrResult.value.checkDate || selectedDay.value,
-        type: 'VITALS',
-        content,
-        score: null
-      }, targetUserId.value)
-    }
-    ElMessage.success('保存成功')
-    addVisible.value = false
-    await loadLogs()
-    await loadCalendarMarks()
-    await loadTrends()
-  } catch (e) {
-    console.error('保存失败:', e)
-    ElMessage.error('保存失败')
-  } finally {
-    saving.value = false
-  }
-}
-
-// 设备同步
-async function syncDevice() {
-  if (!deviceForm.value.deviceType || !deviceForm.value.deviceId) {
-    ElMessage.warning('请填写设备类型和设备ID')
-    return
-  }
-  
-  let data = {}
-  try {
-    if (deviceForm.value.dataJson) {
-      data = JSON.parse(deviceForm.value.dataJson)
-    }
-  } catch (e) {
-    ElMessage.error('数据格式错误，请输入有效的JSON')
-    return
-  }
-  
-  syncingDevice.value = true
-  try {
-    await syncDeviceData({
-      deviceId: deviceForm.value.deviceId,
-      deviceType: deviceForm.value.deviceType,
-      logDate: deviceForm.value.logDate,
-      data
-    })
-    ElMessage.success('同步成功')
-    addVisible.value = false
-    await loadLogs()
-    await loadCalendarMarks()
-    await loadTrends()
-  } catch (e) {
-    console.error('同步失败:', e)
-    ElMessage.error('同步失败：' + (e.response?.data?.message || e.message))
-  } finally {
-    syncingDevice.value = false
   }
 }
 

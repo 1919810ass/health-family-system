@@ -302,6 +302,20 @@ public class DoctorPortalController {
         return Result.success();
     }
 
+    @DeleteMapping("/followups/batch")
+    public Result<Void> batchDeleteFollowUpTasks(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody java.util.List<Long> taskIds) {
+        Long doctorId = principal.getUserId();
+        try {
+            doctorService.batchDeleteFollowUpTasks(doctorId, taskIds);
+            return Result.success();
+        } catch (Exception e) {
+            log.error("批量删除随访任务失败: doctorId={}", doctorId, e);
+            return Result.error(500, "批量删除随访任务失败");
+        }
+    }
+
     // ==================== 健康监测相关API ====================
 
     /**
@@ -491,6 +505,24 @@ public class DoctorPortalController {
         } catch (Exception e) {
             log.error("删除健康计划失败: planId={}, doctorId={}", planId, doctorId, e);
             return Result.error(500, "删除健康计划失败");
+        }
+    }
+
+    /**
+     * 批量删除健康计划
+     * DELETE /api/doctor/plans/batch
+     */
+    @DeleteMapping("/plans/batch")
+    public Result<Void> batchDeleteHealthPlans(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody java.util.List<Long> planIds) {
+        Long doctorId = principal.getUserId();
+        try {
+            doctorService.batchDeleteHealthPlans(doctorId, planIds);
+            return Result.success();
+        } catch (Exception e) {
+            log.error("批量删除健康计划失败: doctorId={}", doctorId, e);
+            return Result.error(500, "批量删除健康计划失败");
         }
     }
 

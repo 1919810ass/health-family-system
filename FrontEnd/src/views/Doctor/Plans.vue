@@ -54,6 +54,13 @@
             <el-icon><MagicStick /></el-icon> AI 智能生成
           </el-button>
           <el-button type="success" @click="handleCreatePlan">+ 新建计划</el-button>
+          <el-button 
+            type="danger" 
+            :disabled="selectedPlans.length === 0"
+            @click="handleBatchDeletePlans"
+          >
+            批量删除
+          </el-button>
 
           <!-- 视图切换 -->
           <div class="view-switch">
@@ -66,8 +73,8 @@
 
         <!-- 计划列表视图 -->
         <el-card v-if="viewMode === 'list'" class="mt-16 content-card" v-loading="loadingPlans">
-          <el-table :data="plans" height="520">
-            <el-table-column prop="title" label="计划标题" width="200" />
+          <el-table :data="plans" height="520" @selection-change="handlePlanSelectionChange">
+            <el-table-column type="selection" width="55" />
             <el-table-column label="类型" width="140">
               <template #default="{ row }">
                 <div class="plan-type-cell">
@@ -91,7 +98,7 @@
             </el-table-column>
             <el-table-column label="完成度" width="120">
               <template #default="{ row }">
-                <el-progress :percentage="row.completionRate || 0" :status="getProgressStatus(row.completionRate)" />
+                <el-progress :percentage="Math.round((row.completionRate || 0) * 100)" :status="getProgressStatus(row.completionRate)" />
               </template>
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
@@ -146,10 +153,18 @@
            </el-select>
            <el-button type="primary" @click="loadFollowups">刷新</el-button>
            <el-button type="success" @click="handleCreateFollowup">+ 新建任务</el-button>
+           <el-button 
+            type="danger" 
+            :disabled="selectedFollowups.length === 0"
+            @click="handleBatchDeleteFollowups"
+          >
+            批量删除
+          </el-button>
         </div>
 
         <el-card class="mt-16 content-card" v-loading="loadingFollowups">
-          <el-table :data="followups" height="520">
+          <el-table :data="followups" height="520" @selection-change="handleFollowupSelectionChange">
+            <el-table-column type="selection" width="55" />
             <el-table-column prop="title" label="任务标题" width="180" show-overflow-tooltip />
             <el-table-column prop="content" label="任务内容" show-overflow-tooltip />
             <el-table-column label="截止日期" width="120">
@@ -375,7 +390,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useDoctorStore } from '../../stores/doctor'
 import { 
   listHealthPlans, createHealthPlan, updateHealthPlan, deleteHealthPlan, getHealthPlansCalendar,
-  listFollowUpTasks, createFollowUpTask, updateFollowUpTask, deleteFollowUpTask, generateAiHealthPlan, batchGenerateAiHealthPlans
+  listFollowUpTasks, createFollowUpTask, updateFollowUpTask, deleteFollowUpTask, batchDeleteHealthPlans, batchDeleteFollowUpTasks, generateAiHealthPlan, batchGenerateAiHealthPlans
 } from '../../api/doctor'
 import { getDoctorView } from '../../api/family'
 import { FirstAidKit, KnifeFork, Timer, Trophy, Notebook, WarnTriangleFilled, TrendCharts, Calendar, List, MagicStick } from '@element-plus/icons-vue'
@@ -402,6 +417,11 @@ const plans = ref([])
 const loadingPlans = ref(false)
 const calendarDate = ref(new Date())
 const calendarPlans = ref({})
+const selectedPlans = ref([]) // 新增
+
+const handlePlanSelectionChange = (selection) => {
+  selectedPlans.value = selection;
+};
 
 const planDialogVisible = ref(false)
 const planDialogMode = ref('create')
@@ -580,6 +600,11 @@ const followupDialogMode = ref('create')
 const followupFormRef = ref(null)
 const submittingFollowup = ref(false)
 const currentFollowupId = ref(null)
+const selectedFollowups = ref([]) // 新增
+
+const handleFollowupSelectionChange = (selection) => {
+  selectedFollowups.value = selection;
+};
 const followupFormData = ref({
   title: '',
   content: '',
@@ -636,14 +661,23 @@ const handleViewChange = () => {
 }
 
 const loadPlans = async () => {
-  if (!familyId.value) return // 只需要 familyId 即可
+  if (!familyId.value) return
   loadingPlans.value = true
   try {
-    const res = await listHealthPlans(familyId.value, selectedMemberId.value, {
+    // 1. 获取计划列表
+    const planRes = await listHealthPlans(familyId.value, selectedMemberId.value, {
       status: filterStatus.value || undefined,
       type: filterType.value || undefined
     })
-    plans.value = res?.data || []
+    const planList = planRes?.data || []
+
+    // 2. 获取所有相关的随访任务
+    // const taskRes = await listFollowUpTasks(familyId.value, selectedMemberId.value, {})
+    // const allTasks = taskRes?.data || []
+
+    // 3. 使用后端返回的完成度（后端已自动计算）
+    plans.value = planList
+
   } catch (error) {
     console.error('加载计划失败:', error)
     ElMessage.error('加载计划列表失败')
@@ -707,6 +741,20 @@ const handleDeletePlan = async (row) => {
     loadPlans()
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('删除失败')
+  }
+}
+
+const handleBatchDeletePlans = async () => {
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedPlans.value.length} 个计划吗？`, '提示', { type: 'warning' })
+    
+    const deletePromises = selectedPlans.value.map(plan => deleteHealthPlan(plan.id))
+    await Promise.all(deletePromises)
+    
+    ElMessage.success('批量删除成功')
+    loadPlans() // 重新加载数据
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('批量删除失败')
   }
 }
 
@@ -820,6 +868,20 @@ const handleDeleteFollowup = async (row) => {
     loadFollowups()
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('删除失败')
+  }
+}
+
+const handleBatchDeleteFollowups = async () => {
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedFollowups.value.length} 个任务吗？`, '提示', { type: 'warning' })
+    
+    const idsToDelete = selectedFollowups.value.map(task => task.id)
+    await batchDeleteFollowUpTasks(idsToDelete)
+    
+    ElMessage.success('批量删除成功')
+    loadFollowups() // 重新加载数据
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('批量删除失败')
   }
 }
 

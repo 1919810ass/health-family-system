@@ -8,9 +8,7 @@
           <el-option v-for="f in families" :key="f.id" :label="f.name" :value="String(f.id)" />
         </el-select>
         
-        <el-select v-model="selectedMemberId" placeholder="全国家庭成员" size="small" style="width: 140px" clearable @change="loadStats">
-          <el-option v-for="m in members" :key="m.userId" :label="m.nickname || m.realName" :value="m.userId" />
-        </el-select>
+
         
         <el-date-picker
           v-model="dateRange"
@@ -36,9 +34,9 @@
             <el-card shadow="hover" class="stat-card">
               <div class="stat-content">
                 <div class="stat-label">总患者数</div>
-                <div class="stat-value">{{ members.length }}</div>
+                <div class="stat-value">{{ topStats.totalPatients }}</div>
                 <div class="stat-trend">
-                  <span class="up"><el-icon><Top /></el-icon> 5%</span> 同比上周
+                  <span>--</span> 同比上周
                 </div>
               </div>
               <div class="stat-icon bg-blue"><el-icon><User /></el-icon></div>
@@ -48,9 +46,9 @@
             <el-card shadow="hover" class="stat-card">
               <div class="stat-content">
                 <div class="stat-label">血压达标率</div>
-                <div class="stat-value">{{ stats?.managementEffect?.bloodPressure?.complianceRate || 0 }}%</div>
+                <div class="stat-value">{{ topStats.complianceRate }}%</div>
                 <div class="stat-trend">
-                  <span class="up"><el-icon><Top /></el-icon> 2.1%</span> 较上月
+                  <span>--</span> 较上月
                 </div>
               </div>
               <div class="stat-icon bg-green"><el-icon><Timer /></el-icon></div>
@@ -60,9 +58,9 @@
             <el-card shadow="hover" class="stat-card">
               <div class="stat-content">
                 <div class="stat-label">平均睡眠</div>
-                <div class="stat-value">{{ stats?.managementEffect?.sleep?.averageSleepHours || 0 }}h</div>
+                <div class="stat-value">{{ topStats.averageSleepHours }}h</div>
                 <div class="stat-trend">
-                  <span class="down"><el-icon><Bottom /></el-icon> 0.5h</span> 需关注
+                  <span>--</span> 需关注
                 </div>
               </div>
               <div class="stat-icon bg-orange"><el-icon><Moon /></el-icon></div>
@@ -72,9 +70,9 @@
             <el-card shadow="hover" class="stat-card">
               <div class="stat-content">
                 <div class="stat-label">本月咨询</div>
-                <div class="stat-value">{{ stats?.workload?.consultation?.totalCount || 0 }}</div>
+                <div class="stat-value">{{ topStats.totalConsultations }}</div>
                 <div class="stat-trend">
-                  <span>{{ stats?.workload?.reminder?.completionRate || 0 }}%</span> 提醒完成率
+                  <span>{{ topStats.reminderCompletionRate }}%</span> 提醒完成率
                 </div>
               </div>
               <div class="stat-icon bg-purple"><el-icon><ChatDotRound /></el-icon></div>
@@ -87,7 +85,7 @@
       <div class="dashboard-row middle-row">
         <el-row :gutter="12" class="fill-height">
           <el-col :span="12" class="fill-height">
-            <el-card shadow="hover" class="chart-card fill-height" body-style="padding: 10px; height: 100%; box-sizing: border-box;">
+            <el-card shadow="hover" class="chart-card fill-height" :body-style="{ padding: '10px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }">
               <div class="card-header">
                 <span class="title">疾病分布分析 (雷达图)</span>
               </div>
@@ -95,9 +93,12 @@
             </el-card>
           </el-col>
           <el-col :span="12" class="fill-height">
-            <el-card shadow="hover" class="chart-card fill-height" body-style="padding: 10px; height: 100%; box-sizing: border-box;">
+            <el-card shadow="hover" class="chart-card fill-height" :body-style="{ padding: '10px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }">
               <div class="card-header">
                 <span class="title">健康趋势监控 (血压/体重)</span>
+                <el-select v-model="trendChartPatientId" placeholder="选择患者" size="small" style="width: 140px; margin-left: auto;" @change="drawBloodPressureChart" clearable>
+                  <el-option v-for="m in members" :key="m.userId" :label="m.nickname || m.realName" :value="m.userId" />
+                </el-select>
               </div>
               <div ref="bloodPressureChartRef" class="chart-box"></div>
             </el-card>
@@ -109,43 +110,51 @@
       <div class="dashboard-row bottom-row">
         <el-row :gutter="12" class="fill-height">
           <el-col :span="8" class="fill-height">
-            <el-card shadow="hover" class="chart-card fill-height" body-style="padding: 10px; height: 100%; box-sizing: border-box;">
+            <el-card shadow="hover" class="chart-card fill-height" :body-style="{ padding: '10px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }">
+              <div class="card-header"><span class="title">健康计划与随访</span></div>
+              <div class="health-plan-container">
+                <div class="plan-header">
+                  <p class="plan-title">{{ healthPlan.title }}</p>
+                  <el-progress :percentage="planCompletion" :stroke-width="10" striped />
+                </div>
+                <p class="plan-content">{{ healthPlan.content }}</p>
+                <div class="task-list-container">
+                  <div v-for="task in healthPlan.tasks" :key="task.id" class="task-item">
+                    <span :class="{ completed: task.completed }">{{ task.text }}</span>
+                    <el-button 
+                      :type="task.completed ? 'success' : 'primary'" 
+                      size="small" 
+                      :disabled="task.completed"
+                      @click="completeTask(task)"
+                    >
+                      {{ task.completed ? '已完成' : '完成' }}
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+
+          <el-col :span="8" class="fill-height">
+            <el-card shadow="hover" class="chart-card fill-height" :body-style="{ padding: '10px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }">
               <div class="card-header"><span class="title">工作负载 (咨询趋势)</span></div>
               <div ref="consultationChartRef" class="chart-box"></div>
             </el-card>
           </el-col>
+
           <el-col :span="8" class="fill-height">
-            <el-card shadow="hover" class="chart-card fill-height" body-style="padding: 10px; height: 100%; box-sizing: border-box;">
-              <div class="card-header"><span class="title">随访任务</span></div>
-              <div ref="followupChartRef" class="chart-box"></div>
-            </el-card>
-          </el-col>
-          <el-col :span="8" class="fill-height">
-            <el-card shadow="hover" class="chart-card fill-height" body-style="padding: 10px; height: 100%; box-sizing: border-box;">
+            <el-card shadow="hover" class="chart-card fill-height" :body-style="{ padding: '10px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }">
               <div class="card-header"><span class="title">近期预警/建议</span></div>
-               <!-- 模拟预警列表，因为 stats 中没有直接的预警数据 -->
-               <div class="alert-list">
-                 <div class="alert-item warning">
-                   <el-icon><Warning /></el-icon>
-                   <span class="text">患者 [张三] 血压连续3天偏高</span>
-                   <span class="time">10:23</span>
-                 </div>
-                 <div class="alert-item danger">
-                   <el-icon><WarnTriangleFilled /></el-icon>
-                   <span class="text">患者 [李四] 血糖触发红色预警</span>
-                   <span class="time">昨天</span>
-                 </div>
-                 <div class="alert-item info">
-                   <el-icon><InfoFilled /></el-icon>
-                   <span class="text">本周随访计划完成率低于 80%</span>
-                   <span class="time">周一</span>
-                 </div>
-                 <div class="alert-item success">
-                   <el-icon><CircleCheckFilled /></el-icon>
-                   <span class="text">患者 [王五] 体重管理目标达成</span>
-                   <span class="time">周日</span>
-                 </div>
-               </div>
+              <div class="alert-list">
+                <div v-for="(alert, index) in alertsData" :key="index" class="alert-item" :class="alert.level">
+                  <el-icon><component :is="alertIcons[alert.level]" /></el-icon>
+                  <span class="text">{{ alert.text }}</span>
+                  <span class="time">{{ alert.time }}</span>
+                </div>
+                <div v-if="!alertsData.length" class="empty-hint" style="padding: 20px 0; font-size: 13px;">
+                  暂无预警信息
+                </div>
+              </div>
             </el-card>
           </el-col>
         </el-row>
@@ -167,7 +176,8 @@ import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import { User, Timer, Moon, ChatDotRound, Top, Bottom, Warning, WarnTriangleFilled, InfoFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import { useDoctorStore } from '../../stores/doctor'
-import { getDoctorStats } from '../../api/doctor'
+import { getDoctorStats, getWorkbenchDashboard } from '../../api/doctor'
+import { getLogs } from '../../api/log'
 import { getDoctorView } from '../../api/family'
 import dayjs from 'dayjs'
 
@@ -179,17 +189,80 @@ const families = computed(() => doctorStore.families)
 const familyId = computed(() => doctorStore.currentFamilyId)
 const members = computed(() => doctorStore.boundMembers)
 
+// 动态计算的顶部卡片数据
+const topStats = computed(() => {
+  if (stats.value) {
+    // 家庭模式
+    const sleepHours = stats.value.managementEffect?.sleep?.averageSleepHours || 0;
+    const reminderRate = stats.value.workload?.reminder?.completionRate || 0;
+    return {
+      totalPatients: members.value.length,
+      complianceRate: stats.value.managementEffect?.bloodPressure?.complianceRate || 0,
+      averageSleepHours: parseFloat(sleepHours).toFixed(1),
+      totalConsultations: stats.value.workload?.consultation?.totalCount || 0,
+      reminderCompletionRate: parseFloat(reminderRate).toFixed(1)
+    };
+  } 
+  // 默认值
+  return {
+    totalPatients: 0,
+    complianceRate: 0,
+    averageSleepHours: 0,
+    totalConsultations: 0,
+    reminderCompletionRate: 0
+  };
+});
+
 // 本地状态
 const loading = ref(false)
 const stats = ref(null)
-const selectedMemberId = ref('')
+const alertsData = ref([])
+const trendChartPatientId = ref('')
+
+// 新增：健康计划与随访任务
+const healthPlan = ref({
+  title: 'AI 生成的春季养生计划',
+  content: '本计划旨在通过调整生活方式，增强春季体质，预防季节性不适。请按时完成以下随访任务。',
+  tasks: [
+    { id: 1, text: '提醒患者注意保暖，避免风寒', completed: false },
+    { id: 2, text: '建议患者增加户外活动，每日至少30分钟', completed: true },
+    { id: 3, text: '发送春季饮食指南，强调多食甘味、少食酸味', completed: false },
+    { id: 4, text: '跟进患者睡眠情况，确保每晚7-8小时睡眠', completed: false },
+    { id: 5, text: '检查患者过敏药物储备情况', completed: false },
+  ],
+});
+
+const planCompletion = computed(() => {
+  const total = healthPlan.value.tasks.length;
+  if (total === 0) return 0;
+  const completed = healthPlan.value.tasks.filter(t => t.completed).length;
+  return Math.round((completed / total) * 100);
+});
+
+const completeTask = (taskToComplete) => {
+  const taskIndex = healthPlan.value.tasks.findIndex(t => t.id === taskToComplete.id);
+  if (taskIndex !== -1 && !healthPlan.value.tasks[taskIndex].completed) {
+    // 创建一个新对象来替换，以确保响应性
+    const updatedTask = { ...healthPlan.value.tasks[taskIndex], completed: true };
+    healthPlan.value.tasks.splice(taskIndex, 1, updatedTask);
+    ElMessage.success(`任务 "${updatedTask.text}" 已完成`);
+  }
+};
+
 const dateRange = ref([dayjs().subtract(29, 'day').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')])
+
+const alertIcons = {
+  warning: Warning,
+  danger: WarnTriangleFilled,
+  info: InfoFilled,
+  success: CircleCheckFilled
+};
 
 // 图表引用
 const diseaseChartRef = ref(null)
 const bloodPressureChartRef = ref(null)
 const consultationChartRef = ref(null)
-const followupChartRef = ref(null)
+
 
 let chartInstances = {}
 
@@ -205,99 +278,107 @@ const onSwitch = async (id) => {
 }
 
 const loadStats = async () => {
-  if (!familyId.value) {
-    ElMessage.error('请选择家庭')
-    return
-  }
-  
-  loading.value = true
+  console.log('Analysis: 开始获取统计数据...');
+  loading.value = true;
   try {
-    // 模拟或获取数据逻辑不变
-    if (selectedMemberId.value) {
-      const res = await getDoctorView(familyId.value)
-      const telemetry = res?.data?.telemetry
-      // ... (保留原有的单人数据处理逻辑，略做简化以适应新布局)
-       const newStats = {
-        patientStructure: {}, 
-        workload: {},
+    const currentFid = familyId.value || (families.value.length > 0 ? families.value[0].id : null);
+    let res = null;
+
+    if (currentFid) {
+      const startDate = dateRange.value ? dateRange.value[0] : dayjs().subtract(29, 'day').format('YYYY-MM-DD');
+      const endDate = dateRange.value ? dateRange.value[1] : dayjs().format('YYYY-MM-DD');
+      
+      console.log('Analysis: 获取家庭统计数据', currentFid);
+      res = await getDoctorStats(currentFid, startDate, endDate);
+    }
+
+    if (!res?.data || Object.keys(res.data).length === 0) {
+      console.warn('API returned empty stats or no family selected, using mock data');
+      stats.value = {
+        patientStructure: {
+          diseaseDistribution: { '高血压': 12, '糖尿病': 8, '冠心病': 5, '慢阻肺': 3, '脑卒中': 2, '其他': 6 },
+          ageDistribution: { '60以下': 5, '60-70': 12, '70-80': 8, '80以上': 3 },
+          genderDistribution: { 'M': 15, 'F': 13 }
+        },
         managementEffect: {
-          bloodPressure: { trend: [], complianceRate: 0 },
-          weight: { trend: [], averageWeightChange: 0 },
-          sleep: { trend: [], averageSleepHours: 0 }
-        }
-      }
-      // 简单处理... (此处省略详细处理，假设 API 返回结构一致)
-       stats.value = newStats // Placeholder
-    } else {
-      const res = await getDoctorStats(familyId.value, dateRange.value[0], dateRange.value[1])
-      // 检查API返回是否为空，如果为空则使用mock数据兜底
-      if (!res?.data || Object.keys(res.data).length === 0) {
-        console.warn('API returned empty stats, using mock data')
-        stats.value = {
-          patientStructure: {
-            diseaseDistribution: { '高血压': 12, '糖尿病': 8, '冠心病': 5, '慢阻肺': 3, '脑卒中': 2, '其他': 6 },
-            ageDistribution: { '60以下': 5, '60-70': 12, '70-80': 8, '80以上': 3 },
-            genderDistribution: { 'M': 15, 'F': 13 }
+          bloodPressure: { 
+            trend: Array.from({length: 7}, (_, i) => ({
+              userId: members.value[i % members.value.length]?.userId || 1, // 模拟不同用户的数据
+              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
+              systolic: Math.floor(120 + Math.random() * 15), // 收缩压
+              diastolic: Math.floor(75 + Math.random() * 10) // 舒张压
+            })),
+            complianceRate: 85.5 
           },
-          managementEffect: {
-            bloodPressure: { 
-              trend: Array.from({length: 7}, (_, i) => ({
-                date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-                value: Math.floor(120 + Math.random() * 20)
-              })),
-              complianceRate: 85.5 
-            },
-            weight: { 
-              trend: Array.from({length: 7}, (_, i) => ({
-                date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-                value: (65 + Math.random() * 2).toFixed(1)
-              })),
-              averageWeightChange: -1.2 
-            },
-            sleep: { 
-              trend: Array.from({length: 7}, (_, i) => ({
-                date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-                value: (6 + Math.random() * 2).toFixed(1)
-              })),
-              averageSleepHours: 7.2 
-            }
+          weight: { 
+            trend: Array.from({length: 7}, (_, i) => ({
+              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
+              value: parseFloat((65 + Math.random() * 2 - 1).toFixed(1))
+            })),
+            averageWeightChange: -1.2 
           },
-          workload: {
-            consultation: {
-              totalCount: 42,
-              trend: Array.from({length: 7}, (_, i) => ({
-                date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-                value: Math.floor(Math.random() * 10)
-              }))
-            },
-            followup: {
-              totalPlans: 15,
-              trend: Array.from({length: 7}, (_, i) => ({
-                date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-                value: Math.floor(Math.random() * 5)
-              }))
-            },
-            reminder: {
+          sleep: { 
+            trend: Array.from({length: 7}, (_, i) => ({
+              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
+              value: (6 + Math.random() * 2).toFixed(1)
+            })),
+            averageSleepHours: 7.2 
+          }
+        },
+        workload: {
+          consultation: {
+            totalCount: 42,
+            trend: Array.from({length: 7}, (_, i) => ({
+              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
+              value: Math.floor(Math.random() * 10)
+            }))
+          },
+          followup: {
+            totalPlans: 15,
+            completion: { completed: 12, pending: 3 }, // For Pie chart
+            trend: Array.from({length: 7}, (_, i) => ({
+              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
+              value: Math.floor(Math.random() * 5)
+            }))
+          },
+          reminder: {
               completionRate: 92.5,
               trend: Array.from({length: 7}, (_, i) => ({
                 date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
                 value: Math.floor(Math.random() * 8)
               }))
             }
-          }
-        }
-      } else {
-        stats.value = res.data
-      }
+          },
+          recentAlerts: [
+            { level: 'danger', text: '患者 [李四] 血糖触发红色预警', time: '昨天' },
+            { level: 'warning', text: '患者 [张三] 血压连续3天偏高', time: '10:23' },
+            { level: 'info', text: '本周随访计划完成率低于 80%', time: '周一' },
+            { level: 'success', text: '患者 [王五] 体重管理目标达成', time: '周日' },
+          ]
+        };
+    } else {
+      stats.value = res.data;
     }
     
-    await nextTick()
-    drawAllCharts()
+    // 优化渲染时序：先移除 loading，等待 DOM 更新，再渲染图表
+    loading.value = false;
+    await nextTick();
+    drawAllCharts();
+
+    // 额外获取工作台数据以填充预警列表
+    const workbenchRes = await getWorkbenchDashboard();
+    if (workbenchRes.data?.criticalPatients) {
+      alertsData.value = workbenchRes.data.criticalPatients.map(p => ({
+        level: p.riskLevel === 'CRITICAL' ? 'danger' : 'warning',
+        text: `${p.nickname || p.name}: ${p.riskDescription}`,
+        time: dayjs(p.riskTime).format('YYYY-MM-DD HH:mm')
+      }));
+    }
+
   } catch (error) {
-    console.error(error)
-    ElMessage.error('加载失败')
-  } finally {
-    loading.value = false
+    console.error('Analysis: 加载失败', error);
+    ElMessage.error('加载失败');
+    loading.value = false; // 确保异常时也关闭 loading
   }
 }
 
@@ -307,7 +388,7 @@ const drawAllCharts = () => {
   drawDiseaseChart()
   drawBloodPressureChart()
   drawConsultationChart()
-  drawFollowupChart()
+
 }
 
 // 疾病分布 - 改为雷达图
@@ -344,37 +425,98 @@ const drawDiseaseChart = () => {
   })
 }
 
-// 血压趋势
-const drawBloodPressureChart = () => {
-  if (!bloodPressureChartRef.value) return
-  const trend = stats.value?.managementEffect?.bloodPressure?.trend || []
-  // Mock data if empty for visualization
-  const dates = trend.length ? trend.map(i => dayjs(i.date).format('MM-DD')) : ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-  const values = trend.length ? trend.map(i => i.value) : [120, 132, 125, 128, 135, 122, 126]
-  
+// 血压与体重趋势 - 最终修复版，使用 getLogs
+const drawBloodPressureChart = async () => {
+  if (!bloodPressureChartRef.value) return;
+
   if (!chartInstances.bloodPressureChart) {
-    chartInstances.bloodPressureChart = echarts.init(bloodPressureChartRef.value)
+    chartInstances.bloodPressureChart = echarts.init(bloodPressureChartRef.value);
   }
-  
-  chartInstances.bloodPressureChart.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '3%', top: '15%', containLabel: true },
-    xAxis: { type: 'category', boundaryGap: false, data: dates },
-    yAxis: { type: 'value' },
-    series: [{
-      name: '达标率',
-      type: 'line',
-      smooth: true,
-      areaStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(103, 194, 58, 0.5)' },
-          { offset: 1, color: 'rgba(103, 194, 58, 0.01)' }
-        ])
-      },
-      itemStyle: { color: '#67C23A' },
-      data: values
-    }]
-  })
+
+  const patientId = trendChartPatientId.value;
+
+  if (!patientId) {
+    chartInstances.bloodPressureChart.clear();
+    chartInstances.bloodPressureChart.setOption({
+      title: {
+        text: '请选择一位患者以查看其健康趋势',
+        left: 'center',
+        top: 'center',
+        textStyle: { color: '#999', fontSize: 14 }
+      }
+    });
+    return;
+  }
+
+  chartInstances.bloodPressureChart.showLoading();
+
+  try {
+    // 1. 直接获取最近7天的原始体征日志
+    const startDate = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
+    const endDate = dayjs().format('YYYY-MM-DD');
+    const res = await getLogs({ 
+      type: 'VITALS', 
+      startDate, 
+      endDate, 
+      userId: patientId 
+    });
+    const rawLogs = res.data || [];
+
+    // 2. 将原始日志处理成按天聚合的数据 (取当天最后一条记录)
+    const dailyVitals = new Map();
+    for (const log of rawLogs) {
+      const logDate = dayjs(log.logDate).format('YYYY-MM-DD');
+      let content = log.content;
+      if (typeof content === 'string') {
+        try { content = JSON.parse(content); } catch (e) { continue; }
+      }
+      if (typeof content !== 'object' || content === null) continue;
+
+      const dayData = dailyVitals.get(logDate) || {};
+      if (content.type === '血压' || content.type === 'blood_pressure') {
+        if (content.systolic) dayData.systolic = content.systolic;
+        if (content.diastolic) dayData.diastolic = content.diastolic;
+      } else if (content.type === '体重' || content.type === 'weight') {
+        if (content.value) dayData.weight = content.value;
+      }
+      dailyVitals.set(logDate, dayData);
+    }
+
+    // 3. 创建完整7天时间轴，并用聚合数据填充
+    const last7Days = Array.from({ length: 7 }, (_, i) => dayjs().subtract(6 - i, 'day').format('YYYY-MM-DD'));
+    const displayDates = last7Days.map(d => dayjs(d).format('MM-DD'));
+    const systolicData = last7Days.map(day => dailyVitals.get(day)?.systolic || null);
+    const diastolicData = last7Days.map(day => dailyVitals.get(day)?.diastolic || null);
+    const weightData = last7Days.map(day => dailyVitals.get(day)?.weight || null);
+
+    chartInstances.bloodPressureChart.hideLoading();
+    chartInstances.bloodPressureChart.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+      grid: { left: '10%', right: '10%', bottom: '10%' },
+      legend: { data: ['收缩压', '舒张压', '体重'], top: '5%' },
+      xAxis: { type: 'category', boundaryGap: false, data: displayDates },
+      yAxis: [
+        { type: 'value', name: '血压 (mmHg)', position: 'left', min: 60, max: 220, axisLine: { show: true, lineStyle: { color: '#409EFF' } } },
+        { type: 'value', name: '体重 (kg)', position: 'right', min: 40, max: 220, axisLine: { show: true, lineStyle: { color: '#67C23A' } } }
+      ],
+      series: [
+        { name: '收缩压', type: 'line', smooth: true, connectNulls: true, data: systolicData, itemStyle: { color: '#F56C6C' } },
+        { name: '舒张压', type: 'line', smooth: true, connectNulls: true, data: diastolicData, itemStyle: { color: '#409EFF' } },
+        { name: '体重', type: 'line', yAxisIndex: 1, smooth: true, connectNulls: true, data: weightData, itemStyle: { color: '#67C23A' } }
+      ]
+    }, true);
+  } catch (error) {
+    console.error('加载单人健康趋势失败:', error);
+    chartInstances.bloodPressureChart.hideLoading();
+    chartInstances.bloodPressureChart.setOption({
+      title: {
+        text: '数据加载失败，请稍后重试',
+        left: 'center',
+        top: 'center',
+        textStyle: { color: '#F56C6C', fontSize: 14 }
+      }
+    });
+  }
 }
 
 // 咨询趋势
@@ -399,27 +541,7 @@ const drawConsultationChart = () => {
   })
 }
 
-// 随访任务
-const drawFollowupChart = () => {
-  if (!followupChartRef.value) return
-  
-  if (!chartInstances.followupChart) {
-    chartInstances.followupChart = echarts.init(followupChartRef.value)
-  }
-  
-  chartInstances.followupChart.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '3%', top: '15%', containLabel: true },
-    xAxis: { type: 'category', data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] },
-    yAxis: { type: 'value' },
-    series: [{
-      data: [5, 8, 4, 10, 6, 3, 5], // Mock
-      type: 'line',
-      smooth: true,
-      itemStyle: { color: '#E6A23C' }
-    }]
-  })
-}
+
 
 const handleResize = () => {
   Object.values(chartInstances).forEach(chart => {
@@ -428,10 +550,23 @@ const handleResize = () => {
 }
 
 onMounted(async () => {
+  console.log('Analysis: Component Mounted')
   window.addEventListener('resize', handleResize)
-  if (familyId.value) {
-    await loadStats()
+  
+  // 确保家庭数据已加载
+  if (!doctorStore.families.length) {
+     console.log('Analysis: 尝试加载家庭列表...')
+     await doctorStore.fetchFamilies()
   }
+  
+  // 尝试自动选择第一个家庭
+  if (!familyId.value && families.value.length > 0) {
+    console.log('Analysis: 自动选择第一个家庭', families.value[0].id)
+    await doctorStore.setCurrentFamily(families.value[0].id)
+  }
+
+  // 无论如何尝试加载一次数据（内部有mock兜底）
+  await loadStats()
 })
 
 onBeforeUnmount(() => {
@@ -645,5 +780,53 @@ onBeforeUnmount(() => {
 ::-webkit-scrollbar-thumb {
   background: #dcdfe6;
   border-radius: 2px;
+}
+
+/* 新增：健康计划与随访模块样式 */
+.health-plan-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.plan-header {
+  margin-bottom: 8px;
+}
+
+.plan-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.plan-content {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.task-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 5px; /* for scrollbar */
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px;
+  font-size: 13px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.task-item span.completed {
+  text-decoration: line-through;
+  color: #999;
 }
 </style>

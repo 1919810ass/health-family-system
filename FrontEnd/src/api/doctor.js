@@ -54,6 +54,7 @@ export const getHealthPlan = (planId) => request.get(`/doctor/plans/${planId}`)
 export const createHealthPlan = (familyId, memberId, data) => request.post(`/doctor/families/${familyId}/members/${memberId}/plans`, data)
 export const updateHealthPlan = (planId, data) => request.put(`/doctor/plans/${planId}`, data)
 export const deleteHealthPlan = (planId) => request.delete(`/doctor/plans/${planId}`)
+export const batchDeleteHealthPlans = (planIds) => request.delete('/doctor/plans/batch', { data: planIds })
 export const generateAiHealthPlan = (familyId, data) => request.post(`/doctor/families/${familyId}/plans/ai-generate`, data)
 export const batchGenerateAiHealthPlans = (familyId) => request.post(`/doctor/families/${familyId}/plans/ai-batch-generate`)
 export const getHealthPlansCalendar = (memberId, startDate, endDate) => request.get(`/doctor/members/${memberId}/plans/calendar`, { params: { startDate, endDate } })
@@ -68,6 +69,7 @@ export const listFollowUpTasks = (familyId, memberId, params = {}) => {
 export const createFollowUpTask = (familyId, memberId, data) => request.post(`/doctor/families/${familyId}/members/${memberId}/followups`, data)
 export const updateFollowUpTask = (taskId, data) => request.put(`/doctor/followups/${taskId}`, data)
 export const deleteFollowUpTask = (taskId) => request.delete(`/doctor/followups/${taskId}`)
+export const batchDeleteFollowUpTasks = (taskIds) => request.delete('/doctor/followups/batch', { data: taskIds })
 
 // 医患沟通相关API
 export const getDoctorPatientMessages = (familyId, memberId, params = {}) => request.get(`/doctor/families/${familyId}/members/${memberId}/messages`, { params })

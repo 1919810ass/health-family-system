@@ -68,11 +68,7 @@ export const MENU_CONFIG = {
       path: '/doctor-consultation',
       icon: 'ChatDotRound'
     },
-    {
-      title: '智能咨询',
-      path: '/consultation',
-      icon: 'Headset'
-    },
+
     {
       title: 'AI 健康助手',
       path: '/ai-chat',

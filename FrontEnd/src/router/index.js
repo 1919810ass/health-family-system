@@ -183,13 +183,7 @@ const routes = [
           allowRoles: ['MEMBER', 'FAMILY_ADMIN', 'ADMIN'],
         },
       },
-      {
-        path: '/consultation',
-        component: () => import('../views/Consultation/index.vue'),
-        meta: {
-          title: '智能咨询',
-        },
-      },
+
       {
         path: '/collaboration',
         component: () => import('../views/Collaboration/index.vue'),
