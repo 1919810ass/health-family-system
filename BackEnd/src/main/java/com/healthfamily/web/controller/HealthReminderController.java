@@ -83,6 +83,16 @@ public class HealthReminderController {
         return Result.success();
     }
 
+    @DeleteMapping
+    public Result<Void> batchDeleteReminders(@AuthenticationPrincipal UserPrincipal principal,
+                                             @RequestHeader(value = "X-User-Id", required = false) Long userHeader,
+                                             @RequestBody Map<String, List<Long>> payload) {
+        Long userId = principal != null ? principal.getUserId() : userHeader;
+        List<Long> ids = payload.get("ids");
+        reminderService.batchDeleteReminders(userId, ids);
+        return Result.success();
+    }
+
     @PostMapping("/generate")
     public Result<List<ReminderResponse>> generateSmartReminders(@AuthenticationPrincipal UserPrincipal principal,
                                                                     @RequestHeader(value = "X-User-Id", required = false) Long userHeader) {

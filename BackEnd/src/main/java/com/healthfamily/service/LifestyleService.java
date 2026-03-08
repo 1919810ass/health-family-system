@@ -19,7 +19,9 @@ public interface LifestyleService {
     void recordSleep(Long requesterId, SleepRecordRequest request);
     String analyzeSleep(Long requesterId);
     void recordMood(Long requesterId, MoodRecordRequest request);
+    String analyzeMood(Long requesterId);
     void recordVitals(Long requesterId, VitalsRecordRequest request);
+    String analyzeVitals(Long requesterId);
     /**
      * 上传饮食图片并识别
      */

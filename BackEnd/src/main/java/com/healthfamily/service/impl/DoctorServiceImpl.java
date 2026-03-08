@@ -1963,9 +1963,11 @@ public class DoctorServiceImpl implements DoctorService {
      * @param patientUserId 业务对象唯一标识
      * @param status 业务参数
      * @param type 业务参数
+     * @param startDate 业务参数
+     * @param endDate 业务参数
      * @return 业务返回结果
      */
-    public List<HealthPlanResponse> listHealthPlans(Long doctorId, Long familyId, Long patientUserId, String status, String type) {
+    public List<HealthPlanResponse> listHealthPlans(Long doctorId, Long familyId, Long patientUserId, String status, String type, LocalDate startDate, LocalDate endDate) {
         // 验证医生权限
         Family family = familyRepository.findById(familyId)
                 .orElseThrow(() -> new BusinessException(40402, "家庭不存在"));
@@ -2025,6 +2027,18 @@ public class DoctorServiceImpl implements DoctorService {
                 .stream()
                 .filter(r -> r.getType() == com.healthfamily.domain.constant.ReminderType.FOLLOW_UP)
                 .collect(Collectors.toList());
+        }
+
+        // Apply date filtering
+        if (startDate != null) {
+            plans = plans.stream()
+                    .filter(p -> !p.getStartDate().isBefore(startDate))
+                    .collect(Collectors.toList());
+        }
+        if (endDate != null) {
+            plans = plans.stream()
+                    .filter(p -> !p.getStartDate().isAfter(endDate))
+                    .collect(Collectors.toList());
         }
         
         // 在返回前，为每个计划动态计算完成度
@@ -2389,9 +2403,11 @@ public class DoctorServiceImpl implements DoctorService {
      * @param familyId 家庭唯一标识
      * @param patientUserId 业务对象唯一标识
      * @param status 业务参数
+     * @param startDate 业务参数
+     * @param endDate 业务参数
      * @return 业务返回结果
      */
-    public List<com.healthfamily.web.dto.FollowUpTaskResponse> listFollowUpTasks(Long doctorId, Long familyId, Long patientUserId, String status) {
+    public List<com.healthfamily.web.dto.FollowUpTaskResponse> listFollowUpTasks(Long doctorId, Long familyId, Long patientUserId, String status, LocalDate startDate, LocalDate endDate) {
         // 验证权限
         ensureDoctorAccess(doctorId, familyRepository.findById(familyId).orElseThrow(() -> new BusinessException(40402, "家庭不存在")));
         
@@ -2402,6 +2418,8 @@ public class DoctorServiceImpl implements DoctorService {
                 .filter(r -> patientUserId == null || r.getUser().getId().equals(patientUserId))
                 .filter(r -> r.getType() == com.healthfamily.domain.constant.ReminderType.FOLLOW_UP)
                 .filter(r -> status == null || status.isBlank() || (r.getStatus() != null && r.getStatus().name().equals(status)))
+                .filter(r -> startDate == null || !r.getScheduledTime().toLocalDate().isBefore(startDate))
+                .filter(r -> endDate == null || !r.getScheduledTime().toLocalDate().isAfter(endDate))
                 .map(r -> {
                     Long planId = null;
                     String planTitle = null;
@@ -3133,7 +3151,12 @@ public class DoctorServiceImpl implements DoctorService {
         // 读取工作时间设置
         DoctorSettingsResponse.WorkingHours workingHours = readWorkingHours(prefs);
         
-        return new DoctorSettingsResponse(notifications, workingHours);
+        // 读取简介
+        // 尝试从 DoctorProfile 获取简介，如果不存在则为 null
+        DoctorProfile doctorProfile = doctorProfileRepository.findById(doctorId).orElse(null);
+        String bio = doctorProfile != null ? doctorProfile.getBio() : null;
+        
+        return new DoctorSettingsResponse(notifications, workingHours, bio);
     }
 
     @Override
@@ -3792,10 +3815,27 @@ public class DoctorServiceImpl implements DoctorService {
                     avatar,
                     r.getRating(), 
                     r.getComment(), 
-                    r.getCreatedAt()
+                    r.getCreatedAt(),
+                    r.getReply(),
+                    r.getRepliedAt()
                 );
             })
             .collect(Collectors.toList());
+    }
+    
+    @Override
+    @Transactional
+    public void replyDoctorRating(Long doctorId, Long ratingId, String reply) {
+        com.healthfamily.domain.entity.DoctorRating rating = doctorRatingRepository.findById(ratingId)
+                .orElseThrow(() -> new BusinessException(404, "评价不存在"));
+        
+        if (!rating.getDoctorId().equals(doctorId)) {
+            throw new BusinessException(403, "无权回复此评价");
+        }
+        
+        rating.setReply(reply);
+        rating.setRepliedAt(LocalDateTime.now());
+        doctorRatingRepository.save(rating);
     }
 
     // ==================== 新版工作台 V2 ====================
@@ -4385,5 +4425,55 @@ public class DoctorServiceImpl implements DoctorService {
         if (content.containsKey("temperature") || content.containsKey("temp")) return "体温";
         if (content.containsKey("weight") || content.containsKey("val")) return "体重";
         return "体征";
+    }
+
+    @Override
+    @Transactional
+    public com.healthfamily.web.dto.AdminDoctorDto updateAdminDoctor(Long id, com.healthfamily.web.dto.AdminDoctorDto dto) {
+        // 1. Update User info
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(404, "医生不存在"));
+
+        if (dto.name() != null) user.setNickname(dto.name());
+        if (dto.phone() != null) user.setPhone(dto.phone());
+        if (dto.status() != null) user.setStatus(dto.status());
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        // 2. Update DoctorProfile
+        DoctorProfile profile = doctorProfileRepository.findById(id).orElse(
+                DoctorProfile.builder()
+                        .doctor(user)
+                        .doctorId(id)
+                        .certificationStatus("PENDING")
+                        .rating(BigDecimal.ZERO)
+                        .ratingCount(0)
+                        .serviceCount(0)
+                        .createdAt(LocalDateTime.now())
+                        .build()
+        );
+
+        if (dto.hospital() != null) profile.setHospital(dto.hospital());
+        if (dto.department() != null) profile.setDepartment(dto.department());
+        if (dto.specialty() != null) profile.setSpecialty(dto.specialty());
+        if (dto.title() != null) profile.setTitle(dto.title());
+        if (dto.bio() != null) profile.setBio(dto.bio());
+        if (dto.email() != null) profile.setEmail(dto.email());
+        if (dto.certificationStatus() != null) profile.setCertificationStatus(dto.certificationStatus());
+        
+        // Handle boolean certified flag if present (usually mapped to APPROVED)
+        if (dto.certified() != null) {
+            if (dto.certified()) {
+                profile.setCertificationStatus("APPROVED");
+                if (profile.getCertifiedAt() == null) profile.setCertifiedAt(LocalDateTime.now());
+            } else if ("APPROVED".equals(profile.getCertificationStatus())) {
+                 // If un-certifying
+                 profile.setCertificationStatus("PENDING");
+            }
+        }
+
+        doctorProfileRepository.save(profile);
+
+        return getAdminDoctorById(id);
     }
 }

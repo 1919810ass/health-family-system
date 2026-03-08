@@ -503,18 +503,26 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .orElse("最近无体质评估记录");
         
         // 根据建议类别获取相应类型的健康日志
-        HealthLogType logType = mapCategoryToLogType(category);
-        List<HealthLog> recentLogs = healthLogRepository.findByUser_IdAndTypeOrderByLogDateDesc(user.getId(), logType)
+        List<HealthLogType> logTypes = new ArrayList<>();
+        logTypes.add(mapCategoryToLogType(category));
+        
+        // 优化：情绪建议需要参考睡眠和运动数据，因为它们对情绪影响极大
+        if (category == RecommendationCategory.EMOTION) {
+            logTypes.add(HealthLogType.SLEEP);
+            logTypes.add(HealthLogType.SPORT);
+        }
+
+        List<HealthLog> recentLogs = healthLogRepository.findByUser_IdAndLogDateBetweenOrderByLogDateDesc(
+                user.getId(), targetDate.minusDays(6), targetDate)
                 .stream()
-                .filter(log -> !log.getLogDate().isBefore(targetDate.minusDays(6)))
-                .filter(log -> !log.getLogDate().isAfter(targetDate))
+                .filter(log -> logTypes.contains(log.getType()))
                 .collect(Collectors.toList());
         
         String logsSummary = recentLogs.isEmpty()
-                ? "最近7天无" + category.getDisplayName() + "相关健康日志记录"
+                ? "最近7天无" + category.getDisplayName() + (category == RecommendationCategory.EMOTION ? "（及相关的睡眠、运动）" : "") + "健康日志记录"
                 : recentLogs.stream()
                 .sorted(Comparator.comparing(HealthLog::getLogDate).reversed())
-                .limit(20)
+                .limit(25)
                 .map(this::formatLog)
                 .collect(Collectors.joining("\n"));
         String preferenceSummary = formatPreferences(profile);
@@ -685,8 +693,15 @@ public class RecommendationServiceImpl implements RecommendationService {
 
     private String formatLog(HealthLog log) {
         StringBuilder builder = new StringBuilder();
+        String typeName = switch (log.getType()) {
+            case DIET -> "饮食";
+            case SLEEP -> "睡眠";
+            case SPORT -> "运动";
+            case MOOD -> "情绪";
+            case VITALS -> "体征";
+        };
         builder.append("日期:").append(log.getLogDate())
-               .append(" 类型:").append(log.getType().name());
+               .append(" 类型:").append(typeName);
         if (log.getScore() != null) {
             builder.append(" 评分:").append(log.getScore());
         }

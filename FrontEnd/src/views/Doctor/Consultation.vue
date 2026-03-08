@@ -640,6 +640,11 @@ const scrollToBottom = () => {
 let refreshTimer = null
 
 onMounted(async () => {
+  // 首先确保家庭列表已加载
+  if (families.value.length === 0) {
+    await doctorStore.fetchFamilies();
+  }
+
   if (doctorStore.currentFamilyId) {
     currentFamilyId.value = String(doctorStore.currentFamilyId)
     await loadSessions()

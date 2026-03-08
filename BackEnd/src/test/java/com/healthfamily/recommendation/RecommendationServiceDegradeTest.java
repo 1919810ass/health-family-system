@@ -4,6 +4,7 @@ import com.healthfamily.modules.recommendationv2.repository.RecommendationV2Repo
 import com.healthfamily.modules.recommendationv2.repository.RuleV2Repository;
 import com.healthfamily.modules.recommendationv2.repository.SuggestionFeedbackRepository;
 import com.healthfamily.modules.recommendationv2.repository.DocFragmentRepository;
+import com.healthfamily.domain.repository.KnowledgeDocumentRepository;
 import com.healthfamily.modules.recommendationv2.service.DocRagService;
 import com.healthfamily.modules.recommendationv2.service.RecommendationService;
 import com.healthfamily.modules.recommendationv2.service.RuleEngine;
@@ -29,7 +30,7 @@ public class RecommendationServiceDegradeTest {
     RuleV2Repository rrepo = Mockito.mock(RuleV2Repository.class);
     RecommendationV2Repository recRepo = Mockito.mock(RecommendationV2Repository.class);
     VectorStore vectorStore = Mockito.mock(VectorStore.class);
-    DocRagService rag = new DocRagService(Mockito.mock(DocFragmentRepository.class), vectorStore, 4, 0.35, "./vector-store.json");
+    DocRagService rag = new DocRagService(Mockito.mock(KnowledgeDocumentRepository.class), vectorStore, 4, 0.35, "./vector-store.json");
     RuleEngine engine = new RuleEngine(rrepo,0.7,0.5,0.2,0.3);
     com.healthfamily.modules.recommendationv2.repository.SuggestionFeedbackRepository fbrepo = Mockito.mock(com.healthfamily.modules.recommendationv2.repository.SuggestionFeedbackRepository.class);
     com.healthfamily.domain.repository.ProfileRepository profileRepo = Mockito.mock(com.healthfamily.domain.repository.ProfileRepository.class);

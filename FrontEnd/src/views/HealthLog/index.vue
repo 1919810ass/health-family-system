@@ -109,13 +109,17 @@
                   <span class="unit">mmHg</span>
                 </template>
                 <template v-else>
-                  <el-input-number v-model="item.value" :min="0" :precision="1" :controls="false" placeholder="数值" style="width: 100px" />
-                  <el-input v-model="item.unit" placeholder="单位" style="width: 80px" />
+                  <el-input-number
+                    v-model="item.value"
+                    :min="0"
+                    :precision="1"
+                    :controls="false"
+                    placeholder="数值"
+                    style="width: 120px"
+                  />
+                  <span class="unit">{{ getUnitForVitalType(item.type) }}</span>
                 </template>
-
-                <el-button type="danger" link :icon="Delete" @click="removeVitalItem(index)" v-if="addForm.vitalItems.length > 1" />
               </div>
-              <el-button type="primary" link :icon="Plus" @click="addVitalItem" class="mt-8">添加指标</el-button>
             </el-form-item>
 
             <el-form-item v-if="activeTab === 'vital'" label="文本内容（可选）">
@@ -126,7 +130,7 @@
               </div>
             </el-form-item>
             <el-form-item v-else label="内容">
-                <div v-if="activeTab === 'sleep'" style="width: 100%; margin-bottom: 12px">
+              <div v-if="activeTab === 'sleep'" style="width: 100%; margin-bottom: 12px">
                   <div style="display: flex; gap: 12px; margin-bottom: 12px">
                     <div style="flex: 1">
                       <div style="font-size: 13px; color: #606266; margin-bottom: 6px; font-weight: 500">上床时间</div>
@@ -168,7 +172,75 @@
                      <span style="font-size: 12px; color: #409EFF">小时</span>
                   </div>
                 </div>
-              <el-input v-model="addForm.content" type="textarea" :rows="4" :placeholder="activeTab === 'sleep' ? '可补充就寝/起床时间，如：23:00睡，7:00起' : '请输入记录内容'" />
+
+              <!-- 运动结构化录入（与“生活方式-运动管理”保持一致字段） -->
+              <div v-else-if="activeTab === 'sport'" style="width: 100%; margin-bottom: 12px">
+                <el-form-item label="类型" label-width="60px">
+                  <el-select v-model="sportForm.type" placeholder="选择类型" style="width: 100%">
+                    <el-option label="跑步" value="run" />
+                    <el-option label="步行" value="walk" />
+                    <el-option label="游泳" value="swim" />
+                    <el-option label="骑行" value="bike" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="时长(分钟)" label-width="80px">
+                  <el-input-number v-model="sportForm.durationMinutes" :min="0" :max="240" :controls="true" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="距离(公里)" label-width="80px">
+                  <el-input-number v-model="sportForm.distanceKm" :min="0" :max="50" :precision="1" :controls="true" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="步数" label-width="60px">
+                  <el-input-number v-model="sportForm.steps" :min="0" :max="50000" :controls="true" style="width: 100%" />
+                </el-form-item>
+              </div>
+
+              <!-- 情绪结构化录入（与“生活方式-情绪管理”保持一致字段） -->
+              <div v-else-if="activeTab === 'mood'" style="width: 100%; margin-bottom: 12px">
+                <el-form-item label="情绪" label-width="60px">
+                  <el-select v-model="moodForm.emotion" placeholder="选择情绪" style="width: 100%">
+                    <el-option label="开心" value="开心" />
+                    <el-option label="平静" value="平静" />
+                    <el-option label="焦虑" value="焦虑" />
+                    <el-option label="低落" value="低落" />
+                    <el-option label="烦躁" value="烦躁" />
+                    <el-option label="疲惫" value="疲惫" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="强度(1-5)" label-width="80px">
+                  <el-rate v-model="moodForm.level" :max="5" />
+                </el-form-item>
+                <el-form-item label="压力(0-10)" label-width="90px">
+                  <el-slider v-model="moodForm.stress" :min="0" :max="10" show-input />
+                </el-form-item>
+                <el-form-item label="精力(0-10)" label-width="90px">
+                  <el-slider v-model="moodForm.energy" :min="0" :max="10" show-input />
+                </el-form-item>
+              </div>
+
+              <!-- 饮食结构化录入：常见食物选择 + 数量/单位 -->
+              <div v-else-if="activeTab === 'diet'" style="width: 100%; margin-bottom: 12px">
+                <div v-for="(row, idx) in dietQuickItems" :key="idx" style="display: flex; gap: 8px; margin-bottom: 8px">
+                  <el-select v-model="row.name" placeholder="选择食物" style="flex: 2">
+                    <el-option v-for="food in commonFoods" :key="food" :label="food" :value="food" />
+                  </el-select>
+                  <el-input-number v-model="row.quantity" :min="0.5" :step="0.5" :controls="true" style="flex: 1" />
+                  <el-select v-model="row.unit" placeholder="单位" style="flex: 1.2">
+                    <el-option v-for="u in dietUnits" :key="u" :label="u" :value="u" />
+                  </el-select>
+                  <el-button v-if="dietQuickItems.length > 1" type="danger" link :icon="Delete" @click="dietQuickItems.splice(idx, 1)" />
+                </div>
+                <el-button type="primary" link :icon="Plus" @click="dietQuickItems.push({ name: '', quantity: 1, unit: '份' })">添加食物</el-button>
+                <el-button size="small" class="mt-8" @click="estimateDietFromQuick" :disabled="!dietQuickItems.some(r => r.name)">根据选择估算热量</el-button>
+              </div>
+
+              <el-input
+                v-model="addForm.content"
+                type="textarea"
+                :rows="4"
+                :placeholder="activeTab === 'sleep'
+                  ? '可补充就寝/起床时间，如：23:00睡，7:00起（可留空）'
+                  : '可填写备注信息，也可以留空'"
+              />
               <div v-if="activeTab !== 'vital'" style="margin-top: 8px; display: flex; gap: 8px">
                 <el-button size="small" type="primary" :loading="optLoading" @click="optimizeAny">优化输入内容</el-button>
                 <el-button size="small" @click="clearOptimizedAny" :disabled="!hasOptimized">清空优化</el-button>
@@ -253,11 +325,47 @@ const addForm = ref({
   value: null
 })
 const entryTips = {
-  diet: '推荐格式：食物+数量+单位，如“鸡蛋1个、米饭1碗”。点击“优化输入内容”可自动估算热量',
-  sleep: '填写睡眠时长(小时)、就寝时间与起床时间，质量可选，如“23:00-07:00 8小时 质量良好”',
-  sport: '填写运动类型与时长(分钟)，可选距离(公里)，如“跑步 30 分钟 距离 5 公里”',
-  mood: '填写情绪类型与强度(1-5)，如“焦虑 3”，可补充触发事件简述'
+  diet: '可以直接在下方选择食物和数量快速录入，也可以输入文本后点击“优化输入内容”由AI估算热量',
+  sleep: '优先通过上床/起床时间和次数等结构化字段记录，文本备注为可选',
+  sport: '优先选择运动类型、时长和距离等字段记录，文本备注为可选',
+  mood: '优先选择情绪、强度和压力等字段记录，文本备注为可选'
 }
+
+// 结构化录入表单（与“生活方式”模块保持一致）
+const sportForm = ref({
+  type: 'run',
+  durationMinutes: 30,
+  distanceKm: null,
+  steps: null
+})
+
+const moodForm = ref({
+  emotion: '平静',
+  level: 3,
+  stress: 3,
+  energy: 7
+})
+
+const dietQuickItems = ref([
+  { name: '', quantity: 1, unit: '份' }
+])
+
+const commonFoods = [
+  '米饭',
+  '面条',
+  '馒头',
+  '鸡蛋',
+  '牛奶',
+  '面包',
+  '饺子',
+  '烧饼',
+  '鸡腿',
+  '青菜',
+  '苹果',
+  '香蕉'
+]
+
+const dietUnits = ['份', '个', '碗', '盘', '克']
 
 // 饮食优化相关
 const dietItems = ref([])
@@ -269,6 +377,56 @@ const hasOptimized = computed(() => {
   if (activeTab.value === 'diet') return dietItems.value.length > 0
   return !!optimizedData.value
 })
+
+function estimateDietFromQuick() {
+  // 根据结构化选择的食物快速估算热量（与后端字典大致对齐）
+  const calorieDict = {
+    米饭: 130,
+    面条: 200,
+    馒头: 220,
+    鸡蛋: 70,
+    牛奶: 65,
+    面包: 265,
+    饺子: 70,
+    烧饼: 160,
+    鸡腿: 300,
+    青菜: 20,
+    苹果: 50,
+    香蕉: 90
+  }
+
+  const items = []
+  for (const row of dietQuickItems.value) {
+    const name = (row.name || '').trim()
+    if (!name) continue
+    const quantity = row.quantity || 1
+    const unit = row.unit || '份'
+    const base = calorieDict[name]
+    let calories = null
+    if (base != null) {
+      if (unit === '克' || unit.toLowerCase() === 'g') {
+        calories = Math.round(base * (Number(quantity) / 100))
+      } else {
+        calories = Math.round(base * Number(quantity))
+      }
+    }
+    items.push({
+      name,
+      quantity,
+      unit,
+      calories
+    })
+  }
+
+  dietItems.value = items
+  if (items.length) {
+    dietTotal.value = items
+      .map(i => i.calories || 0)
+      .reduce((a, b) => a + b, 0)
+  } else {
+    dietTotal.value = null
+  }
+}
 
 // 自动计算睡眠时长
 watch([() => addForm.value.bedtime, () => addForm.value.wakeTime], ([bed, wake]) => {
@@ -519,7 +677,14 @@ function handleAdd() {
   addForm.value = { 
     time: new Date(), 
     content: '',
-    vitalItems: [{ type: '血压', value: null, unit: 'mmHg' }],
+    // 预置所有常见体征类型，让用户按需填写，未填视为没有该指标
+    vitalItems: [
+      { type: '血压', value: null },
+      { type: '血糖', value: null },
+      { type: '体温', value: null },
+      { type: '心率', value: null },
+      { type: '体重', value: null }
+    ],
     vitalType: '',
     systolic: null,
     diastolic: null,
@@ -709,25 +874,32 @@ async function handleSave() {
       ElMessage.warning('请至少添加一条体征记录')
       return
     }
-    for (const item of addForm.value.vitalItems) {
-      if (!item.type || !item.value) {
-          ElMessage.warning('请补全数据类型和数值')
-          return
+
+    // 至少有一项既选择了类型又填写了数值
+    const filledItems = addForm.value.vitalItems.filter(item => {
+      if (!item.type) return false
+      if (item.type === '血压') {
+        return item.value && String(item.value).includes('/')
       }
+      return item.value !== null && item.value !== undefined && item.value !== ''
+    })
+
+    if (!filledItems.length) {
+      ElMessage.warning('请至少为一个体征填写数值')
+      return
     }
     
     saving.value = true
     try {
       const timeStr = addForm.value.time ? dayjs(addForm.value.time).format('HH:mm') : dayjs().format('HH:mm')
       let successCount = 0
-      for (const item of addForm.value.vitalItems) {
+      for (const item of filledItems) {
           const logData = {
             logDate: selectedDay.value,
             type: 'VITALS',
             content: {
               type: item.type,
               value: item.value,
-              unit: item.unit,
               time: timeStr
             },
             score: null
@@ -740,7 +912,7 @@ async function handleSave() {
             logData.content.value = null
             logData.content.unit = 'mmHg'
           } else {
-            logData.content.unit = logData.content.unit || getUnitForVitalType(item.type)
+            logData.content.unit = getUnitForVitalType(item.type)
           }
           
           await createLog(logData, targetUserId.value)
@@ -779,30 +951,107 @@ async function handleSave() {
   try {
     const timeStr = addForm.value.time ? dayjs(addForm.value.time).format('HH:mm') : dayjs().format('HH:mm')
     let content = {}
-    
-    if (!addForm.value.content || !addForm.value.content.trim()) {
-      ElMessage.warning('请输入记录内容')
-      saving.value = false
-      return
-    }
-    content = {
-      time: timeStr,
-      note: addForm.value.content.trim()
-    }
-    if (activeTab.value === 'diet' && dietItems.value.length) {
-      content.items = dietItems.value
-      if (dietTotal.value !== null) content.totalCalories = dietTotal.value
+
+    const noteText = addForm.value.content && addForm.value.content.trim()
+
+    // 根据不同类型构建结构化内容，与“生活方式”模块保持字段一致
+    if (activeTab.value === 'diet') {
+      // 如果用户使用了结构化选择但还没点击估算按钮，这里补算一次
+      if (!dietItems.value.length && dietQuickItems.some(r => r.name)) {
+        estimateDietFromQuick()
+      }
+      if (dietItems.value.length) {
+        content = {
+          time: timeStr,
+          items: dietItems.value
+        }
+        if (dietTotal.value !== null) content.totalCalories = dietTotal.value
+        if (noteText) content.note = noteText
+      } else if (noteText) {
+        // 仅文本（兼容老用法）
+        content = { time: timeStr, note: noteText }
+      } else {
+        ElMessage.warning('请至少通过选择食物或输入文本记录一项饮食内容')
+        saving.value = false
+        return
+      }
     } else if (activeTab.value === 'sleep') {
-      if (addForm.value.deepSleep != null) content.deepSleep = addForm.value.deepSleep
+      // 与 Lifestyle.recordSleep 字段对齐
+      content = {
+        time: timeStr
+      }
+      if (calculatedDuration.value != null) {
+        content.hours = calculatedDuration.value
+        content.durationHours = calculatedDuration.value
+      } else if (addForm.value.deepSleep != null || addForm.value.wakeCount != null) {
+        content.hours = addForm.value.deepSleep || null
+      }
+      if (addForm.value.deepSleep != null) content.deepHours = addForm.value.deepSleep
       if (addForm.value.wakeCount != null) content.wakeCount = addForm.value.wakeCount
       if (addForm.value.bedtime) content.bedtime = addForm.value.bedtime
       if (addForm.value.wakeTime) content.wakeTime = addForm.value.wakeTime
       if (addForm.value.sleepLatency != null) content.sleepLatency = addForm.value.sleepLatency
       if (addForm.value.wakeUpLatency != null) content.wakeUpLatency = addForm.value.wakeUpLatency
-      // 使用计算出的时长
-      if (calculatedDuration.value != null) content.durationHours = calculatedDuration.value
+      if (noteText) content.note = noteText
+
+      const hasStructured =
+        content.hours != null ||
+        content.deepHours != null ||
+        content.wakeCount != null ||
+        !!content.bedtime ||
+        !!content.wakeTime
+      if (!hasStructured && !noteText) {
+        ElMessage.warning('请至少填写一项睡眠时长或次数等指标，或输入备注')
+        saving.value = false
+        return
+      }
+    } else if (activeTab.value === 'sport') {
+      content = {
+        time: timeStr,
+        type: sportForm.value.type,
+        durationMinutes: sportForm.value.durationMinutes,
+        distanceKm: sportForm.value.distanceKm,
+        steps: sportForm.value.steps
+      }
+      if (noteText) content.note = noteText
+      const hasStructured =
+        !!content.type ||
+        (content.durationMinutes != null && content.durationMinutes > 0) ||
+        (content.distanceKm != null && content.distanceKm > 0) ||
+        (content.steps != null && content.steps > 0)
+      if (!hasStructured && !noteText) {
+        ElMessage.warning('请至少填写一种运动信息或输入备注')
+        saving.value = false
+        return
+      }
+    } else if (activeTab.value === 'mood') {
+      content = {
+        time: timeStr,
+        emotion: moodForm.value.emotion,
+        level: moodForm.value.level,
+        stress: moodForm.value.stress,
+        energy: moodForm.value.energy
+      }
+      if (noteText) content.note = noteText
+      const hasStructured = !!content.emotion || content.level != null
+      if (!hasStructured && !noteText) {
+        ElMessage.warning('请至少选择一种情绪或输入备注')
+        saving.value = false
+        return
+      }
+    } else {
+      // 兜底：其他类型沿用旧逻辑
+      if (!noteText) {
+        ElMessage.warning('请输入记录内容')
+        saving.value = false
+        return
+      }
+      content = {
+        time: timeStr,
+        note: noteText
+      }
     }
-    
+
     await createLog({
       logDate: selectedDay.value,
       type: mapType(activeTab.value),

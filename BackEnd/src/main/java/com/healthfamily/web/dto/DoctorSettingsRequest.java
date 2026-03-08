@@ -10,7 +10,9 @@ public record DoctorSettingsRequest(
         @Valid
         DoctorNotificationSettings notifications,  // 通知设置（可选）
         
-        WorkingHours workingHours  // 工作时间设置（可选）
+        WorkingHours workingHours,  // 工作时间设置（可选）
+
+        String bio // 医生简介（可选）
 ) {
     /**
      * 工作时间设置

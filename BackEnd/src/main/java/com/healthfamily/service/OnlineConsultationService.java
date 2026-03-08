@@ -56,5 +56,10 @@ public interface OnlineConsultationService {
      * 关闭会话
      */
     void closeSession(Long requesterId, Long sessionId);
+
+    /**
+     * 医生回复评价后，发送消息到在线咨询会话
+     */
+    void sendDoctorReplyMessage(Long doctorId, Long patientId, String patientRatingContent, String replyContent);
 }
 

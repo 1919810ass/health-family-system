@@ -80,12 +80,9 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         User saved = userRepository.save(user);
-        // 不再生成Token，因为需要审核
-        // 为了兼容前端，这里可以返回null或者一个特定的标识，或者抛出异常让Controller处理
-        // 但接口定义返回TokenResponse，所以我们返回一个空的或者包含特定标记的TokenResponse
-        // 更推荐的做法是修改接口返回类型，或者在这里抛出一个 "Registered pending audit" 的非错误异常
-        // 简单起见，我们返回null，Controller层会处理
-        return null; 
+        // 生成Token
+        String token = jwtUtil.generateToken(saved.getId(), saved.getRole().name());
+        return TokenResponse.bearer(token); 
     }
 
     @Override

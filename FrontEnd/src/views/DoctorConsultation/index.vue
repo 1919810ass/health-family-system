@@ -120,8 +120,7 @@
               placeholder="输入您的问题或需求..."
               maxlength="500"
               show-word-limit
-              @keydown.ctrl.enter="sendMessage"
-              @keydown.meta.enter="sendMessage"
+              @keydown.enter.prevent="handleEnter"
           />
           <div class="input-actions">
             <el-button type="primary" :loading="sending" @click="sendMessage" size="large">
@@ -389,6 +388,16 @@ const handleAiIntervention = async (content) => {
   } catch (error) {
     console.error('AI Triage error:', error)
   }
+}
+
+// 处理回车发送消息
+const handleEnter = (e) => {
+  // 如果按下了 Shift + Enter，则插入换行符，不发送消息
+  if (e.shiftKey) {
+    return
+  }
+  // 否则发送消息
+  sendMessage()
 }
 
 // 发送消息

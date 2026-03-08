@@ -17,7 +17,9 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import org.springframework.beans.factory.annotation.Value;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -32,7 +34,7 @@ public class LocalFoodRecognitionServiceImpl implements FoodRecognitionService {
 
     private final ChatClient.Builder chatClientBuilder;
     private final ObjectMapper objectMapper;
-    @Value("${spring.ai.ollama.vision.model:llava:7b}")
+    @Value("${spring.ai.ollama.vision.model:qwen2.5vl:3b}")
     private String visionModel;
     @Value("${spring.ai.ollama.vision.temperature:0.3}")
     private double visionTemperature;
@@ -110,6 +112,117 @@ public class LocalFoodRecognitionServiceImpl implements FoodRecognitionService {
             // Fallback gracefully
             return new RecognitionResult("识别服务暂不可用", 0.0);
         }
+    }
+
+    @Override
+    public com.healthfamily.service.FoodRecognitionService.DietAnalysisResult dietAnalysisFromImage(Path imagePath) {
+        String response = null;
+        try {
+            log.info("Starting diet image analysis (calories) for: {}", imagePath);
+            var resource = new FileSystemResource(imagePath);
+            MimeType mimeType = getMimeType(imagePath);
+            var userMsg = new UserMessage(
+                "请分析这张食物图片。列出图中可见的食物，并估算每样的大致热量（千卡/kcal）。"
+                + "只返回一个JSON数组，不要任何Markdown或说明。每项格式：{\"name\":\"食物名称\",\"calories\":数字}。"
+                + "例如：[{\"name\":\"米饭\",\"calories\":200},{\"name\":\"青菜\",\"calories\":50}]",
+                List.of(new Media(mimeType, resource))
+            );
+            response = chatClientBuilder.build()
+                    .prompt()
+                    .options(OllamaOptions.builder()
+                            .withModel(visionModel)
+                            .withTemperature(visionTemperature)
+                            .build())
+                    .messages(userMsg)
+                    .call()
+                    .content();
+            log.info("Diet analysis response length: {}", response != null ? response.length() : 0);
+            String json = extractJsonArray(response);
+            if (json == null || json.isBlank()) {
+                if (response != null && response.length() > 0) {
+                    log.warn("No JSON array found in response, first 300 chars: {}", response.length() > 300 ? response.substring(0, 300) + "..." : response);
+                }
+                return new com.healthfamily.service.FoodRecognitionService.DietAnalysisResult(List.of(), 0d);
+            }
+            com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>> typeRef =
+                    new com.fasterxml.jackson.core.type.TypeReference<>() {};
+            List<Map<String, Object>> rawItems = objectMapper.readValue(json, typeRef);
+            // 统一键名：模型可能返回 name/食物/食物名称、calories/热量/卡路里
+            List<Map<String, Object>> items = new ArrayList<>();
+            double total = 0d;
+            for (Map<String, Object> item : rawItems) {
+                String name = getStringKey(item, "name", "食物", "食物名称", "食物名");
+                Object c = getAnyKey(item, "calories", "热量", "卡路里", "kcal");
+                double cal = 0d;
+                if (c != null) {
+                    try {
+                        cal = Double.parseDouble(c.toString().replaceAll("[^0-9.\\-]", ""));
+                    } catch (NumberFormatException ignored) {}
+                }
+                total += cal;
+                items.add(Map.<String, Object>of("name", name != null ? name : "未知", "calories", (int) Math.round(cal)));
+            }
+            if (items.isEmpty() && response != null && response.length() > 0) {
+                log.warn("Parsed 0 diet items from response, first 400 chars: {}", response.length() > 400 ? response.substring(0, 400) + "..." : response);
+            }
+            return new com.healthfamily.service.FoodRecognitionService.DietAnalysisResult(items, total);
+        } catch (WebClientResponseException.NotFound e) {
+            log.warn("Vision model not available: {}", e.getMessage());
+            return new com.healthfamily.service.FoodRecognitionService.DietAnalysisResult(List.of(), 0d);
+        } catch (Exception e) {
+            log.error("Diet image analysis failed", e);
+            if (response != null && response.length() > 0) {
+                log.warn("Response snippet: {}", response.length() > 350 ? response.substring(0, 350) + "..." : response);
+            }
+            return new com.healthfamily.service.FoodRecognitionService.DietAnalysisResult(List.of(), 0d);
+        }
+    }
+
+    private static String getStringKey(Map<String, Object> map, String... keys) {
+        for (String k : keys) {
+            Object v = map.get(k);
+            if (v != null && v.toString().trim().length() > 0) return v.toString().trim();
+        }
+        return null;
+    }
+
+    private static Object getAnyKey(Map<String, Object> map, String... keys) {
+        for (String k : keys) {
+            Object v = map.get(k);
+            if (v != null) return v;
+        }
+        return null;
+    }
+
+    private String extractJsonArray(String raw) {
+        if (raw == null) return null;
+        raw = raw.trim();
+        // 去掉 markdown 代码块
+        if (raw.contains("```")) {
+            int start = raw.indexOf("```");
+            int next = raw.indexOf("```", start + 3);
+            if (next > start) {
+                raw = raw.substring(start + 3, next).trim();
+                if (raw.startsWith("json")) raw = raw.substring(4).trim();
+            }
+        }
+        int start = raw.indexOf('[');
+        int end = raw.lastIndexOf(']');
+        if (start != -1 && end != -1 && end > start) {
+            return raw.substring(start, end + 1);
+        }
+        // 可能是 {"items": [...]} 结构
+        int objStart = raw.indexOf('{');
+        int objEnd = raw.lastIndexOf('}');
+        if (objStart != -1 && objEnd != -1 && objEnd > objStart) {
+            try {
+                JsonNode node = objectMapper.readTree(raw.substring(objStart, objEnd + 1));
+                if (node.has("items") && node.get("items").isArray()) {
+                    return objectMapper.writeValueAsString(node.get("items"));
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
     
     private MimeType getMimeType(Path path) {

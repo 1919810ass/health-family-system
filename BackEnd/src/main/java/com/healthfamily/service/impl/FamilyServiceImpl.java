@@ -20,12 +20,20 @@ import com.healthfamily.web.dto.FamilyMemberResponse;
 import com.healthfamily.web.dto.FamilyMemberUpdateRequest;
 import com.healthfamily.web.dto.FamilyResponse;
 import com.healthfamily.web.dto.FamilyUpdateRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -61,9 +69,7 @@ public class FamilyServiceImpl implements FamilyService {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
 
-        if (familyRepository.existsByOwner_Id(owner.getId())) {
-            throw new BusinessException(40002, "已创建家庭，无法重复创建");
-        }
+
 
         String inviteCode = generateInviteCode();
         while (familyRepository.findByInviteCode(inviteCode).isPresent()) {
@@ -86,8 +92,7 @@ public class FamilyServiceImpl implements FamilyService {
                 .role(MemberRole.ADMIN)
                 .build();
         familyMemberRepository.save(member);
-
-        return toFamilyResponse(saved);
+        return toFamilyResponse(saved, userId);
     }
 
     @Override
@@ -125,7 +130,7 @@ public class FamilyServiceImpl implements FamilyService {
                 .role(MemberRole.MEMBER)
                 .build();
         familyMemberRepository.save(member);
-        return toFamilyResponse(family);
+        return toFamilyResponse(family, userId);
     }
 
     @Override
@@ -154,7 +159,7 @@ public class FamilyServiceImpl implements FamilyService {
                 .role(MemberRole.MEMBER)
                 .build();
         familyMemberRepository.save(member);
-        return toFamilyResponse(family);
+        return toFamilyResponse(family, userId);
     }
 
     @Override
@@ -167,7 +172,7 @@ public class FamilyServiceImpl implements FamilyService {
      */
     public FamilyResponse getFamily(Long userId, Long familyId) {
         Family family = ensureMembership(userId, familyId);
-        return toFamilyResponse(family);
+        return toFamilyResponse(family, userId);
     }
 
     @Override
@@ -189,21 +194,32 @@ public class FamilyServiceImpl implements FamilyService {
                 .collect(Collectors.toMap(Family::getId, f -> f, (a, b) -> a))
                 .values()
                 .stream()
-                .filter(f -> {
-                    if (f.getStatus() != null && f.getStatus() == 1) return true;
-                    return f.getOwner() != null && f.getOwner().getId() != null && f.getOwner().getId().equals(userId);
-                })
-                .map(this::toFamilyResponse)
+                .filter(f -> f.getStatus() != null && f.getStatus() == 1)
+                .map(f -> toFamilyResponse(f, userId))
                 .collect(Collectors.toList());
     }
 
-    private FamilyResponse toFamilyResponse(Family family) {
+    private FamilyResponse toFamilyResponse(Family family, Long currentUserId) {
         Long ownerId = (family.getOwner() != null) ? family.getOwner().getId() : null;
+        
+        // 检查当前用户是否是该家庭的管理员
+        boolean isAdmin = (ownerId != null && ownerId.equals(currentUserId));
+        if (!isAdmin) {
+            // 安全起见，先查出用户实体，或者使用 id 查询
+            User currentUser = userRepository.findById(currentUserId).orElse(null);
+            if (currentUser != null) {
+                isAdmin = familyMemberRepository.findByFamilyAndUser(family, currentUser)
+                        .map(fm -> Boolean.TRUE.equals(fm.getAdmin()))
+                        .orElse(false);
+            }
+        }
+
         return new FamilyResponse(
                 family.getId(),
                 family.getName(),
                 ownerId,
-                family.getInviteCode()
+                family.getInviteCode(),
+                isAdmin
         );
     }
 
@@ -360,7 +376,7 @@ public class FamilyServiceImpl implements FamilyService {
         }
         family.setInviteCode(inviteCode);
         Family saved = familyRepository.save(family);
-        return toFamilyResponse(saved);
+        return toFamilyResponse(saved, userId);
     }
 
     @Override
@@ -376,7 +392,7 @@ public class FamilyServiceImpl implements FamilyService {
         Family family = ensureAdminAccess(userId, familyId);
         family.setName(request.name());
         Family saved = familyRepository.save(family);
-        return toFamilyResponse(saved);
+        return toFamilyResponse(saved, userId);
     }
 
     @Override
@@ -493,66 +509,41 @@ public class FamilyServiceImpl implements FamilyService {
 
     @Override
     @Transactional(readOnly = true)
-    /**
-     * 获取
-     * @param keyword 业务参数
-     * @param status 业务参数
-     * @param page 分页页码
-     * @param size 分页大小
-     * @param startTime 业务参数
-     * @param endTime 业务参数
-     * @return 业务返回结果
-     */
-    public java.util.Map<String, Object> getAdminFamilyList(String keyword, String status, int page, int size, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
-        List<Family> families = familyRepository.findAll();
-        
-        // 应用筛选条件
-        if (keyword != null && !keyword.isEmpty()) {
-            families = families.stream()
-                .filter(family -> family.getName().contains(keyword) || family.getOwner().getNickname().contains(keyword))
-                .collect(java.util.stream.Collectors.toList());
-        }
-        
-        if (status != null && !status.isEmpty()) {
-            Integer desiredStatus;
-            try {
-                desiredStatus = Integer.parseInt(status);
-            } catch (NumberFormatException ex) {
-                desiredStatus = null;
-            }
-            Integer finalDesiredStatus = desiredStatus;
-            families = families.stream()
-                .filter(family -> {
-                    if (finalDesiredStatus == null) return true;
-                    return family.getStatus() != null && family.getStatus().equals(finalDesiredStatus);
-                })
-                .collect(java.util.stream.Collectors.toList());
-        }
-        
-        if (startTime != null || endTime != null) {
-            families = families.stream()
-                .filter(family -> {
-                    java.time.LocalDateTime familyCreatedAt = family.getCreatedAt();
-                    if (familyCreatedAt == null) familyCreatedAt = java.time.LocalDateTime.now();
-                    
-                    boolean afterStart = startTime == null || !familyCreatedAt.isBefore(startTime);
-                    boolean beforeEnd = endTime == null || !familyCreatedAt.isAfter(endTime);
-                    
-                    return afterStart && beforeEnd;
-                })
-                .collect(java.util.stream.Collectors.toList());
-        }
-        
-        // 计算分页数据
-        int total = families.size();
-        int start = (page - 1) * size;
-        int end = Math.min(start + size, total);
-        
-        List<Family> pageFamilies;
-        if (start >= total) pageFamilies = java.util.Collections.emptyList();
-        else pageFamilies = families.subList(start, end);
+    public Map<String, Object> getAdminFamilyList(String keyword, String status, int page, int size, LocalDateTime startTime, LocalDateTime endTime) {
+        Pageable pageable = PageRequest.of(page - 1, size);
 
-        List<AdminFamilyListItemDto> items = pageFamilies.stream().map(f -> {
+        Specification<Family> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (keyword != null && !keyword.isEmpty()) {
+                Predicate nameLike = cb.like(root.get("name"), "%" + keyword + "%");
+                Predicate ownerNicknameLike = cb.like(root.get("owner").get("nickname"), "%" + keyword + "%");
+                predicates.add(cb.or(nameLike, ownerNicknameLike));
+            }
+
+            if (status != null && !status.isEmpty()) {
+                try {
+                    Integer desiredStatus = Integer.parseInt(status);
+                    predicates.add(cb.equal(root.get("status"), desiredStatus));
+                } catch (NumberFormatException ex) {
+                    // 状态格式不正确，可以记录日志或忽略
+                }
+            }
+
+            if (startTime != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), startTime));
+            }
+
+            if (endTime != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), endTime));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<Family> familyPage = familyRepository.findAll(spec, pageable);
+
+        List<AdminFamilyListItemDto> items = familyPage.getContent().stream().map(f -> {
             long memberCount = familyMemberRepository.countByFamily_Id(f.getId());
             List<Long> userIds = familyMemberRepository.findUserIdsByFamilyId(f.getId());
             long healthLogCount = userIds.isEmpty() ? 0 : healthLogRepository.countByUser_IdIn(userIds);
@@ -571,14 +562,14 @@ public class FamilyServiceImpl implements FamilyService {
                     f.getCreatedAt()
             );
         }).toList();
-        
-        java.util.Map<String, Object> result = new java.util.HashMap<>();
+
+        Map<String, Object> result = new java.util.HashMap<>();
         result.put("list", items);
-        result.put("total", total);
+        result.put("total", familyPage.getTotalElements());
         result.put("page", page);
         result.put("size", size);
-        result.put("pages", (int) Math.ceil((double) total / size));
-        
+        result.put("pages", familyPage.getTotalPages());
+
         return result;
     }
 

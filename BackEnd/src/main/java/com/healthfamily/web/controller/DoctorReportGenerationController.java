@@ -1,6 +1,8 @@
 package com.healthfamily.web.controller;
 
 import com.healthfamily.security.UserPrincipal;
+import com.healthfamily.domain.entity.DoctorHealthReport;
+import com.healthfamily.service.DoctorHealthReportService;
 import com.healthfamily.service.HealthReportService;
 import com.healthfamily.web.dto.GenerateBatchReportRequest;
 import com.healthfamily.web.dto.GenerateReportRequest;
@@ -40,6 +42,43 @@ public class DoctorReportGenerationController {
     private static final MediaType ZIP = MediaType.parseMediaType("application/zip");
 
     private final HealthReportService healthReportService;
+    private final DoctorHealthReportService doctorHealthReportService;
+
+    @PostMapping("/submit")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public Result<Long> submitReport(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody @Valid GenerateReportRequest request) {
+        
+        // 1. 获取报告内容（如果 finalContent 为空，则需要生成）
+        String content = request.finalContent();
+        if (content == null || content.isBlank()) {
+            // 如果前端没有传 finalContent，后端生成预览内容作为正文
+            // 这里为了简化，直接调用 generateReportPreview 获取内容
+            // 实际生产中可能需要更高效的方式
+            ReportGenerationPreviewResponse preview = healthReportService.generateReportPreview(principal.getUserId(), request);
+            content = preview.draftContent();
+        }
+
+        // 2. 保存报告
+        String doctorName = principal.user() != null ? principal.user().getNickname() : null;
+        if (doctorName == null || doctorName.isBlank()) {
+            doctorName = "医生" + principal.getUserId();
+        }
+
+        DoctorHealthReport report = doctorHealthReportService.createReport(
+                principal.getUserId(),
+                doctorName,
+                request.userId(),
+                null, // familyId 暂时不传，或者需要从 request 中获取（如果 request 中有的话）
+                "健康诊断报告 " + LocalDate.now(),
+                request.diagnosis(),
+                content,
+                null // pdfUrl 暂时为空，后续可以上传到对象存储
+        );
+
+        return Result.success(report.getId());
+    }
 
     @GetMapping("/template")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")

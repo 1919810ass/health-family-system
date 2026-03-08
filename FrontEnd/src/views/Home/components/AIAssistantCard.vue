@@ -229,9 +229,9 @@ onMounted(() => {
 @use '@/styles/variables' as vars;
 
 .ai-assistant-card {
-  background: #fff;
+  background: linear-gradient(135deg, #f5f9ff 0%, #ffffff 55%, #fef9ff 100%);
   border-radius: 20px;
-  padding: 16px; /* slightly more uniform padding */
+  padding: 18px 20px;
   height: 100%;
   box-shadow: 0 8px 24px rgba(64, 158, 255, 0.08);
   display: flex;
@@ -284,7 +284,7 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-top: 8px;
+  margin-top: 10px;
   min-height: 0;
 }
 
@@ -302,14 +302,16 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  padding: 4px 0;
+  padding: 8px 0 12px;
+  text-align: center;
 }
 
 .empty-title {
   color: vars.$text-secondary-color;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .empty-actions {

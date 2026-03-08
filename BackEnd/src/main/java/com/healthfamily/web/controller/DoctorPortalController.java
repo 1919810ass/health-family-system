@@ -259,19 +259,31 @@ public class DoctorPortalController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("familyId") Long familyId,
             @PathVariable("memberId") Long memberId,
-            @RequestParam(value = "status", required = false) String status) {
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "startDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate startDate,
+            @RequestParam(value = "endDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate endDate) {
         Long doctorId = principal.getUserId();
-        return Result.success(doctorService.listFollowUpTasks(doctorId, familyId, memberId, status));
+        return Result.success(doctorService.listFollowUpTasks(doctorId, familyId, memberId, status, startDate, endDate));
     }
 
     @GetMapping("/families/{familyId}/followups")
     public Result<List<FollowUpTaskResponse>> listFamilyFollowUpTasks(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("familyId") Long familyId,
-            @RequestParam(value = "status", required = false) String status) {
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "startDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate startDate,
+            @RequestParam(value = "endDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate endDate) {
         Long doctorId = principal.getUserId();
         // memberId 传 null
-        return Result.success(doctorService.listFollowUpTasks(doctorId, familyId, null, status));
+        return Result.success(doctorService.listFollowUpTasks(doctorId, familyId, null, status, startDate, endDate));
     }
 
     @PostMapping("/families/{familyId}/members/{memberId}/followups")
@@ -367,10 +379,16 @@ public class DoctorPortalController {
             @PathVariable("familyId") Long familyId,
             @PathVariable("memberId") Long memberId,
             @RequestParam(value = "status", required = false) String status,
-            @RequestParam(value = "type", required = false) String type) {
+            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "startDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate startDate,
+            @RequestParam(value = "endDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate endDate) {
         Long doctorId = principal.getUserId();
         try {
-            return Result.success(doctorService.listHealthPlans(doctorId, familyId, memberId, status, type));
+            return Result.success(doctorService.listHealthPlans(doctorId, familyId, memberId, status, type, startDate, endDate));
         } catch (Exception e) {
             log.error("获取健康计划列表失败: familyId={}, memberId={}, doctorId={}", familyId, memberId, doctorId, e);
             return Result.error(500, "获取健康计划列表失败");
@@ -386,11 +404,17 @@ public class DoctorPortalController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("familyId") Long familyId,
             @RequestParam(value = "status", required = false) String status,
-            @RequestParam(value = "type", required = false) String type) {
+            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "startDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate startDate,
+            @RequestParam(value = "endDate", required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate endDate) {
         Long doctorId = principal.getUserId();
         try {
             // memberId 传 null 表示查询家庭下所有计划
-            return Result.success(doctorService.listHealthPlans(doctorId, familyId, null, status, type));
+            return Result.success(doctorService.listHealthPlans(doctorId, familyId, null, status, type, startDate, endDate));
         } catch (Exception e) {
             log.error("获取家庭健康计划列表失败: familyId={}, doctorId={}", familyId, doctorId, e);
             return Result.error(500, "获取健康计划列表失败");

@@ -5,7 +5,7 @@
  */
 
 export const mapToBackendCategories = (arr) => {
-  const M = { DIET: 'DIET', SLEEP: 'REST', SPORT: 'SPORT', MOOD: 'EMOTION' }
+  const M = { DIET: 'DIET', SLEEP: 'REST', SPORT: 'SPORT', MOOD: 'EMOTION', VITALS: 'VITALS' }
   return (arr || []).map(k => M[k] || k)
 }
 

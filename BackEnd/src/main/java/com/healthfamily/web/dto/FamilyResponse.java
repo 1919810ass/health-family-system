@@ -10,7 +10,8 @@ public record FamilyResponse(
         Long id,
         String name,
         Long ownerId,
-        String inviteCode
+        String inviteCode,
+        Boolean isAdmin
 ) {
 }
 

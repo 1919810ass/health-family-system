@@ -17,15 +17,45 @@
             <el-card class="glass-card" shadow="hover">
               <template #header><span class="card-title"><el-icon><Notebook /></el-icon> 描述记录</span></template>
               <el-form :model="dietForm" label-width="100px">
+                <el-form-item label="上传图片">
+                  <el-upload
+                    class="diet-image-upload glass-upload"
+                    :show-file-list="false"
+                    :auto-upload="false"
+                    :disabled="dietUploading"
+                    accept="image/jpeg,image/png,image/webp"
+                    :on-change="onDietImageChange"
+                  >
+                    <template v-if="dietUploading">
+                      <div class="diet-upload-loading">
+                        <el-icon class="is-loading" :size="28"><Loading /></el-icon>
+                        <span>上传中...</span>
+                      </div>
+                    </template>
+                    <template v-else-if="dietForm.imageUrl">
+                      <div class="diet-preview-wrap">
+                        <img :src="dietImagePreviewUrl" class="diet-preview-img" alt="食物" />
+                        <div class="diet-preview-mask">
+                          <el-icon class="remove-icon" @click.stop="clearDietImage"><CircleCloseFilled /></el-icon>
+                          <span class="hint">点击记录将用 AI 识别卡路里</span>
+                        </div>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <el-icon class="upload-icon"><Plus /></el-icon>
+                      <div class="upload-text">上传食物图片，AI 识别热量（可选）</div>
+                    </template>
+                  </el-upload>
+                </el-form-item>
                 <el-form-item label="饮食描述">
-                  <el-input v-model="dietForm.description" type="textarea" placeholder="午餐：米饭、青菜、鱼" class="glass-input" :rows="3" />
+                  <el-input v-model="dietForm.description" type="textarea" placeholder="不传图时填写：午餐：米饭、青菜、鱼" class="glass-input" :rows="3" />
                 </el-form-item>
                 <el-form-item label="份量/数量">
                   <el-input v-model="dietForm.quantity" placeholder="例如：200g, 1碗, 半份" class="glass-input" />
                 </el-form-item>
                 <el-form-item>
                   <el-button type="primary" :loading="dietLoading" @click="ingestDietAction" round>
-                    {{ dietLoading ? '正在记录...' : '记录' }}
+                    {{ dietLoading ? '正在记录...' : (dietForm.imageUrl ? '识别并记录' : '记录') }}
                   </el-button>
                 </el-form-item>
               </el-form>
@@ -41,7 +71,7 @@
               <template #header><span class="card-title"><el-icon><DataLine /></el-icon> 周营养报告</span></template>
               <div class="report ai-content" v-loading="reportLoading" v-html="weeklyReport || '暂无报告，请先记录饮食'"></div>
               <div class="mt-12">
-                <el-button @click="loadWeeklyReport" round class="glass-button">刷新报告</el-button>
+                <el-button type="primary" :loading="reportLoading" @click="loadWeeklyReport" round v-particles>生成报告</el-button>
               </div>
             </el-card>
             <el-card class="mt-16 glass-card" shadow="hover">
@@ -87,7 +117,7 @@
                 </el-form-item>
                 <el-form-item>
                   <el-button type="primary" :loading="sportLoading" @click="recordSport" round v-particles>保存</el-button>
-                  <el-button @click="loadSportSuggest" :loading="sportSuggestLoading" round class="glass-button">获取运动建议</el-button>
+                  <el-button type="primary" @click="loadSportSuggest" :loading="sportSuggestLoading" round v-particles>获取运动建议</el-button>
                 </el-form-item>
               </el-form>
               <el-alert v-if="sportSuggest" :closable="false" type="info" class="mt-12 glass-alert">
@@ -133,7 +163,7 @@
 
                 <el-form-item>
                   <el-button type="primary" :loading="sleepLoading" @click="recordSleepAction" round v-particles>保存</el-button>
-                  <el-button @click="analyzeSleepAction" :loading="sleepAnalyzeLoading" round class="glass-button">分析睡眠</el-button>
+                  <el-button type="primary" @click="analyzeSleepAction" :loading="sleepAnalyzeLoading" round v-particles>分析睡眠建议</el-button>
                 </el-form-item>
               </el-form>
               <el-alert v-if="sleepAnalyze" :closable="false" type="warning" class="mt-12 glass-alert">
@@ -177,8 +207,14 @@
                 <el-form-item>
                   <el-button type="primary" :loading="moodLoading" @click="recordMoodAction" round v-particles>保存到健康日志</el-button>
                   <el-button @click="goToLogs('mood')" round class="glass-button">去健康日志查看</el-button>
+                  <el-button type="primary" :loading="moodAnalyzeLoading" @click="analyzeMoodAction" round v-particles>分析情绪建议</el-button>
                 </el-form-item>
               </el-form>
+              <el-alert v-if="moodAnalyze" :closable="false" type="success" class="mt-12 glass-alert">
+                <template #default>
+                  <div class="ai-content" v-html="moodAnalyze"></div>
+                </template>
+              </el-alert>
             </el-card>
           </el-col>
         </el-row>
@@ -282,6 +318,23 @@
             </el-card>
           </el-col>
         </el-row>
+
+        <el-row justify="center" class="mt-16">
+          <el-col :xs="24" :md="16">
+            <el-card class="glass-card" shadow="hover">
+              <template #header>
+                <div class="card-header-flex">
+                  <span class="card-title"><el-icon><DataLine /></el-icon> 体征趋势 AI 分析</span>
+                  <el-button type="primary" :loading="vitalsLoading.analyze" @click="analyzeVitalsAction" round size="small" v-particles>生成分析报告</el-button>
+                </div>
+              </template>
+              <div v-if="vitalsAnalyze" class="ai-content" v-html="vitalsAnalyze"></div>
+              <div v-else class="empty-state">
+                <el-empty description="点击上方按钮，基于最近 14 天体征日志生成深度分析报告" :image-size="60" />
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -294,11 +347,11 @@
  * 业务说明：用于呈现对应页面/模块功能，并通过 API 层与后端进行数据交互。
  */
 
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Notebook, DataLine, Food, Bicycle, Moon, Sunrise, ChatDotRound, Monitor } from '@element-plus/icons-vue'
-import { ingestDiet, weeklyDietReport, recommendRecipes, recordExercise, suggestExercise, recordSleep, analyzeSleep, recordMood, recordVitals } from '../../api/lifestyle'
+import { Plus, Notebook, DataLine, Food, Bicycle, Moon, Sunrise, ChatDotRound, Monitor, CircleCloseFilled, Loading } from '@element-plus/icons-vue'
+import { ingestDiet, uploadDietImage, weeklyDietReport, recommendRecipes, recordExercise, suggestExercise, recordSleep, analyzeSleep, recordMood, analyzeMood, recordVitals, analyzeVitals } from '../../api/lifestyle'
 import dayjs from 'dayjs'
 import { useLogStore } from '../../stores'
 
@@ -307,6 +360,9 @@ const logStore = useLogStore()
 
 const dietForm = ref({ imageUrl: '', description: '', quantity: '' })
 const dietLoading = ref(false)
+const dietUploading = ref(false)
+// 图片预览地址：后端返回的 url 为 /api/lifestyle/files/xxx，同源可直接用
+const dietImagePreviewUrl = computed(() => dietForm.value.imageUrl || '')
 const dietItems = ref([])
 const dietTotal = ref(0)
 const reportLoading = ref(false)
@@ -328,12 +384,15 @@ const calculatedDuration = ref(null)
 
 const moodForm = ref({ emotion: '平静', level: 3, stress: 3, energy: 7, note: '' })
 const moodLoading = ref(false)
+const moodAnalyzeLoading = ref(false)
+const moodAnalyze = ref('')
 
 const bpForm = ref({ time: null, systolic: 120, diastolic: 80, note: '' })
 const glucoseForm = ref({ time: null, value: 5.6, unit: 'mmol/L', note: '' })
 const hrForm = ref({ time: null, value: 75, unit: 'bpm', note: '' })
 const tempWeightForm = ref({ time: null, temperature: 36.5, weight: 60, note: '' })
-const vitalsLoading = ref({ bp: false, glucose: false, hr: false, tempWeight: false })
+const vitalsLoading = ref({ bp: false, glucose: false, hr: false, tempWeight: false, analyze: false })
+const vitalsAnalyze = ref('')
 
 // 自动计算睡眠时长
 watch([() => sleepForm.value.bedtime, () => sleepForm.value.wakeTime], ([bed, wake]) => {
@@ -356,17 +415,65 @@ watch([() => sleepForm.value.bedtime, () => sleepForm.value.wakeTime], ([bed, wa
   }
 })
 
+// 上传食物图片后保存 URL，记录时走视觉模型 qwen2.5vl:3b 识别卡路里
+const onDietImageChange = async (uploadFile) => {
+  const file = uploadFile?.raw
+  if (!file || !file.type.startsWith('image/')) {
+    ElMessage.warning('请选择图片文件（JPG/PNG/WebP）')
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('图片大小不超过 5MB')
+    return
+  }
+  dietUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await uploadDietImage(formData)
+    // 兼容：后端 Result 为 { code, message, data: { url, ... } }，axios 返回 response.data 即整包
+    const code = res?.code
+    const payload = res?.data != null ? res.data : res
+    const url = payload?.url ?? res?.url
+    if ((code === 0 || code === '0') && url) {
+      dietForm.value.imageUrl = url
+      ElMessage.success('图片已上传，点击「识别并记录」将用 AI 识别热量')
+    } else {
+      const msg = res?.message || payload?.message || '上传失败'
+      ElMessage.error(msg)
+    }
+  } catch (e) {
+    const msg = e?.response?.data?.message || e?.message || '上传失败'
+    ElMessage.error(msg)
+  } finally {
+    dietUploading.value = false
+  }
+}
+
+const clearDietImage = () => {
+  dietForm.value.imageUrl = ''
+}
+
 const ingestDietAction = async () => {
+  if (!dietForm.value.imageUrl && !(dietForm.value.description || '').trim()) {
+    ElMessage.warning('请上传食物图片或填写饮食描述')
+    return
+  }
   dietLoading.value = true
   try {
     const payload = { ...dietForm.value }
     const res = await ingestDiet(payload)
     if (res.code === 0) {
-      dietItems.value = res?.data?.items || []
-      dietTotal.value = res?.data?.totalCalories || 0
-      ElMessage.success('已记录饮食')
-      // 移除自动刷新报告，改为用户手动刷新
-      // await loadWeeklyReport()
+      const items = res?.data?.items || []
+      const total = res?.data?.totalCalories ?? 0
+      dietItems.value = items
+      dietTotal.value = total
+      if (items.length === 0 && total === 0) {
+        ElMessage.warning('已记录，但未识别到食物或热量。请重试或补充饮食描述后记录。')
+      } else {
+        ElMessage.success('已记录饮食')
+      }
+      dietForm.value.imageUrl = ''
     } else {
       ElMessage.error(res.message || '识别失败')
     }
@@ -507,6 +614,22 @@ const recordMoodAction = async () => {
   }
 }
 
+const analyzeMoodAction = async () => {
+  moodAnalyzeLoading.value = true
+  try {
+    const res = await analyzeMood()
+    if (res.code === 0) {
+      moodAnalyze.value = res.data || ''
+    } else {
+      moodAnalyze.value = ''
+    }
+  } catch (e) {
+    moodAnalyze.value = ''
+  } finally {
+    moodAnalyzeLoading.value = false
+  }
+}
+
 const recordVitalsAction = async (type) => {
   const loadingKeyMap = { 血压: 'bp', 血糖: 'glucose', 心率: 'hr' }
   const key = loadingKeyMap[type]
@@ -530,6 +653,22 @@ const recordVitalsAction = async (type) => {
     ElMessage.error('保存失败')
   } finally {
     if (key) vitalsLoading.value[key] = false
+  }
+}
+
+const analyzeVitalsAction = async () => {
+  vitalsLoading.value.analyze = true
+  try {
+    const res = await analyzeVitals()
+    if (res.code === 0) {
+      vitalsAnalyze.value = res.data || ''
+    } else {
+      vitalsAnalyze.value = ''
+    }
+  } catch (e) {
+    vitalsAnalyze.value = ''
+  } finally {
+    vitalsLoading.value.analyze = false
   }
 }
 
@@ -687,6 +826,13 @@ const recordTempWeight = async () => {
       font-size: 18px;
     }
   }
+
+  .card-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
   
   :deep(.el-card__header) {
     border-bottom: 1px solid rgba(255, 255, 255, 0.3);
@@ -780,6 +926,102 @@ const recordTempWeight = async () => {
     display: block;
     object-fit: cover;
     border-radius: vars.$radius-lg;
+  }
+}
+
+/* 饮食图片上传与预览（参考 AI 健康助手模块） */
+.diet-image-upload {
+  :deep(.el-upload) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 260px;
+    height: 160px;
+    padding: 24px;
+    box-sizing: border-box;
+    border: 2px dashed rgba(var(--el-color-primary-rgb), 0.15);
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 16px;
+    transition: all 0.3s vars.$ease-spring;
+    
+    &:hover {
+      border-color: vars.$primary-color;
+      background: rgba(255, 255, 255, 0.7);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(var(--el-color-primary-rgb), 0.08);
+    }
+  }
+  .diet-preview-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    border-radius: vars.$radius-lg;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .diet-preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .diet-preview-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    .remove-icon {
+      font-size: 28px;
+      color: #fff;
+      cursor: pointer;
+    }
+    .hint {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+  }
+  .diet-preview-wrap:hover .diet-preview-mask {
+    opacity: 1;
+  }
+  .upload-icon {
+    font-size: 32px;
+    color: vars.$primary-color;
+    opacity: 0.6;
+    margin-bottom: 4px;
+    transition: all 0.3s;
+  }
+  
+  :deep(.el-upload:hover) .upload-icon {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+
+  .upload-text {
+    margin-top: 8px;
+    font-size: 13px;
+    color: vars.$text-secondary-color;
+    text-align: center;
+    line-height: 1.5;
+    padding: 0 12px;
+    opacity: 0.8;
+  }
+  .diet-upload-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 200px;
+    height: 200px;
+    color: vars.$text-secondary-color;
+    font-size: 14px;
   }
 }
 

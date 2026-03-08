@@ -56,6 +56,9 @@
                     <el-button type="success" :loading="generating" :disabled="!draftContent.trim()" @click="handleGenerateReport">
                       下载PDF
                     </el-button>
+                    <el-button type="warning" :loading="sending" :disabled="!draftContent.trim()" @click="handleSubmitReport">
+                      发送给患者
+                    </el-button>
                     <el-button @click="handleDownloadTemplate">下载空白模板</el-button>
                   </div>
                   <div class="action-right">
@@ -315,7 +318,7 @@ import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { useDoctorStore } from '@/stores/doctor'
 import { ElMessage } from 'element-plus'
 import { Document, Files, DataLine, Cpu, Connection, Loading, InfoFilled } from '@element-plus/icons-vue'
-import { generateReportDocx, generateReportPdf, downloadReportTemplate, generateReportPreview, generateBatchReportZip, getSystemMetrics } from '@/api/doctor'
+import { generateReportDocx, generateReportPdf, downloadReportTemplate, generateReportPreview, generateBatchReportZip, getSystemMetrics, submitReport } from '@/api/doctor'
 import { getToken } from '@/utils/auth'
 
 const doctorStore = useDoctorStore()
@@ -327,6 +330,7 @@ const activeTab = ref('single')
 const selectedMemberId = ref(null)
 const doctorDiagnosis = ref('')
 const generating = ref(false)
+const sending = ref(false)
 const previewLoading = ref(false)
 const draftContent = ref('')
 const evidences = ref([])
@@ -564,6 +568,34 @@ const handleGenerateReport = async () => {
     ElMessage.error('生成报告失败')
   } finally {
     generating.value = false
+  }
+}
+
+const handleSubmitReport = async () => {
+  if (!selectedMemberId.value) return
+  if (!doctorDiagnosis.value.trim()) {
+    ElMessage.warning('请输入诊断意见')
+    return
+  }
+  if (!draftContent.value.trim()) {
+    ElMessage.warning('请先生成预览')
+    return
+  }
+
+  sending.value = true
+  try {
+    const payload = {
+      userId: Number(selectedMemberId.value),
+      diagnosis: doctorDiagnosis.value,
+      finalContent: draftContent.value
+    }
+    await submitReport(payload)
+    ElMessage.success('报告已发送给患者')
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('发送报告失败')
+  } finally {
+    sending.value = false
   }
 }
 

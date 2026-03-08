@@ -43,6 +43,16 @@
           <el-form-item label="昵称">
             <el-input v-model="profileForm.nickname" placeholder="请输入昵称" />
           </el-form-item>
+          <el-form-item label="个人简介">
+            <el-input 
+              v-model="profileForm.bio" 
+              type="textarea" 
+              :rows="4" 
+              placeholder="请输入个人简介，将向患者展示" 
+              maxlength="500"
+              show-word-limit
+            />
+          </el-form-item>
           <el-form-item label="手机号">
             <el-input v-model="profileForm.phone" placeholder="请输入手机号" disabled>
               <template #append>
@@ -56,88 +66,6 @@
           </el-form-item>
         </el-form>
       </div>
-    </el-card>
-
-    <!-- 通知设置 -->
-    <el-card class="mt-16">
-      <template #header>
-        <span>消息通知设置</span>
-        <el-text type="info" size="small" style="margin-left: 12px">可针对不同通知类型设置接收渠道</el-text>
-      </template>
-      
-      <el-form :model="notifications" label-width="150px">
-        <!-- 系统通知 -->
-        <el-divider content-position="left">系统通知</el-divider>
-        <el-form-item label="APP 内通知">
-          <el-switch v-model="notifications.system.inApp" />
-        </el-form-item>
-        <el-form-item label="邮件通知">
-          <el-switch v-model="notifications.system.email" />
-        </el-form-item>
-        <el-form-item label="短信通知">
-          <el-switch v-model="notifications.system.sms" />
-        </el-form-item>
-        
-        <!-- 随访提醒 -->
-        <el-divider content-position="left">随访提醒</el-divider>
-        <el-form-item label="APP 内通知">
-          <el-switch v-model="notifications.followup.inApp" />
-        </el-form-item>
-        <el-form-item label="邮件通知">
-          <el-switch v-model="notifications.followup.email" />
-        </el-form-item>
-        <el-form-item label="短信通知">
-          <el-switch v-model="notifications.followup.sms" />
-        </el-form-item>
-        
-        <!-- 预警通知 -->
-        <el-divider content-position="left">预警通知</el-divider>
-        <el-form-item label="APP 内通知">
-          <el-switch v-model="notifications.alert.inApp" />
-        </el-form-item>
-        <el-form-item label="邮件通知">
-          <el-switch v-model="notifications.alert.email" />
-        </el-form-item>
-        <el-form-item label="短信通知">
-          <el-switch v-model="notifications.alert.sms" />
-        </el-form-item>
-        
-        <el-form-item>
-          <el-button type="primary" :loading="saving" @click="saveNotifications">保存通知设置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
-    
-    <!-- 工作时间设置 -->
-    <el-card class="mt-16">
-      <template #header>
-        <span>工作时间设置</span>
-        <el-text type="info" size="small" style="margin-left: 12px">设置的工作时间会影响随访计划生成和推送发送窗口</el-text>
-      </template>
-      
-      <el-form :model="workingHours" label-width="150px">
-        <el-form-item label="工作日">
-          <el-select v-model="workingHours.workDays" multiple placeholder="选择工作日" style="width: 400px">
-            <el-option v-for="d in daysList" :key="d.value" :label="d.label" :value="d.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="工作时间段">
-          <el-time-picker
-            v-model="timeRange"
-            is-range
-            range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
-            format="HH:mm"
-            value-format="HH:mm"
-            style="width: 400px"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="savingWork" @click="saveWorkingHours">保存工作时间</el-button>
-          <el-button @click="resetWorkingHours">重置为默认</el-button>
-        </el-form-item>
-      </el-form>
     </el-card>
   </div>
 </template>
@@ -154,12 +82,9 @@ import { ElMessage } from 'element-plus'
 import { Camera } from '@element-plus/icons-vue'
 import { getDoctorSettings, updateDoctorSettings } from '../../api/doctor'
 import { useUserStore } from '../../stores/user'
-import dayjs from 'dayjs'
 import AvatarCropper from '@/components/Common/AvatarCropper.vue'
 
 const userStore = useUserStore()
-const saving = ref(false)
-const savingWork = ref(false)
 const savingProfile = ref(false)
 const avatarLoading = ref(false)
 const cropperVisible = ref(false)
@@ -168,7 +93,8 @@ const selectedFile = ref(null)
 // 个人信息表单
 const profileForm = ref({
   nickname: '',
-  phone: ''
+  phone: '',
+  bio: ''
 })
 
 // 同步用户信息
@@ -176,6 +102,7 @@ watch(() => userStore.profile, (newVal) => {
   if (newVal) {
     profileForm.value.nickname = newVal.nickname || ''
     profileForm.value.phone = newVal.phone || ''
+    // bio 将在 loadSettings 中单独加载
   }
 }, { immediate: true })
 
@@ -220,9 +147,18 @@ const handleCropConfirm = async (file) => {
 const saveProfile = async () => {
   savingProfile.value = true
   try {
+    // 1. 更新基本信息
     await userStore.updateProfile({
       nickname: profileForm.value.nickname
     })
+    
+    // 2. 更新医生简介
+    await updateDoctorSettings({
+      notifications: null,
+      workingHours: null,
+      bio: profileForm.value.bio
+    })
+    
     ElMessage.success('个人信息保存成功')
   } catch (error) {
     console.error('保存个人信息失败', error)
@@ -232,139 +168,19 @@ const saveProfile = async () => {
   }
 }
 
-// 通知设置
-const notifications = ref({
-  system: { inApp: true, email: false, sms: false },
-  followup: { inApp: true, email: false, sms: false },
-  alert: { inApp: true, email: false, sms: false }
-})
-
-// 工作时间设置
-const daysList = [
-  { label: '周一', value: 'MON' },
-  { label: '周二', value: 'TUE' },
-  { label: '周三', value: 'WED' },
-  { label: '周四', value: 'THU' },
-  { label: '周五', value: 'FRI' },
-  { label: '周六', value: 'SAT' },
-  { label: '周日', value: 'SUN' },
-]
-
-const workingHours = ref({
-  workDays: ['MON', 'TUE', 'WED', 'THU', 'FRI'],
-  startTime: '09:00',
-  endTime: '18:00'
-})
-
-// 时间范围（用于时间选择器）
-const timeRange = ref([])
-
-// 同步时间范围到工作时间
-watch(timeRange, (val) => {
-  if (val && val.length === 2) {
-    workingHours.value.startTime = val[0]
-    workingHours.value.endTime = val[1]
-  }
-}, { immediate: true })
-
-// 同步工作时间到时间范围
-watch(() => [workingHours.value.startTime, workingHours.value.endTime], ([start, end]) => {
-  if (start && end) {
-    timeRange.value = [start, end]
-  }
-}, { immediate: true })
-
 // 加载设置
 const loadSettings = async () => {
   try {
     const res = await getDoctorSettings()
     const data = res?.data
     
-    if (data?.notifications) {
-      notifications.value = {
-        system: {
-          inApp: data.notifications.system?.inApp ?? true,
-          email: data.notifications.system?.email ?? false,
-          sms: data.notifications.system?.sms ?? false
-        },
-        followup: {
-          inApp: data.notifications.followup?.inApp ?? true,
-          email: data.notifications.followup?.email ?? false,
-          sms: data.notifications.followup?.sms ?? false
-        },
-        alert: {
-          inApp: data.notifications.alert?.inApp ?? true,
-          email: data.notifications.alert?.email ?? false,
-          sms: data.notifications.alert?.sms ?? false
-        }
-      }
-    }
-    
-    if (data?.workingHours) {
-      workingHours.value = {
-        workDays: data.workingHours.workDays || ['MON', 'TUE', 'WED', 'THU', 'FRI'],
-        startTime: data.workingHours.startTime || '09:00',
-        endTime: data.workingHours.endTime || '18:00'
-      }
+    if (data?.bio !== undefined) {
+      profileForm.value.bio = data.bio || ''
     }
   } catch (error) {
     console.error('加载医生设置失败:', error)
     ElMessage.error('加载设置失败')
   }
-}
-
-// 保存通知设置
-const saveNotifications = async () => {
-  saving.value = true
-  try {
-    await updateDoctorSettings({
-      notifications: notifications.value,
-      workingHours: null  // 不更新工作时间
-    })
-    ElMessage.success('通知设置已保存')
-  } catch (error) {
-    console.error('保存通知设置失败:', error)
-    ElMessage.error('保存失败')
-  } finally {
-    saving.value = false
-  }
-}
-
-// 保存工作时间
-const saveWorkingHours = async () => {
-  if (!workingHours.value.workDays || workingHours.value.workDays.length === 0) {
-    ElMessage.warning('请至少选择一个工作日')
-    return
-  }
-  
-  if (!workingHours.value.startTime || !workingHours.value.endTime) {
-    ElMessage.warning('请设置工作时间段')
-    return
-  }
-  
-  savingWork.value = true
-  try {
-    await updateDoctorSettings({
-      notifications: null,  // 不更新通知设置
-      workingHours: workingHours.value
-    })
-    ElMessage.success('工作时间设置已保存')
-  } catch (error) {
-    console.error('保存工作时间失败:', error)
-    ElMessage.error('保存失败')
-  } finally {
-    savingWork.value = false
-  }
-}
-
-// 重置工作时间
-const resetWorkingHours = () => {
-  workingHours.value = {
-    workDays: ['MON', 'TUE', 'WED', 'THU', 'FRI'],
-    startTime: '09:00',
-    endTime: '18:00'
-  }
-  ElMessage.info('已重置为默认工作时间（周一至周五 09:00-18:00）')
 }
 
 onMounted(async () => {

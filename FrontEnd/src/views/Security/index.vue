@@ -117,21 +117,6 @@
         <a v-if="downloadUrl" :href="downloadUrl" download="health_full_archive.zip" class="ml-8 link">点击下载档案</a>
       </div>
     </el-card>
-
-    <!-- 4. 差分隐私演示 -->
-    <el-card class="mt-16">
-      <template #header><span>隐私增强技术演示 (差分隐私)</span></template>
-      <p class="desc mb-12">开启后，您的饮食周报数据将添加拉普拉斯噪声，保护具体数值隐私。</p>
-      <div class="row">
-        <el-switch v-model="dpEnabled" active-text="开启差分隐私" />
-        <span class="ml-16">隐私预算(ε):</span>
-        <el-input-number v-model="epsilon" :min="0.1" :max="5" :step="0.1" size="small" class="ml-8" />
-        <el-button @click="previewDP" class="ml-16" :loading="previewing">生成周报预览</el-button>
-      </div>
-      <div class="mt-12 p-12 bg-gray" v-if="dpPreview">
-        <div v-html="dpPreview" class="report-content"></div>
-      </div>
-    </el-card>
   </div>
 </template>
 
@@ -147,7 +132,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { exportData, deleteData, getPrivacySettings, updatePrivacySettings, getSecurityActivities } from '../../api/security'
 import { getFamilyDoctor, getFamilyMembers, getFamilies } from '../../api/family'
 import { useFamilyStore } from '../../stores/family'
-import { weeklyDietReport } from '../../api/lifestyle'
 import { UserFilled, Lock } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
@@ -181,12 +165,6 @@ const logPage = ref(1)
 const exporting = ref(false)
 const deleting = ref(false)
 const downloadUrl = ref('')
-
-// 差分隐私
-const dpEnabled = ref(false)
-const epsilon = ref(1.0)
-const previewing = ref(false)
-const dpPreview = ref('')
 
 onMounted(async () => {
   // Try to initialize family store if empty
@@ -414,18 +392,6 @@ const onDelete = async () => {
     ElMessage.error('删除失败')
   } finally {
     deleting.value = false
-  }
-}
-
-const previewDP = async () => {
-  previewing.value = true
-  try {
-    const res = await weeklyDietReport({ dp: dpEnabled.value, epsilon: epsilon.value })
-    dpPreview.value = res?.data || ''
-  } catch (e) {
-    dpPreview.value = ''
-  } finally {
-    previewing.value = false
   }
 }
 

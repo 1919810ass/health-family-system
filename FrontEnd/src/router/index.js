@@ -91,6 +91,14 @@ const routes = [
         },
       },
       {
+        path: '/my-reports',
+        name: 'my-reports',
+        component: () => import('../views/HealthReport/MyReports.vue'),
+        meta: {
+          title: '我的健康报告',
+        },
+      },
+      {
         path: '/families',
         component: () => import('../views/Family/index.vue'),
         meta: {
@@ -189,6 +197,14 @@ const routes = [
         component: () => import('../views/Collaboration/index.vue'),
         meta: {
           title: '家庭协作',
+        },
+      },
+      {
+        path: '/family-report',
+        name: 'family-report',
+        component: () => import('../views/FamilyReport/index.vue'),
+        meta: {
+          title: '家庭健康周报',
         },
       },
 
@@ -290,7 +306,7 @@ const routes = [
       },
       {
         path: 'health/assessments',
-        component: () => import('../views/Admin/Health/Logs.vue'),
+        component: () => import('../views/Admin/Health/Assessments.vue'),
         meta: { title: '体质测评', roles: ['ADMIN'] },
       },
       {
@@ -299,8 +315,8 @@ const routes = [
         meta: { title: '健康提醒管理', roles: ['ADMIN'] },
       },
       {
-        path: 'health/recommendations',
-        component: () => import('../views/Admin/Health/Reminders.vue'),
+        path: 'health/ai-suggestions',
+        component: () => import('../views/Admin/Health/AiSuggestions.vue'),
         meta: { title: 'AI建议', roles: ['ADMIN'] },
       },
       {
@@ -315,7 +331,7 @@ const routes = [
       },
       {
         path: 'doctors/collaboration',
-        component: () => import('../views/Admin/Doctors/List.vue'),
+        component: () => import('../views/Admin/Monitoring/DoctorCollaboration.vue'),
         meta: { title: '协作监控', roles: ['ADMIN'] },
       },
       {

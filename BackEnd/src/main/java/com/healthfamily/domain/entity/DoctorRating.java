@@ -52,6 +52,18 @@ public class DoctorRating {
     @Column(columnDefinition = "TEXT")
     private String comment;
 
+    /**
+     * 医生回复
+     */
+    @Column(columnDefinition = "TEXT")
+    private String reply;
+
+    /**
+     * 回复时间
+     */
+    @Column(name = "replied_at")
+    private LocalDateTime repliedAt;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -94,66 +94,84 @@
     <el-card class="mt-16 glass-card" shadow="hover">
       <template #header>
         <div class="card-header">
-          <span>协作任务</span>
-          <div>
-            <el-button type="primary" :loading="genLoading" @click="generateCollab" round class="glass-button" v-particles>智能生成协作提醒</el-button>
+          <span>协作任务记录</span>
+          <div class="header-actions">
+            <el-tooltip content="基于AI分析家庭成员缺失数据并生成提醒" placement="top">
+              <el-button type="primary" :loading="genLoading" @click="generateCollab" round class="glass-button" v-particles>
+                <el-icon class="mr-4"><MagicStick /></el-icon>智能生成协作提醒
+              </el-button>
+            </el-tooltip>
           </div>
         </div>
       </template>
-      <el-table :data="familyReminders" v-loading="remindersLoading" style="width:100%" class="glass-table">
-        <el-table-column prop="title" label="标题" min-width="160" />
-        <el-table-column prop="content" label="内容" min-width="240" />
-        <el-table-column prop="assignedToUserId" label="指派给" min-width="120">
-          <template #default="{ row }">
-            <el-tag size="small" effect="plain" round>{{ userName(row.assignedToUserId) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="scheduledTime" label="计划时间" min-width="160">
-          <template #default="{ row }">
-            {{ formatDateTime(row.scheduledTime) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" min-width="100">
-          <template #default="{ row }">
-             <el-tag :type="getTaskStatusType(row.status)" size="small" round>{{ getTaskStatusName(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              v-if="canComplete(row)"
-              size="small"
-              type="success"
-              plain
-              :loading="completingId === row.id"
-              @click="completeTask(row)"
-              v-particles
-            >
-              完成
-            </el-button>
-            <el-button
-              v-if="canUrge(row)"
-              size="small"
-              type="warning"
-              plain
-              @click="urgeTask(row)"
-              v-particles
-            >
-              督促
-            </el-button>
-            <el-popconfirm
-              v-if="canDelete(row)"
-              title="确定删除该任务吗？"
-              @confirm="deleteTask(row)"
-            >
-              <template #reference>
-                <el-button size="small" type="danger" plain :loading="deletingId === row.id">删除</el-button>
-              </template>
-            </el-popconfirm>
-            <span v-if="!canComplete(row) && !canDelete(row) && !canUrge(row)" class="text-secondary">—</span>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-container">
+        <el-table :data="familyReminders" v-loading="remindersLoading" max-height="400" style="width:100%" class="glass-table" :row-class-name="getRowClass">
+          <el-table-column prop="title" label="任务类型" width="150">
+            <template #default="{ row }">
+              <div class="type-column">
+                <el-icon :class="getIconClass(row.type)"><component :is="getIcon(row.type)" /></el-icon>
+                <span>{{ row.title?.replace('协作提醒：', '') }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="content" label="AI 建议内容" min-width="280">
+            <template #default="{ row }">
+              <div class="ai-content-cell">
+                <span class="content-text">{{ row.content }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="assignedToUserName" label="提醒对象" width="120">
+            <template #default="{ row }">
+              <el-tag size="small" effect="light" round class="name-tag">{{ row.assignedToUserName || '—' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="scheduledTime" label="时间" width="150">
+            <template #default="{ row }">
+              <span class="time-text">{{ formatDateTime(row.scheduledTime) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+               <el-tag :type="getTaskStatusType(row.status)" size="small" round effect="dark">{{ getTaskStatusName(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{ row }">
+              <div class="op-btns">
+                <el-button
+                  v-if="canComplete(row)"
+                  size="small"
+                  type="success"
+                  link
+                  :loading="completingId === row.id"
+                  @click="completeTask(row)"
+                >
+                  完成
+                </el-button>
+                <el-button
+                  v-if="canUrge(row)"
+                  size="small"
+                  type="warning"
+                  link
+                  @click="urgeTask(row)"
+                >
+                  督促
+                </el-button>
+                <el-popconfirm
+                  v-if="canDelete(row)"
+                  title="确定删除吗？"
+                  @confirm="deleteTask(row)"
+                >
+                  <template #reference>
+                    <el-button size="small" type="danger" link :loading="deletingId === row.id">删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-card>
 
     <el-dialog v-model="messageDialogVisible" title="发送健康寄语" width="400px" custom-class="glass-dialog">
@@ -181,7 +199,7 @@
  */
 
 import { ref, computed, onMounted } from 'vue'
-import { Connection, Star, Bell, ChatLineSquare } from '@element-plus/icons-vue'
+import { Connection, Star, Bell, ChatLineSquare, MagicStick, Food, Timer, TrendCharts, Moon, Sunny } from '@element-plus/icons-vue'
 import { useFamilyStore } from '../../stores/family'
 import { useUserStore } from '../../stores/user'
 import { ElMessage } from 'element-plus'
@@ -361,6 +379,29 @@ const loadFamily = async () => {
   } catch {}
 }
 
+const getIcon = (type) => {
+  const t = normalizeStatus(type)
+  if (t === 'ROUTINE') return Food
+  if (t === 'MEASUREMENT') return Timer
+  if (t === 'LIFESTYLE') {
+    // 简略逻辑：根据标题判断
+    return TrendCharts
+  }
+  return Bell
+}
+
+const getIconClass = (type) => {
+  const t = normalizeStatus(type)
+  if (t === 'ROUTINE') return 'text-primary'
+  if (t === 'MEASUREMENT') return 'text-warning'
+  if (t === 'LIFESTYLE') return 'text-success'
+  return 'text-info'
+}
+
+const getRowClass = ({ row }) => {
+  return normalizeStatus(row.status) === 'PENDING' ? 'pending-row' : ''
+}
+
 const resolveDefaultFamilyId = async () => {
   if (famStore.current?.id) return famStore.current.id
   const fid = localStorage.getItem('current_family_id')
@@ -459,13 +500,21 @@ const deleteTask = async (row) => {
 }
 
 const generateCollab = async () => {
+  if (!familyId.value) {
+    ElMessage.warning('请先在家庭管理中选择当前家庭')
+    return
+  }
   genLoading.value = true
   try {
-    await generateCollaborationReminders(familyId.value)
-    ElMessage.success('已生成协作提醒')
+    const res = await generateCollaborationReminders(familyId.value)
+    if (res?.code === 0) {
+      ElMessage.success('已生成协作提醒')
+    } else {
+      ElMessage.error(res?.message || '生成协作提醒失败')
+    }
     await loadReminders()
   } catch (e) {
-    ElMessage.error('生成协作提醒失败')
+    ElMessage.error(e?.message || '生成协作提醒失败')
   } finally {
     genLoading.value = false
   }
@@ -654,6 +703,55 @@ onMounted(init)
 
 .text-danger { color: vars.$danger-color; }
 .text-success { color: vars.$success-color; }
+.text-primary { color: vars.$primary-color; }
+.text-warning { color: vars.$warning-color; }
+.text-info { color: vars.$text-secondary-color; }
+
+.table-container {
+  border-radius: vars.$radius-base;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.type-column {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  
+  .el-icon {
+    font-size: 16px;
+  }
+}
+
+.ai-content-cell {
+  padding: 4px 0;
+  .content-text {
+    font-size: 14px;
+    color: vars.$text-main-color;
+    line-height: 1.5;
+  }
+}
+
+.name-tag {
+  font-weight: 500;
+}
+
+.time-text {
+  font-size: 13px;
+  color: vars.$text-secondary-color;
+}
+
+.op-btns {
+  display: flex;
+  gap: 12px;
+}
+
+:deep(.pending-row) {
+  --el-table-tr-bg-color: rgba(var(--el-color-primary-rgb), 0.02);
+}
+
+.mr-4 { margin-right: 4px; }
 
 .glass-table {
   background: transparent;

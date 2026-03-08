@@ -252,6 +252,17 @@ CREATE TABLE IF NOT EXISTS ai_request_logs (
     INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI请求日志表';
 
+-- 21. 健康提醒模板表
+CREATE TABLE IF NOT EXISTS health_reminder_templates (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    content TEXT NOT NULL COMMENT '提醒内容',
+    category VARCHAR(64) NOT NULL COMMENT '分类',
+    user_count INT DEFAULT 0 COMMENT '设置用户数',
+    status TINYINT DEFAULT 1 COMMENT '状态 (1: 启用, 0: 禁用)',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_category (category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='健康提醒模板表';
+
 -- 初始管理员账号 (admin/123456) - 使用手机号 13800000000
 INSERT INTO users (phone, password_hash, nickname, role, status) 
 VALUES ('13800000000', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOcd7.jRjD.a', '系统管理员', 'ADMIN', 1)
@@ -269,3 +280,93 @@ INSERT INTO tcm_knowledge_base (title, content, type, constitution_type, difficu
 ('黄芪红枣茶', '黄芪10克，红枣5枚。开水冲泡代茶饮。具有补气生血功效。', 'TEA', 'QI_DEFICIENCY', 'EASY', 'HIGH', NOW(), NOW()),
 ('生活起居', '注意保暖，避免受风寒。避免过度劳累，保证充足睡眠。', 'LIFESTYLE', 'QI_DEFICIENCY', 'EASY', 'HIGH', NOW(), NOW()),
 ('情志调节', '保持心情舒畅，避免过度思虑。多听轻柔音乐，放松心情。', 'EMOTION', 'QI_DEFICIENCY', 'EASY', 'HIGH', NOW(), NOW());
+
+-- 22. 初始化健康提醒测试数据 (用于演示 AI 建议)
+INSERT INTO health_reminders (user_id, creator_id, type, title, content, status, priority, scheduled_time, created_at) VALUES 
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 20 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 21 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_SUB(NOW(), INTERVAL 22 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 23 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 24 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 25 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 26 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 8 DAY), DATE_SUB(NOW(), INTERVAL 27 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 9 DAY), DATE_SUB(NOW(), INTERVAL 28 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 29 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 11 DAY), DATE_SUB(NOW(), INTERVAL 30 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 12 DAY), DATE_SUB(NOW(), INTERVAL 31 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 13 DAY), DATE_SUB(NOW(), INTERVAL 32 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 14 DAY), DATE_SUB(NOW(), INTERVAL 33 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 34 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 16 DAY), DATE_SUB(NOW(), INTERVAL 35 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 17 DAY), DATE_SUB(NOW(), INTERVAL 36 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 18 DAY), DATE_SUB(NOW(), INTERVAL 37 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 19 DAY), DATE_SUB(NOW(), INTERVAL 38 DAY)),
+(4, 4, 'MEDICATION', '降压药', '早晨空腹服用', 'COMPLETED', 'HIGH', DATE_SUB(NOW(), INTERVAL 20 DAY), DATE_SUB(NOW(), INTERVAL 39 DAY)),
+
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 8 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 10 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 11 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 8 DAY), DATE_SUB(NOW(), INTERVAL 12 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 9 DAY), DATE_SUB(NOW(), INTERVAL 13 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 14 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 11 DAY), DATE_SUB(NOW(), INTERVAL 15 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 12 DAY), DATE_SUB(NOW(), INTERVAL 16 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 13 DAY), DATE_SUB(NOW(), INTERVAL 17 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 14 DAY), DATE_SUB(NOW(), INTERVAL 18 DAY)),
+(4, 4, 'LIFESTYLE', '每日饮水', '至少 2000ml', 'COMPLETED', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 19 DAY)),
+
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 8 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 8 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 9 DAY), DATE_SUB(NOW(), INTERVAL 10 DAY)),
+(4, 4, 'MEASUREMENT', '测血糖', '餐后两小时', 'PENDING', 'MEDIUM', DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 11 DAY));
+
+-- 23. 初始化医生数据及协作监控演示数据
+-- 医生 A (phone: 13900000001)
+INSERT INTO users (phone, password_hash, nickname, role, status, last_login_at) 
+VALUES ('13900000001', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOcd7.jRjD.a', '张医生', 'DOCTOR', 1, NOW())
+ON DUPLICATE KEY UPDATE id=id;
+
+-- 医生 B (phone: 13900000002)
+INSERT INTO users (phone, password_hash, nickname, role, status, last_login_at) 
+VALUES ('13900000002', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOcd7.jRjD.a', '李医生', 'DOCTOR', 1, DATE_SUB(NOW(), INTERVAL 2 DAY))
+ON DUPLICATE KEY UPDATE id=id;
+
+-- 医生 C (phone: 13900000003)
+INSERT INTO users (phone, password_hash, nickname, role, status, last_login_at) 
+VALUES ('13900000003', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOcd7.jRjD.a', '王医生', 'DOCTOR', 1, DATE_SUB(NOW(), INTERVAL 5 MINUTE))
+ON DUPLICATE KEY UPDATE id=id;
+
+-- 为医生 A 添加一些活跃会话
+INSERT INTO consultation_sessions (patient_user_id, family_id, doctor_id, title, status, last_message_at) 
+SELECT 4, 1, id, '高血压咨询', 'ACTIVE', NOW() FROM users WHERE phone = '13900000001';
+INSERT INTO consultation_sessions (patient_user_id, family_id, doctor_id, title, status, last_message_at) 
+SELECT 4, 1, id, '饮食建议', 'ACTIVE', NOW() FROM users WHERE phone = '13900000001';
+
+-- 为医生 C 添加较多会话 (模拟高负载)
+INSERT INTO consultation_sessions (patient_user_id, family_id, doctor_id, title, status, last_message_at) 
+SELECT 4, 1, id, '术后恢复咨询 1', 'ACTIVE', NOW() FROM users WHERE phone = '13900000003';
+INSERT INTO consultation_sessions (patient_user_id, family_id, doctor_id, title, status, last_message_at) 
+SELECT 4, 1, id, '术后恢复咨询 2', 'ACTIVE', NOW() FROM users WHERE phone = '13900000003';
+INSERT INTO consultation_sessions (patient_user_id, family_id, doctor_id, title, status, last_message_at) 
+SELECT 4, 1, id, '术后恢复咨询 3', 'ACTIVE', NOW() FROM users WHERE phone = '13900000003';
+INSERT INTO consultation_sessions (patient_user_id, family_id, doctor_id, title, status, last_message_at) 
+SELECT 4, 1, id, '术后恢复咨询 4', 'ACTIVE', NOW() FROM users WHERE phone = '13900000003';
+INSERT INTO consultation_sessions (patient_user_id, family_id, doctor_id, title, status, last_message_at) 
+SELECT 4, 1, id, '术后恢复咨询 5', 'ACTIVE', NOW() FROM users WHERE phone = '13900000003';
+INSERT INTO consultation_sessions (patient_user_id, family_id, doctor_id, title, status, last_message_at) 
+SELECT 4, 1, id, '术后恢复咨询 6', 'ACTIVE', NOW() FROM users WHERE phone = '13900000003';
+
+-- 为医生 A 添加健康计划
+INSERT INTO health_plans (doctor_id, patient_user_id, family_id, type, title, description, start_date, frequency_type, status)
+SELECT id, 4, 1, 'LIFESTYLE', '每日运动计划', '每天散步30分钟', CURDATE(), 'DAILY', 'ACTIVE' FROM users WHERE phone = '13900000001';

@@ -141,7 +141,7 @@ public class HealthReminderServiceImpl implements HealthReminderService {
 
         if (status != null && !status.isEmpty()) {
             // 查询用户作为提醒拥有者或分配者的提醒
-            reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByScheduledTimeAsc(userId, userId);
+            reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByCreatedAtDesc(userId, userId);
             // 过滤指定状态的提醒
             reminders = reminders.stream()
                     .filter(reminder -> reminder.getStatus() == ReminderStatus.valueOf(status))
@@ -155,7 +155,7 @@ public class HealthReminderServiceImpl implements HealthReminderService {
                     .collect(Collectors.toList());
         } else {
             // 查询用户作为提醒拥有者或分配者的提醒
-            reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByScheduledTimeAsc(userId, userId);
+            reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByCreatedAtDesc(userId, userId);
             reminders = reminders.stream()
                     // 仅返回分配给自己的任务，或者自己创建且未分配的任务
                     .filter(r -> {
@@ -180,7 +180,7 @@ public class HealthReminderServiceImpl implements HealthReminderService {
      */
     public List<ReminderResponse> getUserTodoReminders(Long userId) {
         // 查询用户作为提醒拥有者或分配者的提醒
-        List<HealthReminder> reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByScheduledTimeAsc(userId, userId);
+        List<HealthReminder> reminders = reminderRepository.findByUser_IdOrAssignedTo_IdOrderByCreatedAtDesc(userId, userId);
         
         // 过滤 PENDING 和 SENT 状态的提醒（即待办事项），且必须是自己的任务
         return reminders.stream()
@@ -221,7 +221,7 @@ public class HealthReminderServiceImpl implements HealthReminderService {
         }
         
         // 所有家庭成员都可以查看家庭中的所有提醒，以便进行协作
-        List<HealthReminder> reminders = reminderRepository.findByFamily_IdOrderByScheduledTimeAsc(familyId);
+        List<HealthReminder> reminders = reminderRepository.findByFamily_IdOrderByCreatedAtDesc(familyId);
         
         return reminders.stream().map(this::toResponse).collect(Collectors.toList());
     }
@@ -271,6 +271,27 @@ public class HealthReminderServiceImpl implements HealthReminderService {
         }
 
         reminderRepository.delete(reminder);
+    }
+
+    @Override
+    @Transactional
+    public void batchDeleteReminders(Long userId, List<Long> reminderIds) {
+        User user = loadUser(userId);
+        List<HealthReminder> remindersToDelete = reminderRepository.findAllById(reminderIds);
+
+        if (remindersToDelete.size() != reminderIds.size()) {
+            log.warn("批量删除失败：部分提醒不存在");
+            // 可以选择抛出异常或仅记录日志
+        }
+
+        for (HealthReminder reminder : remindersToDelete) {
+            if (!canManageReminder(user, reminder)) {
+                throw new AccessDeniedException("无权删除提醒ID: " + reminder.getId());
+            }
+        }
+
+        reminderRepository.deleteAllInBatch(remindersToDelete);
+        log.info("用户 {} 批量删除了 {} 条提醒", userId, remindersToDelete.size());
     }
 
     private boolean canManageReminder(User user, HealthReminder reminder) {
@@ -1010,158 +1031,56 @@ public class HealthReminderServiceImpl implements HealthReminderService {
             throw new RuntimeException("无权为该家庭生成协作提醒");
         }
         
-        List<HealthReminder> familyReminders = reminderRepository.findByFamily_IdOrderByScheduledTimeAsc(familyId);
-
         LocalDate today = LocalDate.now();
         List<ReminderResponse> created = new ArrayList<>();
+        User creator = loadUser(userId);
+        List<com.healthfamily.domain.entity.FamilyMember> members = familyMemberRepository.findByFamily(family);
+        
+        log.info("=== 开始为家庭 {} 生成协作提醒，操作人: {} ===", familyId, creator.getNickname());
 
-        if (familyReminders.isEmpty()) {
-            List<com.healthfamily.domain.entity.FamilyMember> members = familyMemberRepository.findByFamily(family);
-            for (com.healthfamily.domain.entity.FamilyMember fm : members) {
-                User assignee = fm.getUser();
-                
-                // 检查饮食记录
-                boolean hasDietLogToday = healthLogRepository
-                        .findByUser_IdAndTypeOrderByLogDateDesc(assignee.getId(), com.healthfamily.domain.constant.HealthLogType.DIET)
+        for (com.healthfamily.domain.entity.FamilyMember fm : members) {
+            User assignee = fm.getUser();
+            if (assignee == null) continue;
+
+            // 定义需要检查的五个维度
+            Map<com.healthfamily.domain.constant.HealthLogType, ReminderType> dimensions = Map.of(
+                com.healthfamily.domain.constant.HealthLogType.DIET, ReminderType.ROUTINE,
+                com.healthfamily.domain.constant.HealthLogType.VITALS, ReminderType.MEASUREMENT,
+                com.healthfamily.domain.constant.HealthLogType.SPORT, ReminderType.LIFESTYLE,
+                com.healthfamily.domain.constant.HealthLogType.SLEEP, ReminderType.LIFESTYLE,
+                com.healthfamily.domain.constant.HealthLogType.MOOD, ReminderType.LIFESTYLE
+            );
+
+            for (Map.Entry<com.healthfamily.domain.constant.HealthLogType, ReminderType> entry : dimensions.entrySet()) {
+                com.healthfamily.domain.constant.HealthLogType logType = entry.getKey();
+                ReminderType reminderType = entry.getValue();
+
+                boolean hasLogToday = healthLogRepository
+                        .findByUser_IdAndTypeOrderByLogDateDesc(assignee.getId(), logType)
                         .stream().anyMatch(l -> today.equals(l.getLogDate()));
-                
-                if (!hasDietLogToday) {
-                    List<HealthReminder> existing = reminderRepository
-                            .findByAssignedTo_IdOrderByScheduledTimeAsc(assignee.getId())
+
+                if (!hasLogToday) {
+                    // 检查是否今天已经有了针对该类型的待办提醒
+                    boolean hasReminder = reminderRepository
+                            .findByUser_IdOrAssignedTo_IdOrderByCreatedAtDesc(assignee.getId(), assignee.getId())
                             .stream()
-                            .filter(r -> r.getStatus() == ReminderStatus.PENDING
-                                    && r.getFamily() != null && r.getFamily().getId().equals(familyId)
-                                    && r.getType() == ReminderType.ROUTINE
-                                    && today.equals(r.getScheduledTime().toLocalDate()))
-                            .collect(Collectors.toList());
-                    if (!existing.isEmpty()) continue;
+                            .filter(r -> r.getFamily() != null && r.getFamily().getId().equals(familyId))
+                            .filter(r -> r.getType() == reminderType)
+                            .filter(r -> r.getTitle().contains(logType.name()) || r.getTitle().contains(getLogTypeDisplayName(logType)))
+                            .filter(r -> r.getStatus() == ReminderStatus.PENDING || r.getStatus() == ReminderStatus.SENT)
+                            .anyMatch(r -> r.getScheduledTime() != null && today.equals(r.getScheduledTime().toLocalDate()));
 
-                    String promptText = String.format("请以温和口吻提醒%s：记得记录今天老人的饮食，方便医生分析营养摄入。控制在60字内。", assignee.getNickname());
-                    String content;
-                    try {
-                        Prompt prompt = new Prompt(new UserMessage(promptText));
-                        content = chatModel.call(prompt).getResult().getOutput().getContent();
-                    } catch (Exception e) {
-                        content = "请记得记录今天的饮食，便于后续分析。";
-                    }
-
-                    HealthReminder reminder = HealthReminder.builder()
-                            .user(family.getOwner())
-                            .creator(family.getOwner())  // 设置创建者为家庭管理员
-                            .assignedTo(assignee)
-                            .family(family)
-                            .type(ReminderType.ROUTINE)
-                            .title("协作提醒：饮食记录")
-                            .content(content)
-                            .scheduledTime(LocalDateTime.now().plusMinutes(10))
-                            .status(ReminderStatus.PENDING)
-                            .priority(ReminderPriority.MEDIUM)
-                            .channel("APP")
-                            .build();
-                    reminder = reminderRepository.save(reminder);
-                    created.add(toResponse(reminder));
-                }
-                
-                // 检查体征记录
-                boolean hasVitalsLogToday = healthLogRepository
-                        .findByUser_IdAndTypeOrderByLogDateDesc(assignee.getId(), com.healthfamily.domain.constant.HealthLogType.VITALS)
-                        .stream().anyMatch(l -> today.equals(l.getLogDate()));
-                
-                if (!hasVitalsLogToday) {
-                    List<HealthReminder> existing = reminderRepository
-                            .findByAssignedTo_IdOrderByScheduledTimeAsc(assignee.getId())
-                            .stream()
-                            .filter(r -> r.getStatus() == ReminderStatus.PENDING
-                                    && r.getFamily() != null && r.getFamily().getId().equals(familyId)
-                                    && r.getTitle().contains("体征")
-                                    && today.equals(r.getScheduledTime().toLocalDate()))
-                            .collect(Collectors.toList());
-                    if (!existing.isEmpty()) continue;
-
-                    String promptText = String.format("请以温和口吻提醒%s：记得测量并记录老人的血压、血糖等体征数据，方便医生监测健康状况。控制在60字内。", assignee.getNickname());
-                    String content;
-                    try {
-                        Prompt prompt = new Prompt(new UserMessage(promptText));
-                        content = chatModel.call(prompt).getResult().getOutput().getContent();
-                    } catch (Exception e) {
-                        content = "请记得测量并记录体征数据，便于健康监测。";
-                    }
-
-                    HealthReminder reminder = HealthReminder.builder()
-                            .user(family.getOwner())
-                            .creator(family.getOwner())  // 设置创建者为家庭管理员
-                            .assignedTo(assignee)
-                            .family(family)
-                            .type(ReminderType.MEASUREMENT)
-                            .title("协作提醒：体征记录")
-                            .content(content)
-                            .scheduledTime(LocalDateTime.now().plusMinutes(10))
-                            .status(ReminderStatus.PENDING)
-                            .priority(ReminderPriority.MEDIUM)
-                            .channel("APP")
-                            .build();
-                    reminder = reminderRepository.save(reminder);
-                    created.add(toResponse(reminder));
-                }
-            }
-        } else {
-            for (HealthReminder r : familyReminders) {
-                if (r.getType() != ReminderType.ROUTINE && r.getType() != ReminderType.MEASUREMENT) continue;
-                User assignee = Optional.ofNullable(r.getAssignedTo()).orElse(r.getUser());
-                
-                // 检查饮食记录
-                if (r.getType() == ReminderType.ROUTINE) {
-                    boolean hasLogToday = healthLogRepository
-                            .findByUser_IdAndTypeOrderByLogDateDesc(assignee.getId(), com.healthfamily.domain.constant.HealthLogType.DIET)
-                            .stream().anyMatch(l -> today.equals(l.getLogDate()));
-                    if (!hasLogToday) {
-                        String promptText = String.format("请以温和口吻提醒%s：记得记录今天老人的饮食，方便医生分析营养摄入。控制在60字内。", assignee.getNickname());
-                        String content;
-                        try {
-                            Prompt prompt = new Prompt(new UserMessage(promptText));
-                            content = chatModel.call(prompt).getResult().getOutput().getContent();
-                        } catch (Exception e) {
-                            content = "请记得记录今天的饮食，便于后续分析。";
-                        }
+                    if (!hasReminder) {
+                        log.info("为成员 {} 生成 {} 维度的协作提醒", assignee.getNickname(), logType);
+                        String content = generateCollaborationContent(reminderType, assignee.getNickname(), logType);
+                        
                         HealthReminder reminder = HealthReminder.builder()
-                                .user(r.getUser())
-                                .creator(r.getUser())  // 设置创建者为原始提醒的用户
+                                .user(assignee)
+                                .creator(creator)
                                 .assignedTo(assignee)
                                 .family(family)
-                                .type(ReminderType.ROUTINE)
-                                .title("协作提醒：饮食记录")
-                                .content(content)
-                                .scheduledTime(LocalDateTime.now().plusMinutes(10))
-                                .status(ReminderStatus.PENDING)
-                                .priority(ReminderPriority.MEDIUM)
-                                .channel("APP")
-                                .build();
-                        reminder = reminderRepository.save(reminder);
-                        created.add(toResponse(reminder));
-                    }
-                }
-                
-                // 检查体征记录
-                if (r.getType() == ReminderType.MEASUREMENT) {
-                    boolean hasLogToday = healthLogRepository
-                            .findByUser_IdAndTypeOrderByLogDateDesc(assignee.getId(), com.healthfamily.domain.constant.HealthLogType.VITALS)
-                            .stream().anyMatch(l -> today.equals(l.getLogDate()));
-                    if (!hasLogToday) {
-                        String promptText = String.format("请生成一条给%s的温馨提示：提醒他/她记得测量并记录血压、血糖等体征数据，方便医生监测健康状况。直接以对他说的话的口吻输出，控制在60字内。", assignee.getNickname());
-                        String content;
-                        try {
-                            Prompt prompt = new Prompt(new UserMessage(promptText));
-                            content = chatModel.call(prompt).getResult().getOutput().getContent();
-                        } catch (Exception e) {
-                            content = "记得测量并记录体征数据，便于健康监测。";
-                        }
-                        HealthReminder reminder = HealthReminder.builder()
-                                .user(assignee) // 设置所属用户为被提醒者
-                                .creator(r.getUser())  // 设置创建者为原始提醒的用户
-                                .assignedTo(assignee)
-                                .family(family)
-                                .type(ReminderType.MEASUREMENT)
-                                .title("协作提醒：体征记录")
+                                .type(reminderType)
+                                .title("协作提醒：" + getLogTypeDisplayName(logType) + "记录")
                                 .content(content)
                                 .scheduledTime(LocalDateTime.now().plusMinutes(10))
                                 .status(ReminderStatus.PENDING)
@@ -1175,10 +1094,23 @@ public class HealthReminderServiceImpl implements HealthReminderService {
             }
         }
 
+        log.info("=== 协作提醒生成完成，共创建 {} 条 ===", created.size());
         return created;
     }
 
+    private String getLogTypeDisplayName(com.healthfamily.domain.constant.HealthLogType type) {
+        return switch (type) {
+            case DIET -> "饮食";
+            case VITALS -> "体征";
+            case SPORT -> "运动";
+            case SLEEP -> "睡眠";
+            case MOOD -> "情绪";
+            default -> type.name();
+        };
+    }
+
     private String generateReminderContent(HealthLog healthLog) {
+        long startTime = System.currentTimeMillis();
         try {
             // 使用AI生成提醒内容
             String promptText = String.format(
@@ -1198,24 +1130,56 @@ public class HealthReminderServiceImpl implements HealthReminderService {
                 healthLog.getType(),
                 healthLog.getContentJson());
 
-            // 使用 Spring AI 1.0.0-M5 的 API
             Prompt prompt = new Prompt(new UserMessage(promptText));
             String response = chatModel.call(prompt).getResult().getOutput().getContent();
+            
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("AI 生成异常提醒成功，耗时: {}ms, 内容: {}", duration, response);
                 
             if (response == null || response.trim().isEmpty()) {
-                log.warn("AI返回的提醒内容为空，使用默认内容");
                 return String.format("您的%s数据出现异常，建议2小时后复测，如有不适请及时就医。",
                         healthLog.getType().name());
             }
-                
             return response;
-
         } catch (Exception e) {
-            log.error("AI生成提醒内容失败: {}", e.getMessage(), e);
+            log.error("AI生成提醒内容失败: {}", e.getMessage());
             return String.format("您的%s数据出现异常，建议2小时后复测，如有不适请及时就医。",
                     healthLog.getType().name());
         }
     }
+
+    private String generateCollaborationContent(ReminderType type, String nickname, com.healthfamily.domain.constant.HealthLogType logType) {
+        long startTime = System.currentTimeMillis();
+        String safeName = nickname != null && !nickname.isBlank() ? nickname : "家人";
+        String typeName = getLogTypeDisplayName(logType);
+        
+        String promptText = String.format(
+            "你是一个智慧康养平台的健康助手。请为家庭成员 %s 生成一条温馨的提醒，提醒他记录今天的%s数据。\n" +
+            "要求：\n" +
+            "1. 语气亲切、自然，像家人或好友的叮嘱。\n" +
+            "2. 强调记录这项数据对健康管理的重要性（例如：饮食记录有助于分析营养，体征记录方便医生监测）。\n" +
+            "3. 长度在40-60字之间。\n" +
+            "4. 不要使用过于生硬的指令，要体现出关怀。",
+            safeName, typeName
+        );
+
+        try {
+            Prompt prompt = new Prompt(new UserMessage(promptText));
+            String response = chatModel.call(prompt).getResult().getOutput().getContent();
+            
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("AI 生成协作提醒成功，耗时: {}ms, 维度: {}, 内容: {}", duration, logType, response);
+
+            if (response == null || response.trim().isEmpty()) {
+                return String.format("温馨提示：%s，记得记录今天的%s数据哦，保持关注，让健康更有保障。", safeName, typeName);
+            }
+            return response.trim();
+        } catch (Exception e) {
+            log.error("AI 生成协作提醒失败: {}", e.getMessage());
+            return String.format("温馨提示：%s，记得记录今天的%s数据哦，良好的记录习惯是健康的第一步。", safeName, typeName);
+        }
+    }
+
 
     @Scheduled(fixedRate = 60000) // 每分钟检查一次
     /**

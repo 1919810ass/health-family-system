@@ -129,10 +129,8 @@ public class AdminDoctorController {
      * 更新医生信息
      */
     @PutMapping("/{id}")
-    public Result<User> updateDoctor(@PathVariable Long id, @RequestBody User user) {
-        // 确保用户角色为DOCTOR
-        user.setRole(com.healthfamily.domain.constant.UserRole.DOCTOR);
-        User updatedDoctor = doctorService.update(id, user);
+    public Result<AdminDoctorDto> updateDoctor(@PathVariable Long id, @RequestBody AdminDoctorDto doctorDto) {
+        AdminDoctorDto updatedDoctor = doctorService.updateAdminDoctor(id, doctorDto);
         if (updatedDoctor == null) {
             return Result.error(404, "医生不存在");
         }

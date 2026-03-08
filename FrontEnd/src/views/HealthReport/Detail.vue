@@ -47,7 +47,7 @@
                             <el-table-column prop="value" label="结果" />
                             <el-table-column label="解读">
                                 <template #default="scope">
-                                    {{ getInterpretation(scope.row.name) }}
+                                    {{ getInterpretation(scope.row) }}
                                 </template>
                             </el-table-column>
                         </el-table>
@@ -158,10 +158,10 @@ const ocrItems = computed(() => {
     return []
 })
 
-const getInterpretation = (itemName) => {
-    if (streamActive.value && streamDetails.value[itemName]) return streamDetails.value[itemName]
+const getInterpretation = (row) => {
+    if (row && row.interpretation) return row.interpretation
     if (!interpretation.value || !interpretation.value.details) return '待分析'
-    return interpretation.value.details[itemName] || '待分析'
+    return interpretation.value.details[row.name] || '待分析'
 }
 
 const getStatusText = (status) => {
@@ -175,18 +175,13 @@ const getStatusText = (status) => {
 }
 
 const summaryText = computed(() => {
-    if (streamActive.value && streamSummary.value) return streamSummary.value
     return interpretation.value?.summary || ''
 })
 
 const normalizeStatus = (status) => (status || '').toString().trim().toUpperCase()
 
 const stopStream = () => {
-    if (streamInterval) {
-        clearInterval(streamInterval)
-        streamInterval = null
-    }
-    streamActive.value = false
+    // 移除流式逻辑
 }
 const startProgress = () => {
     if (progressTimer) clearInterval(progressTimer)
@@ -198,6 +193,7 @@ const startProgress = () => {
         if (next > progressValue.value) progressValue.value = next
     }, 1000)
 }
+
 const stopProgress = (finalValue = null) => {
     if (progressTimer) {
         clearInterval(progressTimer)
@@ -302,34 +298,59 @@ const formatDate = (date) => {
     return dayjs(date).format('YYYY-MM-DD HH:mm')
 }
 
-onMounted(async () => {
+const loadReport = async () => {
     loading.value = true
     try {
         const userId = userStore.profile?.id
-        const res = await getReportDetail(route.params.id, userId)
-        const isResult = res && typeof res === 'object' && 'code' in res
-        if (isResult && res.code !== 0) {
-            ElMessage.error(res.message || '加载报告失败')
-            return
-        }
+        const reportId = route.params.id
+        const res = await getReportDetail(reportId, userId)
         const data = res?.data ?? res
-        report.value = data || null
-        const status = normalizeStatus(report.value?.status)
-        if (report.value && status !== 'COMPLETED' && status !== 'FAILED') {
+        report.value = data
+        
+        if (data && normalizeStatus(data.status) !== 'COMPLETED' && normalizeStatus(data.status) !== 'FAILED') {
+            // 需要轮询状态
             startProgress()
-            startPolling()
+            pollInterval = setInterval(async () => {
+                try {
+                    const statusRes = await getReportStatus(reportId, userId)
+                    const statusData = statusRes?.data ?? statusRes
+                    const status = normalizeStatus(statusData?.status)
+                    if (typeof statusData?.progressPercent === 'number') {
+                        progressValue.value = statusData.progressPercent
+                    }
+                    if (statusData?.progressStage) {
+                        progressStageText.value = statusData.progressStage
+                    }
+                    if (status === 'COMPLETED' || status === 'FAILED') {
+                        clearInterval(pollInterval)
+                        pollInterval = null
+                        stopProgress(status === 'COMPLETED' ? 100 : 0)
+                        // 重新加载完整详情
+                        const detailRes = await getReportDetail(reportId, userId)
+                        report.value = detailRes?.data ?? detailRes
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }, 2000)
         }
     } catch (error) {
-        ElMessage.error(error?.message || '加载报告失败')
+        ElMessage.error('获取报告详情失败')
     } finally {
         loading.value = false
     }
+}
+
+onMounted(() => {
+    loadReport()
 })
 
 onUnmounted(() => {
-    stopPolling()
-    stopStream()
     stopProgress()
+    if (pollInterval) {
+        clearInterval(pollInterval)
+        pollInterval = null
+    }
 })
 
 watch(statusValue, (status) => {

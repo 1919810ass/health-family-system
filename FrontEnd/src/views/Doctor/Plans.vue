@@ -199,26 +199,7 @@
         </el-card>
       </el-tab-pane>
 
-      <!-- 4. 健康数据 -->
-      <el-tab-pane label="健康数据" name="healthData">
-        <template #label>
-          <span class="custom-tab-label">
-            <el-icon><TrendCharts /></el-icon>
-            <span>健康数据</span>
-          </span>
-        </template>
-        
-        <el-card class="mt-16 content-card" v-loading="healthDataLoading">
-          <div ref="healthChartRef" style="width: 100%; height: 400px;"></div>
-          <div class="chart-actions" style="text-align: center; margin-top: 20px;">
-            <el-button-group>
-              <el-button :type="currentMetric === 'systolic' ? 'primary' : ''" @click="initChart('systolic')">血压趋势</el-button>
-              <el-button :type="currentMetric === 'weight' ? 'primary' : ''" @click="initChart('weight')">体重趋势</el-button>
-              <el-button :type="currentMetric === 'heartRate' ? 'primary' : ''" @click="initChart('heartRate')">心率趋势</el-button>
-            </el-button-group>
-          </div>
-        </el-card>
-      </el-tab-pane>
+
 
     </el-tabs>
 

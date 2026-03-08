@@ -69,7 +69,7 @@
           <el-col :span="6">
             <el-card shadow="hover" class="stat-card">
               <div class="stat-content">
-                <div class="stat-label">本月咨询</div>
+                <div class="stat-label">本期咨询</div>
                 <div class="stat-value">{{ topStats.totalConsultations }}</div>
                 <div class="stat-trend">
                   <span>{{ topStats.reminderCompletionRate }}%</span> 提醒完成率
@@ -114,21 +114,31 @@
               <div class="card-header"><span class="title">健康计划与随访</span></div>
               <div class="health-plan-container">
                 <div class="plan-header">
-                  <p class="plan-title">{{ healthPlan.title }}</p>
+                  <p class="plan-title">{{ activePlan?.title || '暂无进行中的健康计划' }}</p>
                   <el-progress :percentage="planCompletion" :stroke-width="10" striped />
                 </div>
-                <p class="plan-content">{{ healthPlan.content }}</p>
+                <p class="plan-content">
+                  {{ activePlan?.description || '当前统计周期内未查询到可展示的计划信息。' }}
+                </p>
                 <div class="task-list-container">
-                  <div v-for="task in healthPlan.tasks" :key="task.id" class="task-item">
-                    <span :class="{ completed: task.completed }">{{ task.text }}</span>
-                    <el-button 
-                      :type="task.completed ? 'success' : 'primary'" 
-                      size="small" 
-                      :disabled="task.completed"
-                      @click="completeTask(task)"
+                  <div v-for="task in followUpTasks" :key="task.id" class="task-item">
+                    <span :class="{ completed: task.status === 'COMPLETED' }">
+                      {{ task.title }}
+                      <span v-if="task.scheduledTime" style="margin-left: 6px; color: #909399; font-size: 12px;">
+                        {{ dayjs(task.scheduledTime).format('MM-DD HH:mm') }}
+                      </span>
+                    </span>
+                    <el-button
+                      :type="task.status === 'COMPLETED' ? 'success' : 'primary'"
+                      size="small"
+                      :disabled="task.status === 'COMPLETED'"
+                      @click="completeFollowUp(task)"
                     >
-                      {{ task.completed ? '已完成' : '完成' }}
+                      {{ task.status === 'COMPLETED' ? '已完成' : '完成' }}
                     </el-button>
+                  </div>
+                  <div v-if="!followUpTasks.length" class="empty-hint" style="padding: 10px 0; font-size: 13px;">
+                    当前统计区间内暂无待随访任务
                   </div>
                 </div>
               </div>
@@ -171,17 +181,14 @@
  */
 
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
-import { User, Timer, Moon, ChatDotRound, Top, Bottom, Warning, WarnTriangleFilled, InfoFilled, CircleCheckFilled } from '@element-plus/icons-vue'
+import { User, Timer, Moon, ChatDotRound, Warning, WarnTriangleFilled, InfoFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import { useDoctorStore } from '../../stores/doctor'
-import { getDoctorStats, getWorkbenchDashboard } from '../../api/doctor'
+import { getDoctorStats, getWorkbenchDashboard, listHealthPlans, listFollowUpTasks, updateFollowUpTask } from '../../api/doctor'
 import { getLogs } from '../../api/log'
-import { getDoctorView } from '../../api/family'
 import dayjs from 'dayjs'
 
-const route = useRoute()
 const doctorStore = useDoctorStore()
 
 // 使用 store 中的状态
@@ -219,35 +226,30 @@ const stats = ref(null)
 const alertsData = ref([])
 const trendChartPatientId = ref('')
 
-// 新增：健康计划与随访任务
-const healthPlan = ref({
-  title: 'AI 生成的春季养生计划',
-  content: '本计划旨在通过调整生活方式，增强春季体质，预防季节性不适。请按时完成以下随访任务。',
-  tasks: [
-    { id: 1, text: '提醒患者注意保暖，避免风寒', completed: false },
-    { id: 2, text: '建议患者增加户外活动，每日至少30分钟', completed: true },
-    { id: 3, text: '发送春季饮食指南，强调多食甘味、少食酸味', completed: false },
-    { id: 4, text: '跟进患者睡眠情况，确保每晚7-8小时睡眠', completed: false },
-    { id: 5, text: '检查患者过敏药物储备情况', completed: false },
-  ],
-});
+// 健康计划与随访（必须来自系统真实数据）
+const activePlan = ref(null)
+const followUpTasks = ref([])
 
 const planCompletion = computed(() => {
-  const total = healthPlan.value.tasks.length;
-  if (total === 0) return 0;
-  const completed = healthPlan.value.tasks.filter(t => t.completed).length;
-  return Math.round((completed / total) * 100);
+  const rate = activePlan.value?.completionRate
+  if (rate === null || rate === undefined) return 0
+  const n = Number(rate)
+  if (!Number.isFinite(n)) return 0
+  // 兼容 0-1 与 0-100 两种后端口径
+  const pct = n <= 1 ? n * 100 : n
+  return Math.max(0, Math.min(100, Math.round(pct)))
 });
 
-const completeTask = (taskToComplete) => {
-  const taskIndex = healthPlan.value.tasks.findIndex(t => t.id === taskToComplete.id);
-  if (taskIndex !== -1 && !healthPlan.value.tasks[taskIndex].completed) {
-    // 创建一个新对象来替换，以确保响应性
-    const updatedTask = { ...healthPlan.value.tasks[taskIndex], completed: true };
-    healthPlan.value.tasks.splice(taskIndex, 1, updatedTask);
-    ElMessage.success(`任务 "${updatedTask.text}" 已完成`);
+const completeFollowUp = async (task) => {
+  if (!task?.id) return
+  try {
+    await updateFollowUpTask(task.id, { status: 'COMPLETED' })
+    ElMessage.success('已标记完成')
+    await loadStats()
+  } catch (e) {
+    ElMessage.error('标记失败：' + (e.response?.data?.message || e.message))
   }
-};
+}
 
 const dateRange = ref([dayjs().subtract(29, 'day').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')])
 
@@ -278,95 +280,31 @@ const onSwitch = async (id) => {
 }
 
 const loadStats = async () => {
-  console.log('Analysis: 开始获取统计数据...');
-  loading.value = true;
+  loading.value = true
   try {
-    const currentFid = familyId.value || (families.value.length > 0 ? families.value[0].id : null);
-    let res = null;
-
-    if (currentFid) {
-      const startDate = dateRange.value ? dateRange.value[0] : dayjs().subtract(29, 'day').format('YYYY-MM-DD');
-      const endDate = dateRange.value ? dateRange.value[1] : dayjs().format('YYYY-MM-DD');
-      
-      console.log('Analysis: 获取家庭统计数据', currentFid);
-      res = await getDoctorStats(currentFid, startDate, endDate);
+    const currentFid = familyId.value || (families.value.length > 0 ? families.value[0].id : null)
+    if (!currentFid) {
+      stats.value = null
+      alertsData.value = []
+      activePlan.value = null
+      followUpTasks.value = []
+      return
     }
 
-    if (!res?.data || Object.keys(res.data).length === 0) {
-      console.warn('API returned empty stats or no family selected, using mock data');
-      stats.value = {
-        patientStructure: {
-          diseaseDistribution: { '高血压': 12, '糖尿病': 8, '冠心病': 5, '慢阻肺': 3, '脑卒中': 2, '其他': 6 },
-          ageDistribution: { '60以下': 5, '60-70': 12, '70-80': 8, '80以上': 3 },
-          genderDistribution: { 'M': 15, 'F': 13 }
-        },
-        managementEffect: {
-          bloodPressure: { 
-            trend: Array.from({length: 7}, (_, i) => ({
-              userId: members.value[i % members.value.length]?.userId || 1, // 模拟不同用户的数据
-              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-              systolic: Math.floor(120 + Math.random() * 15), // 收缩压
-              diastolic: Math.floor(75 + Math.random() * 10) // 舒张压
-            })),
-            complianceRate: 85.5 
-          },
-          weight: { 
-            trend: Array.from({length: 7}, (_, i) => ({
-              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-              value: parseFloat((65 + Math.random() * 2 - 1).toFixed(1))
-            })),
-            averageWeightChange: -1.2 
-          },
-          sleep: { 
-            trend: Array.from({length: 7}, (_, i) => ({
-              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-              value: (6 + Math.random() * 2).toFixed(1)
-            })),
-            averageSleepHours: 7.2 
-          }
-        },
-        workload: {
-          consultation: {
-            totalCount: 42,
-            trend: Array.from({length: 7}, (_, i) => ({
-              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-              value: Math.floor(Math.random() * 10)
-            }))
-          },
-          followup: {
-            totalPlans: 15,
-            completion: { completed: 12, pending: 3 }, // For Pie chart
-            trend: Array.from({length: 7}, (_, i) => ({
-              date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-              value: Math.floor(Math.random() * 5)
-            }))
-          },
-          reminder: {
-              completionRate: 92.5,
-              trend: Array.from({length: 7}, (_, i) => ({
-                date: dayjs().subtract(6-i, 'day').format('YYYY-MM-DD'),
-                value: Math.floor(Math.random() * 8)
-              }))
-            }
-          },
-          recentAlerts: [
-            { level: 'danger', text: '患者 [李四] 血糖触发红色预警', time: '昨天' },
-            { level: 'warning', text: '患者 [张三] 血压连续3天偏高', time: '10:23' },
-            { level: 'info', text: '本周随访计划完成率低于 80%', time: '周一' },
-            { level: 'success', text: '患者 [王五] 体重管理目标达成', time: '周日' },
-          ]
-        };
-    } else {
-      stats.value = res.data;
-    }
+    const startDate = dateRange.value ? dateRange.value[0] : dayjs().subtract(29, 'day').format('YYYY-MM-DD')
+    const endDate = dateRange.value ? dateRange.value[1] : dayjs().format('YYYY-MM-DD')
+
+    const res = await getDoctorStats(currentFid, startDate, endDate)
+    stats.value = res?.data || null
+    await loadPlansAndFollowUps()
     
     // 优化渲染时序：先移除 loading，等待 DOM 更新，再渲染图表
-    loading.value = false;
-    await nextTick();
-    drawAllCharts();
+    loading.value = false
+    await nextTick()
+    drawAllCharts()
 
     // 额外获取工作台数据以填充预警列表
-    const workbenchRes = await getWorkbenchDashboard();
+    const workbenchRes = await getWorkbenchDashboard()
     if (workbenchRes.data?.criticalPatients) {
       alertsData.value = workbenchRes.data.criticalPatients.map(p => ({
         level: p.riskLevel === 'CRITICAL' ? 'danger' : 'warning',
@@ -376,9 +314,35 @@ const loadStats = async () => {
     }
 
   } catch (error) {
-    console.error('Analysis: 加载失败', error);
-    ElMessage.error('加载失败');
-    loading.value = false; // 确保异常时也关闭 loading
+    ElMessage.error('加载失败：' + (error.response?.data?.message || error.message))
+    loading.value = false
+  }
+}
+
+const loadPlansAndFollowUps = async () => {
+  const currentFid = familyId.value || (families.value.length > 0 ? families.value[0].id : null)
+  if (!currentFid) return
+  try {
+    const startDate = dateRange.value?.[0] || dayjs().subtract(29, 'day').format('YYYY-MM-DD')
+    const endDate = dateRange.value?.[1] || dayjs().format('YYYY-MM-DD')
+    const [plansRes, followupsRes] = await Promise.all([
+      listHealthPlans(currentFid, null, { status: 'ACTIVE', startDate, endDate }),
+      listFollowUpTasks(currentFid, null, { status: 'PENDING', startDate, endDate })
+    ])
+    const plans = plansRes?.data || []
+    const sortedPlans = [...plans].sort((a, b) => {
+      const ar = a?.completionRate === null || a?.completionRate === undefined ? Infinity : Number(a.completionRate)
+      const br = b?.completionRate === null || b?.completionRate === undefined ? Infinity : Number(b.completionRate)
+      if (ar !== br) return ar - br
+      const at = a?.createdAt ? dayjs(a.createdAt).valueOf() : 0
+      const bt = b?.createdAt ? dayjs(b.createdAt).valueOf() : 0
+      return bt - at
+    })
+    activePlan.value = sortedPlans.length ? sortedPlans[0] : null
+    followUpTasks.value = (followupsRes?.data || []).slice(0, 5)
+  } catch (e) {
+    activePlan.value = null
+    followUpTasks.value = []
   }
 }
 
@@ -395,13 +359,29 @@ const drawAllCharts = () => {
 const drawDiseaseChart = () => {
   if (!diseaseChartRef.value) return
   
-  const data = stats.value?.patientStructure?.diseaseDistribution || { '高血压': 12, '糖尿病': 8, '冠心病': 5, '慢阻肺': 3, '脑卒中': 2, '其他': 6 }
-  const indicators = Object.keys(data).map(key => ({ name: key, max: Math.max(...Object.values(data)) + 5 }))
-  const values = Object.values(data)
+  const data = stats.value?.patientStructure?.diseaseDistribution || {}
+  const keys = Object.keys(data)
   
   if (!chartInstances.diseaseChart) {
     chartInstances.diseaseChart = echarts.init(diseaseChartRef.value)
   }
+
+  if (!keys.length) {
+    chartInstances.diseaseChart.clear()
+    chartInstances.diseaseChart.setOption({
+      title: {
+        text: '暂无疾病分布数据',
+        left: 'center',
+        top: 'center',
+        textStyle: { color: '#999', fontSize: 14, fontWeight: 500 }
+      }
+    })
+    return
+  }
+
+  const maxVal = Math.max(...Object.values(data))
+  const indicators = keys.map(key => ({ name: key, max: maxVal + 1 }))
+  const values = keys.map(k => data[k])
   
   chartInstances.diseaseChart.setOption({
     tooltip: {},
@@ -526,14 +506,49 @@ const drawConsultationChart = () => {
   if (!chartInstances.consultationChart) {
     chartInstances.consultationChart = echarts.init(consultationChartRef.value)
   }
+
+  const startDate = dateRange.value?.[0]
+  const endDate = dateRange.value?.[1]
+  const trendList = stats.value?.workload?.consultation?.trend || []
+  const trendMap = new Map(
+    trendList
+      .filter(dv => dv?.date)
+      .map(dv => [dayjs(dv.date).format('YYYY-MM-DD'), Number(dv.value || 0)])
+  )
+
+  let days = []
+  if (startDate && endDate) {
+    const start = dayjs(startDate)
+    const end = dayjs(endDate)
+    const diff = end.diff(start, 'day')
+    if (diff >= 0 && diff <= 365) {
+      days = Array.from({ length: diff + 1 }, (_, i) => start.add(i, 'day').format('YYYY-MM-DD'))
+    }
+  }
+
+  const xAxisData = days.length ? days.map(d => dayjs(d).format('MM-DD')) : trendList.map(dv => dayjs(dv.date).format('MM-DD'))
+  const seriesData = days.length ? days.map(d => trendMap.get(d) ?? 0) : trendList.map(dv => Number(dv.value || 0))
+
+  if (!xAxisData.length) {
+    chartInstances.consultationChart.clear()
+    chartInstances.consultationChart.setOption({
+      title: {
+        text: '暂无咨询趋势数据',
+        left: 'center',
+        top: 'center',
+        textStyle: { color: '#999', fontSize: 14, fontWeight: 500 }
+      }
+    })
+    return
+  }
   
   chartInstances.consultationChart.setOption({
     tooltip: { trigger: 'axis' },
     grid: { left: '3%', right: '4%', bottom: '3%', top: '15%', containLabel: true },
-    xAxis: { type: 'category', data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] },
+    xAxis: { type: 'category', data: xAxisData },
     yAxis: { type: 'value' },
     series: [{
-      data: [12, 15, 8, 22, 18, 10, 14], // Mock
+      data: seriesData,
       type: 'bar',
       barWidth: '40%',
       itemStyle: { color: '#409EFF', borderRadius: [4, 4, 0, 0] }
@@ -550,22 +565,19 @@ const handleResize = () => {
 }
 
 onMounted(async () => {
-  console.log('Analysis: Component Mounted')
   window.addEventListener('resize', handleResize)
   
   // 确保家庭数据已加载
   if (!doctorStore.families.length) {
-     console.log('Analysis: 尝试加载家庭列表...')
      await doctorStore.fetchFamilies()
   }
   
   // 尝试自动选择第一个家庭
   if (!familyId.value && families.value.length > 0) {
-    console.log('Analysis: 自动选择第一个家庭', families.value[0].id)
     await doctorStore.setCurrentFamily(families.value[0].id)
   }
 
-  // 无论如何尝试加载一次数据（内部有mock兜底）
+  // 加载真实统计数据（无 mock 兜底）
   await loadStats()
 })
 

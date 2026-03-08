@@ -141,12 +141,12 @@
 
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAppStore, useDoctorStore } from '../../stores'
+import { useAppStore, useDoctorStore, useFamilyStore } from '../../stores'
 import { useUserStore } from '../../stores/user'
 import { 
   Sunny, Moon, Fold, Expand, UserFilled, House, FirstAidKit, 
   Operation, Cpu, Message, Bell, Setting, ArrowDown,
-  Document, ChatDotRound, Monitor, Notebook, TrendCharts, StarFilled
+  Document, ChatDotRound, Monitor, Notebook, TrendCharts, StarFilled, DocumentCopy
 } from '@element-plus/icons-vue'
 import Sidebar from './Sidebar.vue'
 import { MENU_CONFIG } from '../../config/menuConfig'
@@ -154,6 +154,7 @@ import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import { getUserTodoItems, getUserReminders } from '../../api/reminder'
 import { getConsultationHistory, getOrCreateSession } from '../../api/consultation'
+import { getFamilies } from '../../api/family'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -162,6 +163,7 @@ const router = useRouter()
 const appStore = useAppStore()
 const userStore = useUserStore()
 const doctorStore = useDoctorStore()
+const familyStore = useFamilyStore()
 
 const errorBanner = ref(null)
 const profileLoading = ref(false)
@@ -186,6 +188,19 @@ const hasReminderPermission = computed(() => {
 const isReminderVisible = computed(() => userStore.profile && hasReminderPermission.value)
 const isAdminVisibleInUser = computed(() => userStore.profile && userStore.profile.role === 'ADMIN')
 const isFamilyDoctorVisible = computed(() => userStore.profile && ['FAMILY_ADMIN', 'DOCTOR'].includes(userStore.profile.role))
+const isFamilyAdminVisible = computed(() => {
+  if (!userStore.profile) return false
+  if (userStore.profile.role === 'ADMIN') return false // 管理员不应看到家庭管理相关的特定菜单
+  
+  // 仅当当前选中的家庭（context）中，用户确实拥有管理员权限时，才显示
+  // 注意：familyStore.current 可能为 null，或者属性未及时更新
+  // 我们使用 id 匹配来确保从 families 列表中获取最新的状态
+  const currentFamily = familyStore.current
+  if (!currentFamily) return false
+  
+  const familyInList = familyStore.families.find(f => f.id === currentFamily.id)
+  return familyInList?.isAdmin || false
+})
 
 // Compute menu items based on role
 const currentMenuItems = computed(() => {
@@ -205,6 +220,9 @@ const currentMenuItems = computed(() => {
     }
     if (item.permission === 'FAMILY_DOCTOR_VISIBLE') {
       return isFamilyDoctorVisible.value
+    }
+    if (item.permission === 'FAMILY_ADMIN_VISIBLE') {
+      return isFamilyAdminVisible.value
     }
     return true
   }).map(item => {
@@ -313,13 +331,19 @@ const toggleSider = () => {
 }
 
 const goSettings = () => {
-  const path = isDoctorMode.value ? '/doctor/settings' : '/settings'
+  let path = '/settings'
+  if (isDoctorMode.value) {
+    path = '/doctor/settings'
+  } else if (isAdminMode.value) {
+    path = '/admin/system/config'
+  }
   router.push(path)
 }
 
 const onLogout = () => {
   userStore.logout()
   doctorStore.reset()
+  familyStore.reset()
   const loginPath = isDoctorMode.value ? '/doctor/login' : '/login'
   router.replace(loginPath)
 }
@@ -373,7 +397,11 @@ const loadReminderPreview = async () => {
 
 const goReminderCenter = () => {
   reminderPopoverVisible.value = false
-  router.push('/reminders')
+  let path = '/reminders'
+  if (isAdminMode.value) {
+    path = '/admin/health/reminders'
+  }
+  router.push(path)
 }
 
 const goMessageCenter = () => {
@@ -422,21 +450,58 @@ const checkConsultationUnread = async () => {
   }
 }
 
+const loadFamilies = async () => {
+  try {
+    const res = await getFamilies()
+    familyStore.setFamilies(res.data)
+    
+    // 初始化当前家庭 context
+    if (!familyStore.current && res.data.length > 0) {
+      const storedId = localStorage.getItem('current_family_id')
+      const currentFamily = res.data.find(f => String(f.id) === String(storedId)) || res.data[0]
+      familyStore.setCurrent(currentFamily)
+    }
+  } catch (e) {
+    console.error('Failed to load families', e)
+  }
+}
+
+// 监听用户变化，强制刷新家庭列表
+watch(() => userStore.profile?.id, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    familyStore.reset()
+    if (!isAdminMode.value) {
+      loadFamilies()
+    }
+  }
+})
+
 onMounted(async () => {
   if (!userStore.profile) {
     profileLoading.value = true
     try {
       await userStore.fetchProfile()
+      // 如果是管理员，直接重定向到管理仪表板
+      if (userStore.profile?.role === 'ADMIN') {
+        router.replace('/admin/dashboard')
+        return // 提前返回，避免执行后续用户端逻辑
+      }
     } catch (error) {
       console.error('Failed to fetch user profile', error)
       if (error?.response?.status === 401) {
         userStore.logout()
         doctorStore.reset()
+        familyStore.reset()
         router.replace('/login')
       }
     } finally {
       profileLoading.value = false
     }
+  }
+
+  // Load families for non-admin users to determine permissions
+  if (!isAdminMode.value && familyStore.families.length === 0) {
+    loadFamilies()
   }
 
   // Error listener from AppLayout

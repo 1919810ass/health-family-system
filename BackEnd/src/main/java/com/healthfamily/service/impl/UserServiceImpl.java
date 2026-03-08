@@ -227,13 +227,13 @@ public class UserServiceImpl implements UserService {
     public java.util.List<com.healthfamily.web.dto.FamilyResponse> listFamilies(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return familyMemberRepository.findByUser(user).stream()
-                .map(FamilyMember::getFamily)
-                .filter(f -> {
-                    if (f.getStatus() != null && f.getStatus() == 1) return true;
-                    return f.getOwner() != null && f.getOwner().getId() != null && f.getOwner().getId().equals(userId);
+                .map(fm -> {
+                    Family f = fm.getFamily();
+                    boolean isAdmin = Boolean.TRUE.equals(fm.getAdmin()) || (f.getOwner() != null && f.getOwner().getId().equals(userId));
+                    return new com.healthfamily.web.dto.FamilyResponse(
+                        f.getId(), f.getName(), f.getOwner().getId(), f.getInviteCode(), isAdmin);
                 })
-                .map(f -> new com.healthfamily.web.dto.FamilyResponse(f.getId(), f.getName(), f.getOwner().getId(), f.getInviteCode()))
-                .toList();
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Override
@@ -247,7 +247,7 @@ public class UserServiceImpl implements UserService {
     public com.healthfamily.web.dto.FamilyResponse switchCurrentFamily(Long userId, Long familyId) {
         User user = userRepository.findById(userId).orElseThrow();
         Family family = familyRepository.findById(familyId).orElseThrow();
-        familyMemberRepository.findByFamilyAndUser(family, user)
+        FamilyMember fm = familyMemberRepository.findByFamilyAndUser(family, user)
                 .orElseThrow(() -> new RuntimeException("非家庭成员无法切换"));
         if (family.getStatus() == null || family.getStatus() != 1) {
             boolean isOwner = family.getOwner() != null && family.getOwner().getId() != null && family.getOwner().getId().equals(userId);
@@ -263,7 +263,10 @@ public class UserServiceImpl implements UserService {
         profile.setPreferences(writePreferences(prefs));
         if (profile.getUpdatedAt() == null) profile.setUpdatedAt(java.time.LocalDateTime.now());
         profileRepository.save(profile);
-        return new com.healthfamily.web.dto.FamilyResponse(family.getId(), family.getName(), family.getOwner().getId(), family.getInviteCode());
+        
+        boolean isAdmin = Boolean.TRUE.equals(fm.getAdmin()) || (family.getOwner() != null && family.getOwner().getId().equals(userId));
+        return new com.healthfamily.web.dto.FamilyResponse(
+            family.getId(), family.getName(), family.getOwner().getId(), family.getInviteCode(), isAdmin);
     }
 
     @Override

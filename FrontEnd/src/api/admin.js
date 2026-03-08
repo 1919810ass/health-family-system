@@ -5,6 +5,74 @@
  */
 
 import request from '../utils/request'
+
+// 获取AI建议
+export function getAiSuggestions() {
+  return request({
+    url: '/admin/ai-suggestions',
+    method: 'get'
+  })
+}
+
+// --- 医生协作监控 ---
+
+export function getDoctorCollaborationStats() {
+  return request({
+    url: '/admin/collaboration/doctors',
+    method: 'get'
+  })
+}
+
+export function getDoctorCollaborationDetail(id) {
+  return request({
+    url: `/admin/collaboration/doctors/${id}/detail`,
+    method: 'get'
+  })
+}
+
+export function assignDoctorTask(data) {
+  return request({
+    url: '/admin/collaboration/doctors/assign',
+    method: 'post',
+    data
+  })
+}
+
+// --- 健康提醒模板管理 ---
+
+export function getReminderTemplates(params) {
+  return request({
+    url: '/admin/reminders',
+    method: 'get',
+    params
+  })
+}
+
+export function createReminderTemplate(data) {
+  return request({
+    url: '/admin/reminders',
+    method: 'post',
+    data
+  })
+}
+
+export function updateReminderTemplate(id, data) {
+  return request({
+    url: `/admin/reminders/${id}`,
+    method: 'put',
+    data
+  })
+}
+
+export function deleteReminderTemplate(id) {
+  return request({
+    url: `/admin/reminders/${id}`,
+    method: 'delete'
+  })
+}
+
+
+
 import { ElMessage } from 'element-plus'
 // 用户管理相关API
 export const getUsers = (params) => request.get('/admin/users', { params })
@@ -34,6 +102,10 @@ export const getHealthLogById = (id) => request.get(`/admin/health/logs/${id}`)
 export const updateHealthLog = (id, data) => request.put(`/admin/health/logs/${id}`, data)
 export const deleteHealthLog = (id) => request.delete(`/admin/health/logs/${id}`)
 export const getHealthLogStats = () => request.get('/admin/health/logs/stats')
+
+// 体质测评管理
+export const getAssessments = (params) => request.get('/admin/health/assessments', { params })
+export const getAssessmentStats = () => request.get('/admin/health/assessments/stats')
 
 // 健康提醒管理相关API
 export const getHealthReminders = (params) => request.get('/admin/health/reminders', { params })
@@ -89,3 +161,24 @@ export const getTemplate = (id) => request.get(`/admin/monitoring/custom-reports
 
 // 审计日志相关API
 export const getAuditLogs = (params) => request.get('/admin/audit/logs', { params })
+
+// --- 测评问卷管理 ---
+
+export const getQuestionnaires = () => request.get('/admin/questionnaires')
+export const getQuestionnaireById = (id) => request.get(`/admin/questionnaires/${id}`)
+export const createQuestionnaire = (data) => request.post('/admin/questionnaires', data)
+export const updateQuestionnaire = (id, data) => request.put(`/admin/questionnaires/${id}`, data)
+export const deleteQuestionnaire = (id) => request.delete(`/admin/questionnaires/${id}`)
+
+export const addQuestion = (questionnaireId, data) => request.post(`/admin/questionnaires/${questionnaireId}/questions`, data)
+export const updateQuestion = (id, data) => request.put(`/admin/questionnaires/questions/${id}`, data)
+export const deleteQuestion = (id) => request.delete(`/admin/questionnaires/questions/${id}`)
+
+export const addOption = (questionId, data) => request.post(`/admin/questionnaires/questions/${questionId}/options`, data)
+export const updateOption = (id, data) => request.put(`/admin/questionnaires/options/${id}`, data)
+export const deleteOption = (id) => request.delete(`/admin/questionnaires/options/${id}`)
+
+export const getConstitutions = () => request.get('/admin/constitutions')
+export const getConstitutionByType = (type) => request.get(`/admin/constitutions/${type}`)
+export const createOrUpdateConstitution = (data) => request.post('/admin/constitutions', data)
+

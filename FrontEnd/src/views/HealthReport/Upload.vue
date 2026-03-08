@@ -71,7 +71,7 @@
             <el-table-column prop="value" label="结果" />
             <el-table-column label="解读">
               <template #default="scope">
-                {{ getInterpretation(scope.row.name) }}
+                {{ getInterpretation(scope.row) }}
               </template>
             </el-table-column>
           </el-table>
@@ -161,11 +161,17 @@ const ocrItems = computed(() => {
     return []
 })
 
-const getInterpretation = (itemName) => {
-    if (streamActive.value && streamDetails.value[itemName]) return streamDetails.value[itemName]
+const getInterpretation = (row) => {
+    // 优先使用后端返回的行内解读
+    if (row && row.interpretation) return row.interpretation
+    // 回退到旧逻辑（可能已不再需要）
     if (!interpretation.value || !interpretation.value.details) return '待分析'
-    return interpretation.value.details[itemName] || '待分析'
+    return interpretation.value.details[row.name] || '待分析'
 }
+
+const summaryText = computed(() => {
+    return interpretation.value?.summary || ''
+})
 
 const getStatusText = (status) => {
     const map = {
@@ -177,20 +183,16 @@ const getStatusText = (status) => {
     return map[status] || status
 }
 
-const summaryText = computed(() => {
-    if (streamActive.value && streamSummary.value) return streamSummary.value
-    return interpretation.value?.summary || ''
-})
-
 const normalizeStatus = (status) => (status || '').toString().trim().toUpperCase()
 
 const stopStream = () => {
-    if (streamInterval) {
-        clearInterval(streamInterval)
-        streamInterval = null
-    }
-    streamActive.value = false
+    // 移除流式逻辑
 }
+
+const startStream = () => {
+    // 移除流式逻辑
+}
+
 const startProgress = () => {
     if (progressTimer) clearInterval(progressTimer)
     const start = Date.now()
@@ -201,6 +203,7 @@ const startProgress = () => {
         if (next > progressValue.value) progressValue.value = next
     }, 1000)
 }
+
 const stopProgress = (finalValue = null) => {
     if (progressTimer) {
         clearInterval(progressTimer)
@@ -219,63 +222,7 @@ const goBack = () => {
   router.push('/report')
 }
 
-const startStream = () => {
-    stopStream()
-    if (!interpretation.value) return
-    const summary = interpretation.value?.summary || ''
-    const detailsMap = interpretation.value?.details || {}
-    const detailList = ocrItems.value.map(item => ({
-        name: item.name,
-        text: detailsMap[item.name] || '待分析'
-    }))
-    streamSummary.value = ''
-    streamDetails.value = {}
-    streamActive.value = true
-    let phase = 'summary'
-    let idx = 0
-    let charIndex = 0
-    streamInterval = setInterval(() => {
-        if (phase === 'summary') {
-            if (charIndex < summary.length) {
-                streamSummary.value += summary.charAt(charIndex++)
-            } else {
-                phase = 'detail'
-                idx = 0
-                charIndex = 0
-                if (detailList.length === 0) {
-                    stopStream()
-                }
-            }
-            return
-        }
-        if (idx >= detailList.length) {
-            stopStream()
-            return
-        }
-        const item = detailList[idx]
-        const current = streamDetails.value[item.name] || ''
-        if (charIndex < item.text.length) {
-            streamDetails.value = {
-                ...streamDetails.value,
-                [item.name]: current + item.text.charAt(charIndex++)
-            }
-        } else {
-            idx += 1
-            charIndex = 0
-        }
-    }, 20)
-}
-
-watch([statusValue, interpretation, ocrItems], ([status]) => {
-    if (status === 'COMPLETED' && interpretation.value) {
-        startStream()
-    } else {
-        stopStream()
-    }
-})
-
 onUnmounted(() => {
-    stopStream()
     stopProgress()
     if (pollInterval) {
         clearInterval(pollInterval)

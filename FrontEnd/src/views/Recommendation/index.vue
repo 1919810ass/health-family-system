@@ -10,8 +10,8 @@
       </div>
     </div>
 
-    <el-row :gutter="20" class="category-row">
-      <el-col v-for="(cat, index) in categories" :key="cat.key" :xs="24" :sm="12" :md="6">
+    <el-row :gutter="16" class="category-row flex-row">
+      <el-col v-for="(cat, index) in categories" :key="cat.key" class="flex-col">
         <el-card
           shadow="hover"
           :class="['category-card', activeCategory === cat.key ? 'is-active' : '']"
@@ -19,7 +19,7 @@
           :style="{ '--delay': index * 0.1 + 's' }"
         >
           <div class="card-icon" :style="{ background: cat.color + '15', color: cat.color }">
-            <el-icon size="32"><component :is="cat.icon" /></el-icon>
+            <el-icon size="28"><component :is="cat.icon" /></el-icon>
           </div>
           <div class="card-title">{{ cat.name }}</div>
           <div class="card-desc">{{ cat.desc }}</div>
@@ -131,7 +131,7 @@ import { ElMessage } from 'element-plus'
 import { useRecommendationStore } from '../../stores'
 import { fetchRecommendations, generateRecommendations, sendFeedback } from '../../api/recommendation'
 import { getLogs } from '../../api/log'
-import { Food, Clock, Bicycle, Orange, MagicStick } from '@element-plus/icons-vue'
+import { Food, Clock, Bicycle, Orange, MagicStick, Monitor } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { mapToBackendCategories } from '../../utils/recommendation'
 
@@ -140,14 +140,15 @@ const { activeCategory, items: recommendations } = storeToRefs(store)
 const loading = ref(false)
 const generating = ref(false)
 const selectedDate = ref(dayjs().format('YYYY-MM-DD'))
-const completion = ref({ DIET: false, SLEEP: false, SPORT: false, MOOD: false })
+const completion = ref({ DIET: false, SLEEP: false, SPORT: false, MOOD: false, VITALS: false })
 const checking = ref(false)
 
 const categories = [
   { key: 'DIET', name: '饮食', desc: '合理膳食建议', color: '#409EFF', icon: markRaw(Food) },
   { key: 'REST', name: '作息', desc: '睡眠与休息', color: '#67C23A', icon: markRaw(Clock) },
   { key: 'SPORT', name: '运动', desc: '运动与活动', color: '#E6A23C', icon: markRaw(Bicycle) },
-  { key: 'EMOTION', name: '情绪', desc: '心理与情绪', color: '#F56C6C', icon: markRaw(Orange) }
+  { key: 'EMOTION', name: '情绪', desc: '心理与情绪', color: '#F56C6C', icon: markRaw(Orange) },
+  { key: 'VITALS', name: '体征', desc: '生理体征分析', color: '#00BCD4', icon: markRaw(Monitor) }
 ]
 
 // refs are from storeToRefs above
@@ -169,13 +170,14 @@ const handleCategoryClick = (key) => {
   loadRecommendations()
 }
 
-const requiredTypes = ['DIET', 'SLEEP', 'SPORT', 'MOOD']
-const typeMap = { DIET: '饮食', SLEEP: '睡眠', SPORT: '运动', MOOD: '情绪' }
+const requiredTypes = ['DIET', 'SLEEP', 'SPORT', 'MOOD', 'VITALS']
+const typeMap = { DIET: '饮食', SLEEP: '睡眠', SPORT: '运动', MOOD: '情绪', VITALS: '体征' }
 const instructions = {
   DIET: '填写食物、数量、单位，如“鸡蛋1个、米饭1碗”，可点击“优化输入内容”获得结构化结果',
   SLEEP: '填写睡眠时长(小时)、就寝与起床时间，质量可选',
   SPORT: '填写运动类型、时长(分钟)，可选距离(公里)',
-  MOOD: '填写情绪类型(开心/焦虑等)与强度(1-5)'
+  MOOD: '填写情绪类型(开心/焦虑等)与强度(1-5)',
+  VITALS: '填写血压、血糖、心率、体温或体重等生理体征数据'
 }
 
 const loadRecommendations = async () => {
@@ -275,6 +277,30 @@ const handleFeedback = async (item, accepted) => {
   
   .category-row {
     margin-bottom: 24px;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 16px;
+    overflow-x: auto;
+    padding: 4px 4px 12px 4px;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+
+    &::-webkit-scrollbar {
+      height: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.08);
+      border-radius: 3px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  }
+
+  .flex-col {
+    flex: 1;
+    min-width: 140px; /* More compact for 5 cards */
+    padding: 0 !important;
   }
 }
 
@@ -328,7 +354,7 @@ const handleFeedback = async (item, accepted) => {
   transition: all 0.3s vars.$ease-spring;
   @include mixins.glass-effect;
   border-radius: vars.$radius-lg;
-  padding: 24px;
+  padding: 16px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -336,48 +362,53 @@ const handleFeedback = async (item, accepted) => {
   justify-content: center;
   animation: fadeInUp 0.6s vars.$ease-spring backwards;
   animation-delay: var(--delay);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   
+  .card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    transition: all 0.3s;
+  }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: vars.$text-main-color;
+    margin-bottom: 4px;
+  }
+
+  .card-desc {
+    font-size: 12px;
+    color: vars.$text-secondary-color;
+    opacity: 0.8;
+  }
+
   &.is-active {
     border-color: vars.$primary-color;
-    background-color: rgba(vars.$primary-color, 0.05);
+    background-color: rgba(vars.$primary-color, 0.08);
     transform: translateY(-4px);
-    box-shadow: vars.$shadow-md;
+    box-shadow: 0 8px 24px rgba(vars.$primary-color, 0.12);
+    
+    .card-icon {
+      transform: scale(1.1);
+    }
   }
-  &:hover {
+
+  &:hover:not(.is-active) {
     transform: translateY(-6px);
-    box-shadow: vars.$shadow-lg;
+    background-color: rgba(255, 255, 255, 0.9);
+    box-shadow: vars.$shadow-md;
   }
 }
 
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-.card-icon {
-  margin-bottom: 16px;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s;
-}
-
-.category-card:hover .card-icon {
-  transform: scale(1.1) rotate(5deg);
-}
-
-.card-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: vars.$text-main-color;
-}
-.card-desc {
-  font-size: 14px;
-  color: vars.$text-secondary-color;
 }
 
 .list-card {

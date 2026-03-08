@@ -22,6 +22,13 @@
 
     <div class="glass-card stagger-anim" style="--delay: 0.2s">
       <div class="tabs-header">
+        <div class="batch-actions" v-if="selectedReminders.length > 0">
+          <el-button type="danger" @click="handleBatchDelete" plain class="batch-delete-btn">
+            <el-icon class="mr-4"><Delete /></el-icon>
+            删除选中 ({{ selectedReminders.length }})
+          </el-button>
+          <span class="selection-tip">已选中 {{ selectedReminders.length }} 项</span>
+        </div>
         <el-tabs v-model="activeTab" @tab-change="loadReminders" class="custom-tabs">
           <el-tab-pane label="全部" name="all" />
           <el-tab-pane label="待发送" name="PENDING" />
@@ -36,7 +43,10 @@
           v-loading="loading" 
           style="width: 100%"
           class="glass-table"
+          @selection-change="handleSelectionChange"
+          ref="tableRef"
         >
+          <el-table-column type="selection" width="55" />
           <el-table-column prop="title" label="标题" min-width="150">
             <template #default="{ row }">
               <div class="title-cell">
@@ -208,11 +218,12 @@ import {
   Edit, User, Promotion, Check, Delete, FirstAidKit,
   Timer, DataLine, Sunny, Warning
 } from '@element-plus/icons-vue'
-import {
+import { 
   createReminder,
   getUserReminders,
   updateReminderStatus,
   deleteReminder as deleteReminderApi,
+  batchDeleteReminders, // 新增
   generateSmartReminders as generateSmartRemindersApi
 } from '../../api/reminder'
 import dayjs from 'dayjs'
@@ -221,6 +232,8 @@ const activeTab = ref('all')
 const loading = ref(false)
 const reminders = ref([])
 const showCreateDialog = ref(false)
+const selectedReminders = ref([]) // 新增：存储选中的提醒ID
+const tableRef = ref(null) // 新增：表格引用
 
 const openCreateDialog = () => {
   resetForm()
@@ -352,6 +365,41 @@ const deleteReminder = async (id) => {
     if (error !== 'cancel') {
       console.error('删除提醒失败:', error)
       ElMessage.error('删除提醒失败')
+    }
+  }
+}
+
+// 新增：处理表格选中项变化
+const handleSelectionChange = (selection) => {
+  selectedReminders.value = selection.map(item => item.id)
+}
+
+// 新增：处理批量删除
+const handleBatchDelete = async () => {
+  if (selectedReminders.value.length === 0) {
+    ElMessage.warning('请至少选择一项')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedReminders.value.length} 条提醒吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const res = await batchDeleteReminders(selectedReminders.value)
+    if (res.code === 0) {
+      ElMessage.success('批量删除成功')
+      loadReminders() // 重新加载数据
+      selectedReminders.value = [] // 清空选项
+    } else {
+      ElMessage.error(res.message || '批量删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败:', error)
+      ElMessage.error('批量删除失败')
     }
   }
 }
@@ -527,8 +575,34 @@ const getStatusTagType = (status) => {
     padding: 12px 20px;
     border-bottom: 1px solid rgba(vars.$text-primary-color, 0.06);
     background: rgba(255, 255, 255, 0.6);
+    position: relative;
   }
   
+  .batch-actions {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    background: rgba(vars.$danger-color, 0.1);
+    z-index: 10;
+    animation: fadeIn 0.3s ease;
+
+    .batch-delete-btn {
+      border-radius: 16px;
+    }
+
+    .selection-tip {
+      margin-left: auto;
+      font-size: 14px;
+      color: vars.$danger-color;
+      font-weight: 500;
+    }
+  }
+
   .card-content {
     padding: 20px;
   }

@@ -336,6 +336,7 @@ import {
   DataLine, Check, DataAnalysis, Document, Delete
 } from '@element-plus/icons-vue'
 import { getFamilies, updateFamilyStatus, createFamily, updateFamily, deleteFamily } from '../../../api/admin'
+import { debounce } from '../../../utils/debounce'
 
 const route = useRoute()
 const pageTitle = ref('家庭管理')
@@ -446,11 +447,11 @@ onMounted(() => {
 
 watch(
   () => route.path,
-  () => {
+  debounce(() => {
     applyModeDefaults()
     pagination.page = 1
     loadFamilies()
-  }
+  }, 300)
 )
 
 // 加载家庭列表（兼容后端 Result<T> 包装结构）

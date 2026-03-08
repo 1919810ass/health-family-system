@@ -2,6 +2,7 @@ package com.healthfamily.domain.repository;
 
 import com.healthfamily.domain.entity.Family;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 /**
@@ -12,7 +13,7 @@ import java.util.List;
  */
 import java.util.Optional;
 
-public interface FamilyRepository extends JpaRepository<Family, Long> {
+public interface FamilyRepository extends JpaRepository<Family, Long>, JpaSpecificationExecutor<Family> {
 
     Optional<Family> findByInviteCode(String inviteCode);
 

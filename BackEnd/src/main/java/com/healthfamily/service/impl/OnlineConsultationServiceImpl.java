@@ -300,6 +300,54 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
         sessionRepository.save(session);
     }
 
+    @Override
+    @Transactional
+    /**
+     * 医生回复评价后，发送消息到在线咨询会话
+     * @param doctorId 医生用户ID
+     * @param patientId 患者用户ID
+     * @param replyContent 医生回复内容
+     */
+    public void sendDoctorReplyMessage(Long doctorId, Long patientId, String patientRatingContent, String replyContent) {
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new BusinessException(40401, "医生用户不存在"));
+        User patient = userRepository.findById(patientId)
+                .orElseThrow(() -> new BusinessException(40401, "患者用户不存在"));
+
+        // 查找或创建会话
+        ConsultationSession session = sessionRepository.findByPatientAndDoctor(patient, doctor)
+                .orElseGet(() -> {
+                    // 如果不存在会话，创建一个新的
+                    List<FamilyMember> patientFamilyMembers = familyMemberRepository.findByUser(patient);
+                    if (patientFamilyMembers.isEmpty()) {
+                        throw new BusinessException(40402, "患者未加入家庭");
+                    }
+                    Family patientFamily = patientFamilyMembers.get(0).getFamily();
+                    return createNewSession(doctor, patient, patientFamily, "医生回复了您的评价");
+                });
+
+        // 构建消息内容
+        String fullContent = String.format("医生回复了您的评价：%s\n医生回复：%s", patientRatingContent, replyContent);
+
+        // 创建消息
+        ConsultationMessage message = ConsultationMessage.builder()
+                .session(session)
+                .sender(doctor)
+                .senderType("DOCTOR")
+                .content(fullContent)
+                .messageType("TEXT")
+                .readByDoctor(true) // 医生自己发送，所以医生端已读
+                .readByPatient(false) // 患者端未读
+                .build();
+
+        messageRepository.save(message);
+
+        // 更新会话的最后消息时间和未读数
+        session.setLastMessageAt(message.getCreatedAt());
+        session.setUnreadCountPatient(session.getUnreadCountPatient() + 1); // 医生发送给患者，患者未读数加1
+        sessionRepository.save(session);
+    }
+
     // ==================== 私有辅助方法 ====================
 
     private ConsultationSession createNewSession(User doctor, User patient, Family family, String title) {

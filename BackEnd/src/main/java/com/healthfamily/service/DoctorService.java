@@ -48,7 +48,7 @@ public interface DoctorService {
     void markAlertAsHandled(Long doctorId, Long alertId);
     
     // 健康计划相关方法
-    java.util.List<com.healthfamily.web.dto.HealthPlanResponse> listHealthPlans(Long doctorId, Long familyId, Long patientUserId, String status, String type);
+    java.util.List<com.healthfamily.web.dto.HealthPlanResponse> listHealthPlans(Long doctorId, Long familyId, Long patientUserId, String status, String type, java.time.LocalDate startDate, java.time.LocalDate endDate);
     com.healthfamily.web.dto.HealthPlanResponse getHealthPlan(Long doctorId, Long planId);
     com.healthfamily.web.dto.HealthPlanResponse createHealthPlan(Long doctorId, Long familyId, com.healthfamily.web.dto.HealthPlanRequest request);
     com.healthfamily.web.dto.HealthPlanResponse updateHealthPlan(Long doctorId, Long planId, com.healthfamily.web.dto.HealthPlanRequest request);
@@ -57,7 +57,7 @@ public interface DoctorService {
     java.util.List<com.healthfamily.web.dto.HealthPlanResponse> getHealthPlansCalendar(Long doctorId, Long patientUserId, String startDate, String endDate);
     
     // 随访任务相关方法
-    java.util.List<com.healthfamily.web.dto.FollowUpTaskResponse> listFollowUpTasks(Long doctorId, Long familyId, Long patientUserId, String status);
+    java.util.List<com.healthfamily.web.dto.FollowUpTaskResponse> listFollowUpTasks(Long doctorId, Long familyId, Long patientUserId, String status, java.time.LocalDate startDate, java.time.LocalDate endDate);
     com.healthfamily.web.dto.FollowUpTaskResponse createFollowUpTask(Long doctorId, Long familyId, Long patientUserId, com.healthfamily.web.dto.CreateFollowUpTaskRequest request);
     com.healthfamily.web.dto.FollowUpTaskResponse updateFollowUpTask(Long doctorId, Long taskId, com.healthfamily.web.dto.UpdateFollowUpTaskRequest request);
     void deleteFollowUpTask(Long doctorId, Long taskId);
@@ -96,6 +96,7 @@ public interface DoctorService {
     // 管理员功能相关方法
     Map<String, Object> getAdminDoctorList(String keyword, String status, String specialty, int page, int size, LocalDateTime startTime, LocalDateTime endTime);
     com.healthfamily.web.dto.AdminDoctorDto getAdminDoctorById(Long id);
+    com.healthfamily.web.dto.AdminDoctorDto updateAdminDoctor(Long id, com.healthfamily.web.dto.AdminDoctorDto dto);
     Map<String, Object> getAdminDoctorStats();
     java.util.List<com.healthfamily.web.dto.AdminDoctorDto> getPendingDoctors(int page, int size);
     boolean approveDoctor(Long doctorId, Long adminId);
@@ -115,4 +116,7 @@ public interface DoctorService {
     
     // 获取医生评价列表
     java.util.List<com.healthfamily.web.dto.DoctorRatingResponse> getDoctorRatings(Long doctorId);
+
+    // 回复医生评价
+    void replyDoctorRating(Long doctorId, Long ratingId, String reply);
 }

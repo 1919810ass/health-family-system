@@ -36,10 +36,10 @@ public class AiRequestLog {
     private String modelName;
 
     @Column(name = "input_tokens")
-    private Integer inputTokens;
+    private Long inputTokens;
 
     @Column(name = "output_tokens")
-    private Integer outputTokens;
+    private Long outputTokens;
 
     @Column(name = "latency")
     private Long latency;

@@ -13,10 +13,6 @@
       <div class="grid-item ai-assistant">
         <AIAssistantCard />
       </div>
-      
-      <div class="grid-item family-status">
-        <FamilyStatusCard />
-      </div>
 
       <div class="grid-item ai-overview">
         <HealthInferenceCard />
@@ -100,7 +96,6 @@ import SeasonalWellnessCard from './components/SeasonalWellnessCard.vue'
 import HealthTrendChart from './components/HealthTrendChart.vue'
 import HealthInferenceCard from './components/HealthInferenceCard.vue'
 import AIAssistantCard from './components/AIAssistantCard.vue'
-import FamilyStatusCard from './components/FamilyStatusCard.vue'
 import { PhoneFilled, FirstAidKit, Bell, Service, Timer } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
@@ -157,11 +152,7 @@ const startBreathing = () => {
   }
 
   .ai-assistant {
-    grid-area: 2 / 2 / 3 / 3;
-  }
-  
-  .family-status {
-    grid-area: 3 / 2 / 4 / 3;
+    grid-area: 2 / 2 / 4 / 3; /* 协作待办占用原来两行高度 */
   }
 
   .ai-overview {

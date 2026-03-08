@@ -4,6 +4,7 @@ import com.healthfamily.domain.entity.ConsultationSession;
 import com.healthfamily.domain.entity.Family;
 import com.healthfamily.domain.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 /**
@@ -14,7 +15,7 @@ import java.util.List;
  */
 import java.util.Optional;
 
-public interface ConsultationSessionRepository extends JpaRepository<ConsultationSession, Long> {
+public interface ConsultationSessionRepository extends JpaRepository<ConsultationSession, Long>, JpaSpecificationExecutor<ConsultationSession> {
 
     /**
      * 根据患者和医生查找会话
@@ -49,5 +50,10 @@ public interface ConsultationSessionRepository extends JpaRepository<Consultatio
     long countByDoctorAndUnreadCountDoctorGreaterThan(User doctor, int count);
 
     long countByDoctorAndCreatedAtAfter(User doctor, java.time.LocalDateTime createdAt);
+
+    /**
+     * 统计医生的活跃会话数
+     */
+    int countByDoctor_IdAndStatus(Long doctorId, String status);
 }
 

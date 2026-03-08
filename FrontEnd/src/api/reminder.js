@@ -15,4 +15,5 @@ export const generateCollaborationReminders = (familyId) => request.post('/remin
 export const getFamilyReminders = (familyId) => request.get('/reminders', { params: { familyId } })
 export const getUserTodoItems = () => request.get('/reminders/todo')
 export const generateSmartRemindersForUser = (targetUserId) => request.post(`/reminders/generate/user/${targetUserId}`, {})
+export const batchDeleteReminders = (ids) => request.delete('/reminders', { data: { ids } })
 

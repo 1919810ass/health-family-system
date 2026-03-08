@@ -642,21 +642,27 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
         }
         try {
             String prompt = String.format("""
-                    请将以下中文饮食记录解析为结构化JSON：
-                    "%s"
+                    角色：你是一个专业的营养师AI助手。
+                    任务：分析用户的饮食记录，识别食物并进行科学的热量估算。
                     
-                    要求：
-                    - 识别每种食物的名称name、数量quantity、单位unit（如g、克、碗、杯、片等）
-                    - 如能估算热量，给出calories；否则可省略
-                    - 计算总热量totalCalories（如无法估算则为0）
+                    核心原则：
+                    1. 尽可能利用你的知识库估算食物热量，不要依赖固定值。
+                    2. 考虑食物的烹饪方式（如油炸热量更高）、原料成分。
+                    3. 对于常见食物，给出合理的平均热量值。
+                    4. 如果用户未提供单位，默认按"份"或"个"估算。
                     
-                    返回JSON：
+                    输出格式（JSON）：
                     {
                       "items": [
-                        { "name": "食物名", "quantity": 数量, "unit": "单位", "calories": 可选 }
+                        { "name": "食物名称", "quantity": 数量(数字), "unit": "单位", "calories": 热量(数字, kcal) }
                       ],
-                      "totalCalories": 数值
+                      "totalCalories": 总热量(数字, kcal)
                     }
+                    
+                    用户输入：
+                    "%s"
+                    
+                    请输出JSON：
                     """, text);
             String content = callChatWithFallback(prompt);
             String json = extractJsonFromResponse(content);
@@ -694,17 +700,29 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
                     }
                 }
             }
-            Object totalObj = data.getOrDefault("totalCalories", 0);
-            double total = 0d;
-            try {
-                total = Double.parseDouble(String.valueOf(totalObj));
-            } catch (Exception ignored) {}
+
+            // 优先使用本地逐项热量求和，避免直接信任大模型返回的 totalCalories（可能固定为某个值）
+            double totalFromItems = items.stream()
+                    .map(i -> i.get("calories"))
+                    .filter(Objects::nonNull)
+                    .mapToDouble(v -> {
+                        try {
+                            return Double.parseDouble(v.toString());
+                        } catch (Exception ignored) {
+                            return 0d;
+                        }
+                    })
+                    .sum();
+
+            double total = totalFromItems;
             if (total <= 0d) {
-                total = items.stream()
-                        .map(i -> i.get("calories"))
-                        .filter(Objects::nonNull)
-                        .mapToDouble(v -> Double.parseDouble(v.toString()))
-                        .sum();
+                // 仅在本地无法计算时，才退回到模型给出的 totalCalories
+                Object totalObj = data.getOrDefault("totalCalories", 0);
+                try {
+                    total = Double.parseDouble(String.valueOf(totalObj));
+                } catch (Exception ignored) {
+                    total = 0d;
+                }
             }
             Map<String, Object> result = new HashMap<>();
             result.put("items", items);
@@ -723,20 +741,24 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
 
     private List<Map<String, Object>> simpleDietParse(String text) {
         List<Map<String, Object>> items = new ArrayList<>();
+        // 预处理：中文数字转阿拉伯数字
         String normalized = text.replaceAll("[，,。;；、\\s]+", " ").trim();
+        normalized = normalized.replace("一", "1").replace("二", "2").replace("两", "2")
+                .replace("三", "3").replace("四", "4").replace("五", "5");
+        
         String[] parts = normalized.split(" ");
         Map<String, Integer> calorieDict = getCalorieDict();
 
-        Pattern qtyUnit = Pattern.compile("(\\d+(?:\\.\\d+)?)(g|克|碗|杯|片|个|份|盘|勺|袋|盒)?");
+        Pattern qtyUnit = Pattern.compile("(\\d+(?:\\.\\d+)?)(g|克|碗|杯|片|个|份|盘|勺|袋|盒|根|只)?");
         for (String p : parts) {
-            String name = p.replaceAll("(\\d+(?:\\.\\d+)?)(g|克|碗|杯|片|个|份|盘|勺|袋|盒)?", "").trim();
+            String name = p.replaceAll("(\\d+(?:\\.\\d+)?)(g|克|碗|杯|片|个|份|盘|勺|袋|盒|根|只)?", "").trim();
             if (name.isEmpty()) continue;
             Matcher m = qtyUnit.matcher(p);
             Double qty = 1.0;
             String unit = "份";
             if (m.find()) {
                 String q = m.group(1);
-                if (q != null) qty = Double.parseDouble(q);
+                if (q != null && !q.isEmpty()) qty = Double.parseDouble(q);
                 unit = m.group(2);
                 if (unit == null) unit = "份";
             }
@@ -803,6 +825,15 @@ public class HealthDataAiServiceImpl implements HealthDataAiService {
         calorieDict.put("煎饺", 75);
         calorieDict.put("鸭腿", 300);
         calorieDict.put("花生饼", 160);
+        calorieDict.put("油条", 270);
+        calorieDict.put("豆浆", 50);
+        calorieDict.put("包子", 200);
+        calorieDict.put("粥", 80);
+        calorieDict.put("面条", 200);
+        calorieDict.put("馒头", 220);
+        calorieDict.put("馄饨", 300);
+        calorieDict.put("肉夹馍", 450);
+        calorieDict.put("凉皮", 300);
         return calorieDict;
     }
 

@@ -10,12 +10,20 @@
       </div>
     </div>
 
-    <div class="grid mt-24">
-      <div class="grid-item" style="--delay: 0.1s"><ProfileCard /></div>
-      <div class="grid-item" style="--delay: 0.2s"><AvatarCard /></div>
-      <div class="grid-item full-width" style="--delay: 0.3s"><HealthProfileCard /></div>
-      <div class="grid-item" style="--delay: 0.4s"><PasswordCard /></div>
-      <div class="grid-item" style="--delay: 0.5s"><NotificationCard /></div>
+    <div class="settings-content mt-24">
+      <div class="settings-top-row">
+        <div class="grid-item" style="--delay: 0.1s">
+          <ProfileCard class="h-full" />
+        </div>
+        <div class="settings-security-stack">
+          <div class="grid-item" style="--delay: 0.2s"><AvatarCard /></div>
+          <div class="grid-item" style="--delay: 0.3s"><PasswordCard /></div>
+        </div>
+      </div>
+      
+      <div class="grid-item mt-24" style="--delay: 0.4s">
+        <HealthProfileCard />
+      </div>
     </div>
   </div>
 </template>
@@ -32,7 +40,6 @@ import ProfileCard from './components/ProfileCard.vue'
 import AvatarCard from './components/AvatarCard.vue'
 import HealthProfileCard from './components/HealthProfileCard.vue'
 import PasswordCard from './components/PasswordCard.vue'
-import NotificationCard from './components/NotificationCard.vue'
 import { onMounted } from 'vue'
 import { useUserStore } from '../../stores/user'
 
@@ -96,23 +103,51 @@ onMounted(() => {
 }
 
 .mt-24 { margin-top: 24px }
-.grid { 
-  display: grid; 
-  grid-template-columns: repeat(2, 1fr); 
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-top-row {
+  display: grid;
+  grid-template-columns: 1fr 400px;
   gap: 24px;
+  align-items: stretch;
+
+  .settings-security-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+}
+
+.h-full { 
+  height: 100%; 
+  :deep(.el-card) {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    .el-card__body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+  }
 }
 
 .grid-item {
   animation: fadeInUp 0.6s vars.$ease-spring backwards;
   animation-delay: var(--delay);
-  
-  &.full-width {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 768px) { 
-  .grid { grid-template-columns: 1fr } 
+  .settings-top-row { 
+    grid-template-columns: 1fr;
+    gap: 16px;
+    .settings-security-stack { width: 100%; flex: none; gap: 16px; }
+  } 
 }
 
 @keyframes fadeInDown {

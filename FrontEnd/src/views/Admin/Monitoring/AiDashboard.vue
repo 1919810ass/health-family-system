@@ -155,7 +155,7 @@ const rankingChartOption = computed(() => {
 
   return {
     tooltip: { trigger: 'axis' },
-    grid: { left: '30%', right: '10%' },
+    grid: { left: '35%', right: '10%' },
     xAxis: { type: 'value' },
     yAxis: { type: 'category', data: endpoints, axisLabel: { interval: 0 } },
     series: [

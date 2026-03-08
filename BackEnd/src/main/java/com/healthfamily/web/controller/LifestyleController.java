@@ -150,6 +150,15 @@ public class LifestyleController {
         return Result.success();
     }
 
+    @GetMapping("/mood/analyze")
+    /**
+     * 分析情绪建议
+     */
+    public Result<String> analyzeMood(@AuthenticationPrincipal UserPrincipal principal) {
+        Long userId = principal.getUserId();
+        return Result.success(lifestyleService.analyzeMood(userId));
+    }
+
     @PostMapping("/vitals/record")
     /**
      * 执行业务操作
@@ -173,5 +182,14 @@ public class LifestyleController {
     public Result<String> analyzeSleep(@AuthenticationPrincipal UserPrincipal principal) {
         Long userId = principal.getUserId();
         return Result.success(lifestyleService.analyzeSleep(userId));
+    }
+
+    @GetMapping("/vitals/analyze")
+    /**
+     * 分析体征建议
+     */
+    public Result<String> analyzeVitals(@AuthenticationPrincipal UserPrincipal principal) {
+        Long userId = principal.getUserId();
+        return Result.success(lifestyleService.analyzeVitals(userId));
     }
 }

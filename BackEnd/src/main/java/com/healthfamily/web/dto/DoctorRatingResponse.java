@@ -14,5 +14,7 @@ public record DoctorRatingResponse(
     String userAvatar,
     Integer rating,
     String comment,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    String reply,
+    LocalDateTime repliedAt
 ) {}

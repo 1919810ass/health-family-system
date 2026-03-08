@@ -53,7 +53,7 @@
         <div class="members-grid">
           <div 
             v-for="member in members" 
-            :key="member.id"
+            :key="member.memberId"
             class="member-card glass-panel"
           >
             <el-avatar :size="64" :src="member.avatar || ''" class="member-avatar">
@@ -234,8 +234,7 @@ const currentFamily = computed(() =>
 )
 
 const isAdmin = computed(() => {
-  if (!currentFamily.value || !userStore.profile) return false
-  return currentFamily.value.ownerId === userStore.profile.id
+  return currentFamily.value?.isAdmin || false;
 })
 
 const rules = {
@@ -387,7 +386,7 @@ const copyInviteCode = () => {
 
 const handleRemoveMember = async (member) => {
   try {
-    await removeMember(currentFamilyId.value, member.id)
+    await removeMember(currentFamilyId.value, member.memberId)
     ElMessage.success('移除成功')
     handleFamilyChange(currentFamilyId.value)
   } catch (error) {

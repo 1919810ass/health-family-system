@@ -28,5 +28,11 @@ export const useFamilyStore = defineStore('family', () => {
     families.value.push(family)
   }
 
-  return { families, current, setFamilies, setCurrent, addFamily }
+  function reset() {
+    families.value = []
+    current.value = null
+    localStorage.removeItem('current_family_id')
+  }
+
+  return { families, current, setFamilies, setCurrent, addFamily, reset }
 })

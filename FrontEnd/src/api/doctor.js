@@ -43,6 +43,8 @@ export const listHealthPlans = (familyId, memberId, params = {}) => {
   const query = new URLSearchParams()
   if (params.status) query.append('status', params.status)
   if (params.type) query.append('type', params.type)
+  if (params.startDate) query.append('startDate', params.startDate)
+  if (params.endDate) query.append('endDate', params.endDate)
   const queryStr = query.toString()
   
   if (!memberId) {
@@ -98,6 +100,7 @@ export const updateDoctorSettings = (data) => request.put('/doctor/settings', da
 
 // 评价查看
 export const getMyRatings = () => request.get('/families/doctor/ratings')
+export const replyRating = (ratingId, reply) => request.post(`/families/doctor/ratings/${ratingId}/reply`, { reply })
 
 // 阈值管理
 export const getPatientThresholds = (userId) => request.get(`/doctor/thresholds/${userId}`)
@@ -108,6 +111,7 @@ export const downloadReportTemplate = () => request.get('/doctor/report-generati
   responseType: 'blob',
   headers: { Accept: 'application/octet-stream' }
 })
+export const submitReport = (payload) => request.post('/doctor/report-generation/submit', payload)
 export const generateReportDocx = (payload) => request.post('/doctor/report-generation/docx', payload, {
   responseType: 'blob',
   headers: { Accept: 'application/octet-stream' }

@@ -34,8 +34,11 @@ import com.healthfamily.web.dto.ConstitutionTrendResponse;
 import com.healthfamily.web.dto.FamilyTcmHealthOverviewResponse;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import com.healthfamily.modules.recommendationv2.service.DocRagService;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -132,6 +135,7 @@ public class AssessmentServiceImpl implements AssessmentService {
     private final FamilyTcmHealthOverviewRepository familyTcmHealthOverviewRepository;
     private final ObjectMapper objectMapper;
     private final com.healthfamily.ai.TcmAssessmentAiService aiService;
+    private final ObjectProvider<DocRagService> docRagServiceProvider;
 
     private static final String DEFAULT_TYPE = "TCM_9";
     private static final TypeReference<Map<String, Double>> SCORE_TYPE = new TypeReference<>() {};
@@ -324,7 +328,7 @@ public class AssessmentServiceImpl implements AssessmentService {
         
         // 获取对应的中医养生知识
         List<TcmKnowledgeBase> knowledgeList = tcmKnowledgeBaseRepository.findByConstitutionType(primaryConstitution);
-        
+
         // 按类型分类养生建议（默认基于知识库）
         Map<String, List<TcmPersonalizedPlanResponse.PlanItemDto>> planItems = knowledgeList.stream()
             .collect(Collectors.groupingBy(
@@ -337,10 +341,11 @@ public class AssessmentServiceImpl implements AssessmentService {
                     kb.getContraindications() != null ? fromJson(kb.getContraindications(), new TypeReference<List<String>>() {}) : Collections.emptyList()
                 ), Collectors.toList())
             ));
-        
-        Map<String, String> seasonalRecommendations = new HashMap<>();
-        List<String> priorityRecommendations = new ArrayList<>();
-        
+
+        // 默认的季节性与调理优先级建议（即使 AI 不可用也能返回）
+        Map<String, String> seasonalRecommendations = getSeasonalRecommendations(primaryConstitution);
+        List<String> priorityRecommendations = getPriorityRecommendations(latest);
+
         // 尝试使用AI生成更个性化的方案
         Map<String, Object> aiPlan = aiService.generatePersonalizedPlan(userId, primaryConstitution, knowledgeList);
         if (aiPlan != null && !aiPlan.isEmpty()) {
@@ -369,6 +374,29 @@ public class AssessmentServiceImpl implements AssessmentService {
                 // AI生成失败或格式错误，回退到默认逻辑
                 System.err.println("AI方案解析失败，回退到默认逻辑: " + e.getMessage());
             }
+        }
+
+        // 与文档知识库联动：对仍为空的调理分类，从管理员上传的文档（向量检索）补充建议
+        supplementPlanFromDocumentKnowledge(primaryConstitution, planItems);
+
+        // Fallback for BALANCED constitution if AI returns empty plan
+        if (planItems.isEmpty() && "BALANCED".equals(primaryConstitution)) {
+            planItems.put("DIET", List.of(new TcmPersonalizedPlanResponse.PlanItemDto(
+                "饮食均衡，有节制",
+                "食物多样化，不偏食，谷、肉、果、菜等合理搭配。饮食有节，不过饥过饱，不食秽物，戒烟限酒。",
+                "EASY",
+                List.of("均衡", "多样"),
+                Collections.emptyList()
+            )));
+            planItems.put("EXERCISE", List.of(new TcmPersonalizedPlanResponse.PlanItemDto(
+                "运动适度，持之以恒",
+                "选择自己感兴趣的运动，如散步、慢跑、太极拳等。每周坚持3-5次，每次30分钟左右，以微汗为度。",
+                "EASY",
+                List.of("规律运动", "适度"),
+                Collections.emptyList()
+            )));
+            priorityRecommendations.add("您的体质平和，无需特殊调理，重在维持当前健康状态。");
+            seasonalRecommendations.put("四季", "顺应四时阴阳变化，合理安排作息与活动，春夏养阳，秋冬养阴。");
         }
         
         // 创建并返回响应
@@ -531,6 +559,49 @@ public class AssessmentServiceImpl implements AssessmentService {
         );
     }
     
+    /** 调理分类与中文名称映射，用于向量检索查询 */
+    private static final Map<String, String> PLAN_TYPE_NAMES = Map.of(
+        "DIET", "饮食", "TEA", "茶饮", "ACUPUNCTURE", "穴位按摩",
+        "EXERCISE", "运动", "EMOTION", "情志", "LIFESTYLE", "生活"
+    );
+
+    /**
+     * 从文档知识库（管理员上传的文档，经向量检索）补充个性化方案中为空的调理分类
+     */
+    private void supplementPlanFromDocumentKnowledge(String primaryConstitution, Map<String, List<TcmPersonalizedPlanResponse.PlanItemDto>> planItems) {
+        DocRagService rag = docRagServiceProvider.getIfAvailable();
+        if (rag == null) return;
+
+        String constitutionName = getConstitutionName(primaryConstitution);
+        for (String type : PLAN_TYPE_NAMES.keySet()) {
+            List<TcmPersonalizedPlanResponse.PlanItemDto> existing = planItems.get(type);
+            if (existing != null && !existing.isEmpty()) continue;
+
+            String typeName = PLAN_TYPE_NAMES.get(type);
+            String query = constitutionName + "体质 " + typeName + " 调理 建议";
+            try {
+                List<Map<String, Object>> hits = rag.search(query);
+                if (hits.isEmpty()) continue;
+
+                List<TcmPersonalizedPlanResponse.PlanItemDto> dtos = hits.stream()
+                    .map(h -> new TcmPersonalizedPlanResponse.PlanItemDto(
+                        (String) h.getOrDefault("title", "知识库建议"),
+                        (String) h.getOrDefault("snippet", ""),
+                        "MEDIUM",
+                        List.of("知识库"),
+                        Collections.emptyList()
+                    ))
+                    .filter(d -> d.content() != null && !d.content().isBlank())
+                    .collect(Collectors.toList());
+                if (!dtos.isEmpty()) {
+                    planItems.put(type, dtos);
+                }
+            } catch (Exception e) {
+                // 向量检索异常时静默跳过，不影响主流程
+            }
+        }
+    }
+
     /**
      * 获取季节性养生建议
      */
@@ -602,15 +673,17 @@ public class AssessmentServiceImpl implements AssessmentService {
     
     private String getConstitutionName(String code) {
         return switch (code) {
+            case "BALANCED" -> "平和";
             case "QI_DEFICIENCY" -> "气虚";
             case "YANG_DEFICIENCY" -> "阳虚";
             case "YIN_DEFICIENCY" -> "阴虚";
             case "PHLEGM_DAMP" -> "痰湿";
+            case "PHLEGM_DAMPNESS" -> "痰湿";
             case "DAMP_HEAT" -> "湿热";
             case "BLOOD_STASIS" -> "血瘀";
             case "QI_STAGNATION" -> "气郁";
             case "SPECIAL" -> "特禀";
-            case "PHLEGM_DAMPNESS" -> "痰湿";
+            case "SPECIAL_DIATHESIS" -> "特禀";
             default -> "未知";
         };
     }

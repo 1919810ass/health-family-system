@@ -44,6 +44,11 @@ export const MENU_CONFIG = {
       ]
     },
     {
+      title: '生活方式',
+      path: '/lifestyle',
+      icon: 'DataAnalysis'
+    },
+    {
       title: '健康日志',
       path: '/logs',
       icon: 'Notebook'
@@ -54,14 +59,14 @@ export const MENU_CONFIG = {
       icon: 'Document'
     },
     {
+      title: '我的健康报告',
+      path: '/my-reports',
+      icon: 'Reading'
+    },
+    {
       title: '个性化建议',
       path: '/recommendations',
       icon: 'MagicStick'
-    },
-    {
-      title: '生活方式',
-      path: '/lifestyle',
-      icon: 'DataAnalysis'
     },
     {
       title: '在线咨询',
@@ -86,6 +91,12 @@ export const MENU_CONFIG = {
       icon: 'Notebook'
     },
     {
+      title: '家庭健康周报',
+      path: '/family-report',
+      icon: 'DocumentCopy',
+      permission: 'FAMILY_ADMIN_VISIBLE'
+    },
+    {
       title: '家庭医生对接',
       path: '/family-doctor',
       icon: 'FirstAidKit',
@@ -101,12 +112,7 @@ export const MENU_CONFIG = {
       path: '/security',
       icon: 'Lock'
     },
-    {
-      title: '系统运维',
-      path: '/ops',
-      icon: 'DataAnalysis',
-      permission: 'ADMIN_VISIBLE' // Special flag for admin visibility in user layout
-    }
+
   ],
   DOCTOR: [
     {
@@ -201,7 +207,7 @@ export const MENU_CONFIG = {
         { title: '健康日志', path: '/admin/health/logs' },
         { title: '体质测评', path: '/admin/health/assessments' },
         { title: '健康提醒', path: '/admin/health/reminders' },
-        { title: 'AI建议', path: '/admin/health/recommendations' }
+        { title: 'AI建议', path: '/admin/health/ai-suggestions' }
       ]
     },
     {

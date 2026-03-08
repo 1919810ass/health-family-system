@@ -64,5 +64,14 @@ public interface HealthPlanRepository extends JpaRepository<HealthPlan, Long> {
      */
     List<HealthPlan> findByPatientAndTypeAndStatusOrderByCreatedAtDesc(User patient, HealthPlanType type, HealthPlanStatus status);
 
+    /**
+     * 统计医生负责的计划总数
+     */
+    int countByDoctor_Id(Long doctorId);
+
+    /**
+     * 查询医生负责的所有计划
+     */
+    List<HealthPlan> findByDoctorOrderByCreatedAtDesc(User doctor);
 }
 

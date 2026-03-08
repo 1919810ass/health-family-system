@@ -39,6 +39,11 @@ public interface HealthReminderService {
     void deleteReminder(Long userId, Long reminderId);
 
     /**
+     * 批量删除提醒
+     */
+    void batchDeleteReminders(Long userId, List<Long> reminderIds);
+
+    /**
      * 生成智能提醒（基于健康数据）
      */
     List<ReminderResponse> generateSmartReminders(Long userId);

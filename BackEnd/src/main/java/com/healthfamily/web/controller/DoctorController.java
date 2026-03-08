@@ -96,6 +96,15 @@ public class DoctorController {
         return Result.success(doctorService.getDoctorRatings(principal.getUserId()));
     }
 
+    @PostMapping("/doctor/ratings/{ratingId}/reply")
+    public Result<Void> replyRating(@AuthenticationPrincipal UserPrincipal principal,
+                                    @PathVariable("ratingId") Long ratingId,
+                                    @RequestBody java.util.Map<String, String> body) {
+        String reply = body.get("reply");
+        doctorService.replyDoctorRating(principal.getUserId(), ratingId, reply);
+        return Result.success();
+    }
+
     // 病历记录相关API
 
     /**

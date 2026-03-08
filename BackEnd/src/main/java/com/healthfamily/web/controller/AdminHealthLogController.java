@@ -1,94 +1,44 @@
 package com.healthfamily.web.controller;
 
-import com.healthfamily.domain.entity.HealthLog;
-import com.healthfamily.service.HealthLogService;
-import com.healthfamily.web.dto.Result;
+import com.healthfamily.domain.constant.HealthLogType;
+import com.healthfamily.service.AdminHealthLogService;
+import com.healthfamily.web.dto.HealthLogDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
-import java.util.Map;
+import java.time.LocalDate;
 
-/**
- * 管理员健康日志管理控制器
- */
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/admin/health/logs")
+@RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminHealthLogController {
 
-    private final HealthLogService healthLogService;
+    private final AdminHealthLogService adminHealthLogService;
 
-    /**
-     * 获取健康日志列表
-     */
     @GetMapping
-    public Result<?> getHealthLogs(
-            @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String logType,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
-        
-        // 调用服务层获取健康日志列表
-        Map<String, Object> result = healthLogService.getAdminHealthLogList(userId, logType, keyword, page, size, startTime, endTime);
-        return Result.success(result);
-    }
+    public ResponseEntity<Page<HealthLogDto>> searchHealthLogs(
+            @RequestParam(required = false) String userKeyword,
+            @RequestParam(required = false) HealthLogType logType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String contentKeyword,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
-    /**
-     * 获取健康日志统计信息
-     */
-    @GetMapping("/stats")
-    public Result<Map<String, Object>> getHealthLogStats() {
-        Map<String, Object> stats = healthLogService.getAdminStatistics();
-        return Result.success(stats);
-    }
+        Page<HealthLogDto> dtoPage = adminHealthLogService.searchLogs(
+                userKeyword, logType, startDate, endDate, contentKeyword, pageable
+        ).map(HealthLogDto::fromEntity);
 
-    /**
-     * 根据ID获取健康日志详情
-     */
-    @GetMapping("/{id}")
-    public Result<HealthLog> getHealthLogById(@PathVariable Long id) {
-        HealthLog healthLog = healthLogService.findById(id);
-        if (healthLog == null) {
-            return Result.error(404, "健康日志不存在");
-        }
-        return Result.success(healthLog);
-    }
-
-    /**
-     * 创建健康日志
-     */
-    @PostMapping
-    public Result<HealthLog> createHealthLog(@RequestBody HealthLog healthLog) {
-        HealthLog createdHealthLog = healthLogService.create(healthLog);
-        return Result.success(createdHealthLog);
-    }
-
-    /**
-     * 更新健康日志
-     */
-    @PutMapping("/{id}")
-    public Result<HealthLog> updateHealthLog(@PathVariable Long id, @RequestBody HealthLog healthLog) {
-        HealthLog updatedHealthLog = healthLogService.update(id, healthLog);
-        if (updatedHealthLog == null) {
-            return Result.error(404, "健康日志不存在");
-        }
-        return Result.success(updatedHealthLog);
-    }
-
-    /**
-     * 删除健康日志
-     */
-    @DeleteMapping("/{id}")
-    public Result<?> deleteHealthLog(@PathVariable Long id) {
-        boolean deleted = healthLogService.deleteById(id);
-        if (!deleted) {
-            return Result.error(404, "健康日志不存在");
-        }
-        return Result.success("删除成功");
+        return ResponseEntity.ok(dtoPage);
     }
 }

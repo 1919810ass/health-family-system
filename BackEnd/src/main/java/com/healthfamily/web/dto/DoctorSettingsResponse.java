@@ -6,7 +6,9 @@ package com.healthfamily.web.dto;
 public record DoctorSettingsResponse(
         DoctorNotificationSettings notifications,  // 通知设置
         
-        WorkingHours workingHours  // 工作时间设置
+        WorkingHours workingHours,  // 工作时间设置
+
+        String bio // 医生简介
 ) {
     /**
      * 工作时间设置

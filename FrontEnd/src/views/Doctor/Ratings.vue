@@ -45,10 +45,57 @@
           </div>
           <div class="card-content">
             <p class="comment-text">{{ rating.comment || '用户未填写评价内容' }}</p>
+            
+            <!-- 医生回复区域 -->
+            <div v-if="rating.reply" class="doctor-reply">
+              <div class="reply-header">
+                <el-tag size="small" type="success">我的回复</el-tag>
+                <span class="reply-time">{{ formatDate(rating.repliedAt) }}</span>
+              </div>
+              <p class="reply-content">{{ rating.reply }}</p>
+            </div>
+            
+            <div v-else class="reply-action">
+              <el-button 
+                type="primary" 
+                link 
+                @click="handleReply(rating)"
+              >
+                回复评价
+              </el-button>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 回复对话框 -->
+    <el-dialog
+      v-model="replyDialogVisible"
+      title="回复评价"
+      width="500px"
+    >
+      <el-form :model="replyForm" label-width="0">
+        <el-form-item>
+          <el-input
+            v-model="replyForm.content"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入您的回复内容，将通知患者..."
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="replyDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="replying" @click="submitReply">
+            发送回复
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -60,12 +107,18 @@
  */
 
 import { ref, onMounted, computed } from 'vue'
-import { getMyRatings } from '@/api/doctor'
+import { getMyRatings, replyRating } from '@/api/doctor'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const loading = ref(false)
 const ratings = ref([])
+const replyDialogVisible = ref(false)
+const replying = ref(false)
+const currentRating = ref(null)
+const replyForm = ref({
+  content: ''
+})
 
 const stats = computed(() => {
   if (ratings.value.length === 0) return { averageRating: '0.0', totalRatings: 0 }
@@ -91,6 +144,33 @@ const fetchRatings = async () => {
     ElMessage.error('获取评价列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+const handleReply = (rating) => {
+  currentRating.value = rating
+  replyForm.value.content = ''
+  replyDialogVisible.value = true
+}
+
+const submitReply = async () => {
+  if (!replyForm.value.content.trim()) {
+    ElMessage.warning('请输入回复内容')
+    return
+  }
+  
+  replying.value = true
+  try {
+    await replyRating(currentRating.value.id, replyForm.value.content)
+    ElMessage.success('回复已发送')
+    replyDialogVisible.value = false
+    // 刷新列表
+    await fetchRatings()
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('回复失败')
+  } finally {
+    replying.value = false
   }
 }
 
@@ -226,6 +306,38 @@ onMounted(() => {
       background: rgba(0,0,0,0.02);
       padding: 12px;
       border-radius: 8px;
+    }
+
+    .doctor-reply {
+      margin-top: 12px;
+      background: var(--el-color-success-light-9);
+      padding: 12px;
+      border-radius: 8px;
+      border-left: 3px solid var(--el-color-success);
+
+      .reply-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+
+        .reply-time {
+          font-size: 12px;
+          color: vars.$text-placeholder-color;
+        }
+      }
+
+      .reply-content {
+        font-size: 14px;
+        color: vars.$text-regular-color;
+        line-height: 1.5;
+        margin: 0;
+      }
+    }
+    
+    .reply-action {
+      margin-top: 8px;
+      text-align: right;
     }
   }
 }

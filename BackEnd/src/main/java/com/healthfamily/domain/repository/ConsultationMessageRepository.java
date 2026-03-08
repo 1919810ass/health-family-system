@@ -23,6 +23,12 @@ public interface ConsultationMessageRepository extends JpaRepository<Consultatio
     List<ConsultationMessage> findBySessionOrderByCreatedAtAsc(ConsultationSession session);
 
     /**
+     * 根据会话ID查找所有消息（按创建时间正序）
+     */
+    @Query("SELECT m FROM ConsultationMessage m WHERE m.session.id = :sessionId ORDER BY m.createdAt ASC")
+    List<ConsultationMessage> findBySessionIdOrderByCreatedAtAsc(@Param("sessionId") Long sessionId);
+
+    /**
      * 统计会话中未读消息数（医生端）
      */
     @Query("SELECT COUNT(m) FROM ConsultationMessage m WHERE m.session = :session AND m.readByDoctor = false AND m.senderType != 'DOCTOR'")

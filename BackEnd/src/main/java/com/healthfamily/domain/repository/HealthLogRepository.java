@@ -25,6 +25,10 @@ public interface HealthLogRepository extends JpaRepository<HealthLog, Long> {
 
     List<HealthLog> findByUserAndLogDateBetweenOrderByLogDateDesc(User user, LocalDate startDate, LocalDate endDate);
 
+    List<HealthLog> findByUser_IdAndLogDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
+
+    List<HealthLog> findByUser_IdAndLogDateBetweenOrderByLogDateDesc(Long userId, LocalDate startDate, LocalDate endDate);
+
     List<HealthLog> findByUser_IdAndTypeOrderByLogDateDesc(Long userId, HealthLogType type);
 
     List<HealthLog> findByUser_IdAndIsAbnormalTrueOrderByLogDateDesc(Long userId);

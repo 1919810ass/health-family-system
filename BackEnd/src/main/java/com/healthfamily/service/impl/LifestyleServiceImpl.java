@@ -9,6 +9,7 @@ import com.healthfamily.domain.entity.User;
 import com.healthfamily.domain.repository.FamilyRepository;
 import com.healthfamily.domain.repository.HealthLogRepository;
 import com.healthfamily.domain.repository.UserRepository;
+import com.healthfamily.service.HealthDataAiService;
 import com.healthfamily.service.HealthLogService;
 import com.healthfamily.service.LifestyleService;
 import com.healthfamily.web.dto.*;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.regex.Pattern;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -54,6 +56,7 @@ public class LifestyleServiceImpl implements LifestyleService {
     private final HealthLogRepository healthLogRepository;
     private final com.healthfamily.service.FoodRecognitionService foodRecognitionService;
     private final HealthLogService healthLogService;
+    private final HealthDataAiService healthDataAiService;
 
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
@@ -104,59 +107,36 @@ public class LifestyleServiceImpl implements LifestyleService {
         Family family = null;
         if (request.familyId() != null) family = familyRepository.findById(request.familyId()).orElse(null);
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        Double totalCalories = 0d;
-        try {
-            // Clean up description if it contains auto-generated format
-            String desc = request.description() != null ? request.description() : "";
-            // Extract core food name if in "识别结果: XXX (置信度: YYY)" format
-            if (desc.startsWith("识别结果:")) {
-                int start = desc.indexOf(":") + 1;
-                int end = desc.indexOf("(");
-                if (end > start) {
-                    desc = desc.substring(start, end).trim();
-                }
-            }
-
-            String prompt = "识别以下饮食内容，返回JSON数组，每项包含name与calories:" + desc;
-            if (request.quantity() != null && !request.quantity().isBlank()) {
-                prompt += "，份量为：" + request.quantity();
-            }
-            prompt += (request.imageUrl() != null ? (" 图片URL:" + request.imageUrl()) : "") + "。如果是蒸饺，热量约为200千卡/100g。";
-            
-            String content = chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
-            
-            // Clean up possible markdown code blocks if AI returns them
-            if (content.contains("```json")) {
-                content = content.substring(content.indexOf("```json") + 7);
-                if (content.contains("```")) {
-                    content = content.substring(0, content.indexOf("```"));
-                }
-            } else if (content.contains("```")) {
-                content = content.substring(content.indexOf("```") + 3);
-                if (content.contains("```")) {
-                    content = content.substring(0, content.indexOf("```"));
-                }
-            }
-            content = content.trim();
-            
-            items = objectMapper.readValue(content, new TypeReference<List<Map<String, Object>>>() {});
-            totalCalories = items.stream().map(m -> m.get("calories")).filter(v -> v != null).mapToDouble(v -> {
-                try {
-                    return Double.valueOf(v.toString());
-                } catch (NumberFormatException nfe) {
-                    return 0d;
-                }
-            }).sum();
-        } catch (Exception e) {
-            log.error("Diet ingest failed", e);
-            // Fallback for demo if AI fails
-            if (request.description() != null && request.description().contains("包子")) {
-                 items = List.of(Map.of("name", "肉包子", "calories", 250));
-                 totalCalories = 250d;
+        List<Map<String, Object>> items;
+        double totalCalories;
+        // 上传了图片则用本地视觉模型 qwen2.5vl:3b 识别卡路里；否则用 qwen2.5:7b 文字分析
+        if (request.imageUrl() != null && !request.imageUrl().isBlank()) {
+            Path imagePath = resolveImagePathFromUrl(request.imageUrl(), requesterId);
+            if (imagePath != null && imagePath.toFile().exists()) {
+                var analysis = foodRecognitionService.dietAnalysisFromImage(imagePath);
+                items = analysis.items() != null ? analysis.items() : new ArrayList<>();
+                totalCalories = analysis.totalCalories();
             } else {
-                 items = List.of(Map.of("name", "米饭", "calories", 260), Map.of("name", "青菜", "calories", 60), Map.of("name", "清蒸鱼", "calories", 200));
-                 totalCalories = 520d;
+                log.warn("Diet image not found for url: {}", request.imageUrl());
+                items = new ArrayList<>();
+                totalCalories = 0d;
+            }
+        } else {
+            // 纯文字：使用 HealthDataAiService（qwen2.5:7b）分析
+            String desc = request.description() != null ? request.description().trim() : "";
+            if (request.quantity() != null && !request.quantity().isBlank()) {
+                desc = desc.isEmpty() ? "份量：" + request.quantity() : desc + "，份量：" + request.quantity();
+            }
+            if (desc.isEmpty()) {
+                items = List.of(Map.of("name", "未填写描述", "calories", 0));
+                totalCalories = 0d;
+            } else {
+                Map<String, Object> optimized = healthDataAiService.optimizeDietText(desc);
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> list = (List<Map<String, Object>>) optimized.getOrDefault("items", List.of());
+                items = list != null ? list : new ArrayList<>();
+                Object totalObj = optimized.get("totalCalories");
+                totalCalories = totalObj != null ? Double.parseDouble(totalObj.toString()) : 0d;
             }
         }
 
@@ -182,14 +162,29 @@ public class LifestyleServiceImpl implements LifestyleService {
     public List<RecipeRecommendResponse> recommendRecipes(Long requesterId, RecipeRecommendRequest request) {
         List<RecipeRecommendResponse> list = new ArrayList<>();
         try {
-            String prompt = "根据标签推荐3个食谱，用JSON数组返回，每项含title、items、note。标签:" + String.join(",", request.tags() != null ? request.tags() : List.of());
+            String prompt = """
+                    你是一个资深营养师。请根据以下健康标签推荐3个食谱。
+                    要求：
+                    1. 必须只返回一个 JSON 数组，不要包含任何前言（如"根据您的标签..."）或后记。
+                    2. 每个食谱对象必须包含以下字段：
+                       - title: 食谱名称
+                       - items: 包含具体食材的字符串数组
+                       - note: 针对该标签的推荐理由或建议
+                    3. 推荐内容要健康且符合标签特征。
+                    标签：%s
+                    """.formatted(String.join(",", request.tags() != null ? request.tags() : List.of()));
+            
             String content = chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
-            // Clean up possible markdown code blocks if AI returns them
-            if (content.contains("```")) {
-                content = content.replaceAll("```json", "").replaceAll("```", "").trim();
-            }
-            List<Map<String, Object>> arr = objectMapper.readValue(content, new TypeReference<List<Map<String, Object>>>() {});
-            list = arr.stream().map(m -> new RecipeRecommendResponse(String.valueOf(m.get("title")), (List<String>) m.getOrDefault("items", List.of()), String.valueOf(m.getOrDefault("note", "")))).collect(Collectors.toList());
+            
+            // 更鲁棒地提取 JSON 数组部分
+            String jsonArray = extractJsonArray(content);
+            
+            List<Map<String, Object>> arr = objectMapper.readValue(jsonArray, new TypeReference<List<Map<String, Object>>>() {});
+            list = arr.stream().map(m -> new RecipeRecommendResponse(
+                String.valueOf(m.getOrDefault("title", "未知食谱")),
+                (List<String>) m.getOrDefault("items", List.of()),
+                String.valueOf(m.getOrDefault("note", ""))
+            )).collect(Collectors.toList());
         } catch (Exception e) {
             log.error("Error recommending recipes", e);
             list = List.of(
@@ -199,6 +194,33 @@ public class LifestyleServiceImpl implements LifestyleService {
             );
         }
         return list;
+    }
+
+    private String extractJsonArray(String content) {
+        if (content == null || content.isBlank()) return "[]";
+        
+        // 尝试移除 markdown 代码块
+        if (content.contains("```")) {
+            content = content.replaceAll("```json", "").replaceAll("```", "").trim();
+        }
+        
+        // 查找第一个 '[' 和最后一个 ']'
+        int start = content.indexOf('[');
+        int end = content.lastIndexOf(']');
+        
+        if (start != -1 && end != -1 && end > start) {
+            return content.substring(start, end + 1);
+        }
+        
+        // 如果没找到数组，尝试找对象
+        int startObj = content.indexOf('{');
+        int endObj = content.lastIndexOf('}');
+        if (startObj != -1 && endObj != -1 && endObj > startObj) {
+            String obj = content.substring(startObj, endObj + 1);
+            return "[" + obj + "]"; // 包装成数组
+        }
+        
+        return content.trim();
     }
 
     @Override
@@ -324,17 +346,33 @@ public class LifestyleServiceImpl implements LifestyleService {
      */
     public String suggestExercise(Long requesterId) {
         try {
+            LocalDate start = LocalDate.now().minusDays(14);
+            List<HealthLog> logs = healthLogRepository.findByUser_IdAndLogDateBetweenOrderByLogDateDesc(
+                    requesterId, start, LocalDate.now())
+                    .stream()
+                    .filter(log -> log.getType() == HealthLogType.SPORT)
+                    .limit(20)
+                    .collect(Collectors.toList());
+
+            String baseInfo = logs.isEmpty() 
+                ? "最近14天暂无运动日志记录。" 
+                : logs.stream().map(this::formatLog).collect(Collectors.joining("\n"));
+
             String prompt = """
-                    请针对血压偏高的人群，生成一份个性化的运动建议。
+                    你是一个资深健康教练。请根据以下最近14天的运动记录提供个性化建议。
+                    数据：
+                    %s
+                    
                     要求：
                     1. 使用HTML格式输出。
-                    2. 包含 <h3> 标题（如：推荐运动方案、注意事项）。
-                    3. 使用 <ul> 和 <li> 列表清晰展示建议。
-                    4. 语气专业、鼓励且令人安心。
-                    核心建议：每周3次有氧运动，每次30分钟，可逐步增加至40分钟。
-                    """;
+                    2. 评估运动量是否达标，指出强度和频率是否合适。
+                    3. 给出后续的训练方案或调整建议。
+                    4. 使用 <h3> 分隔章节，使用列表展示建议。
+                    5. 语气专业且具有鼓励性。
+                    """.formatted(baseInfo);
             return chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
         } catch (Exception e) {
+            log.error("获取运动建议失败", e);
             return "<p>建议每周3次有氧运动，每次30分钟。</p>";
         }
     }
@@ -383,17 +421,127 @@ public class LifestyleServiceImpl implements LifestyleService {
      */
     public String analyzeSleep(Long requesterId) {
         try {
+            LocalDate start = LocalDate.now().minusDays(14);
+            List<HealthLog> logs = healthLogRepository.findByUser_IdAndLogDateBetweenOrderByLogDateDesc(
+                    requesterId, start, LocalDate.now())
+                    .stream()
+                    .filter(log -> log.getType() == HealthLogType.SLEEP)
+                    .limit(20)
+                    .collect(Collectors.toList());
+
+            String baseInfo = logs.isEmpty() 
+                ? "最近14天暂无睡眠日志记录。" 
+                : logs.stream().map(this::formatLog).collect(Collectors.joining("\n"));
+
             String prompt = """
-                    请分析最近的睡眠质量并给出改善建议。
+                    你是一个资深健康管理师。请根据以下最近14天的睡眠数据进行深度分析并给出改善建议。
+                    数据：
+                    %s
+                    
                     要求：
                     1. 使用HTML格式输出。
-                    2. 若深度睡眠不足2小时，请在建议中重点指出。
-                    3. 使用 <h3> 分隔章节，使用列表展示建议。
-                    4. 语气温和，像一位贴心的健康顾问。
-                    """;
-            return chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
+                    2. 若深度睡眠不足2小时或入睡过晚，请在建议中重点指出。
+                    3. 评估睡眠规律性，指出可能的干扰因素。
+                    4. 使用 <h3> 分隔章节，使用列表展示建议。
+                    5. 语气温和且专业，像一位贴心的健康顾问。
+                    """.formatted(baseInfo);
+            String result = chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
+            if (result.contains("```html")) {
+                result = result.replace("```html", "").replace("```", "");
+            }
+            return result;
         } catch (Exception e) {
+            log.error("分析睡眠失败", e);
             return "<p>深度睡眠不足可能影响免疫力，建议规律作息与睡前减少刺激。</p>";
+        }
+    }
+
+    @Override
+    /**
+     * 分析情绪建议
+     * @param requesterId 用户ID
+     * @return 建议内容
+     */
+    public String analyzeMood(Long requesterId) {
+        try {
+            LocalDate start = LocalDate.now().minusDays(14);
+            // 情绪分析需要综合考虑睡眠和运动
+            List<HealthLog> logs = healthLogRepository.findByUser_IdAndLogDateBetweenOrderByLogDateDesc(
+                    requesterId, start, LocalDate.now())
+                    .stream()
+                    .filter(log -> log.getType() == HealthLogType.MOOD || log.getType() == HealthLogType.SLEEP || log.getType() == HealthLogType.SPORT)
+                    .limit(30)
+                    .collect(Collectors.toList());
+
+            String baseInfo = logs.isEmpty() 
+                ? "最近14天暂无相关情绪、睡眠或运动日志记录。" 
+                : logs.stream().map(this::formatLog).collect(Collectors.joining("\n"));
+
+            String prompt = """
+                    你是一个资深心理咨询师。请根据以下最近14天的情绪、睡眠和运动数据进行关联分析并给出调节建议。
+                    数据：
+                    %s
+                    
+                    要求：
+                    1. 使用HTML格式输出。
+                    2. 分析情绪波动与睡眠、运动之间的关联。
+                    3. 给出针对性的心理疏导和生活调节方案（如冥想、具体的放松技巧等）。
+                    4. 使用 <h3> 分隔章节，使用列表展示建议。
+                    5. 语气专业、温和且具有共情能力。
+                    """.formatted(baseInfo);
+
+            String result = chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
+            if (result.contains("```html")) {
+                result = result.replace("```html", "").replace("```", "");
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("分析情绪失败", e);
+            return "<p>建议保持规律作息，增加户外活动，心情不佳时多与家人交流。</p>";
+        }
+    }
+
+    @Override
+    /**
+     * 分析体征数据并给出建议
+     * @param requesterId 用户ID
+     * @return HTML 格式的建议
+     */
+    public String analyzeVitals(Long requesterId) {
+        try {
+            LocalDate start = LocalDate.now().minusDays(14);
+            List<HealthLog> logs = healthLogRepository.findByUser_IdAndLogDateBetweenOrderByLogDateDesc(
+                    requesterId, start, LocalDate.now())
+                    .stream()
+                    .filter(log -> log.getType() == HealthLogType.VITALS)
+                    .limit(20)
+                    .collect(Collectors.toList());
+
+            String baseInfo = logs.isEmpty() 
+                ? "最近14天暂无体征日志记录。" 
+                : logs.stream().map(this::formatLog).collect(Collectors.joining("\n"));
+
+            String prompt = """
+                    你是一个资深健康管理专家。请根据以下最近14天的体征数据（血压、血糖、心率、体温、体重等）进行分析。
+                    数据：
+                    %s
+                    
+                    要求：
+                    1. 使用HTML格式输出（不包含markdown标记）。
+                    2. 评估体征是否平稳，指出任何异常或波动的趋势。
+                    3. 提供针对性的生活建议（饮食、作息等）。
+                    4. 使用 <h3> 作为章节标题，使用 <ul> 和 <li> 展示建议。
+                    5. 语气专业且贴心，必要时提醒就医。
+                    """.formatted(baseInfo);
+
+            String result = chatModel.call(new Prompt(new UserMessage(prompt))).getResult().getOutput().getContent();
+            if (result.contains("```html")) {
+                result = result.replace("```html", "").replace("```", "");
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("分析体征失败", e);
+            return "<p>最近体征数据平稳，请继续保持良好的监测习惯。（分析服务暂不可用）</p>";
         }
     }
 
@@ -571,5 +719,61 @@ public class LifestyleServiceImpl implements LifestyleService {
         double u = Math.random() - 0.5;
         double noise = -b * Math.signum(u) * Math.log(1 - 2 * Math.abs(u));
         return value + noise;
+    }
+
+    /** 从饮食图片 URL（如 /api/lifestyle/files/123/diet_xxx.jpg）解析出本地路径 */
+    private Path resolveImagePathFromUrl(String imageUrl, long userId) {
+        if (imageUrl == null || imageUrl.isBlank()) return null;
+        // 匹配 /api/lifestyle/files/{userId}/{filename}
+        var pattern = Pattern.compile(".*/files/(\\d+)/([^/]+)$");
+        var matcher = pattern.matcher(imageUrl.trim());
+        if (matcher.find()) {
+            String uid = matcher.group(1);
+            String filename = matcher.group(2);
+            return Paths.get(uploadDir, uid, filename).toAbsolutePath().normalize();
+        }
+        return null;
+    }
+
+    private String formatLog(HealthLog log) {
+        StringBuilder builder = new StringBuilder();
+        String typeName = switch (log.getType()) {
+            case DIET -> "饮食";
+            case SLEEP -> "睡眠";
+            case SPORT -> "运动";
+            case MOOD -> "情绪";
+            case VITALS -> "体征";
+        };
+        builder.append("日期:").append(log.getLogDate())
+               .append(" 类型:").append(typeName);
+        if (log.getScore() != null) {
+            builder.append(" 评分:").append(log.getScore());
+        }
+        try {
+            Map<String, Object> content = fromJson(log.getContentJson());
+            if (!content.isEmpty()) {
+                builder.append(" 详情:");
+                content.forEach((key, value) -> {
+                    if (value != null && !value.toString().isEmpty()) {
+                        builder.append(" ").append(key).append("=").append(value);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            // 忽略解析错误
+        }
+        return builder.toString();
+    }
+
+    private Map<String, Object> fromJson(String json) {
+        if (json == null || json.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.warn("解析日志内容失败: {}", ex.getMessage());
+            return Map.of();
+        }
     }
 }

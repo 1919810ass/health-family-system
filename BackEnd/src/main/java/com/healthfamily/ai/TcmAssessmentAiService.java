@@ -131,15 +131,56 @@ public class TcmAssessmentAiService {
         BeanOutputConverter<PersonalizedPlanResult> converter = new BeanOutputConverter<>(PersonalizedPlanResult.class);
 
         String prompt = "你是中医养生专家。请根据用户的主导体质，生成个性化的养生方案。\n\n" +
-                "用户主导体质：" + getConstitutionName(primaryConstitution) + "\n\n" +
-                "参考知识库内容：\n";
-        
-        for (TcmKnowledgeBase kb : knowledgeList) {
-            prompt += "- " + kb.getType().name() + ": " + kb.getTitle() + "\n";
+                "用户主导体质：" + getConstitutionName(primaryConstitution) + "\n\n";
+
+        if (knowledgeList.isEmpty()) {
+            prompt += "暂无特定的知识库内容可供参考，请根据您的专业知识，为该体质类型生成通用的养生建议。\n";
+        } else {
+            prompt += "参考知识库内容：\n";
+            for (TcmKnowledgeBase kb : knowledgeList) {
+                prompt += "- " + kb.getType().name() + ": " + kb.getTitle() + "\n";
+            }
         }
         
-        prompt += "\n请生成一个详细的个性化养生方案，确保内容专业、实用，且针对性强。\n" +
-                  converter.getFormat();
+        String schema = """
+Your response should be in JSON format.
+Do not include any explanations, only provide a RFC8259 compliant JSON response following this format without deviation.
+Do not include markdown code blocks in your response.
+Remove the ```json markdown from the output.
+Here is the JSON Schema instance your output must adhere to:
+```json
+{
+    "type": "object",
+    "properties": {
+        "planItems": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "content": {"type": "string"},
+                        "difficulty": {"type": "string"},
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                        "contraindications": {"type": "array", "items": {"type": "string"}}
+                    }
+                }
+            }
+        },
+        "priorityRecommendations": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "seasonalRecommendations": {
+            "type": "object",
+            "additionalProperties": {"type": "string"}
+        }
+    }
+}
+```
+""";
+        prompt += "\n请生成一个详细的个性化养生方案，确保内容专业、实用，且针对性强。\n" + schema;
 
         try {
             String content = callTextWithFallback(prompt);
@@ -415,6 +456,6 @@ public class TcmAssessmentAiService {
         if (start >= 0 && end > start) {
             return trimmed.substring(start, end + 1);
         }
-        return trimmed;
+        return "{}";
     }
 }

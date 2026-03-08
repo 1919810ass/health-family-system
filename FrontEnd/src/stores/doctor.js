@@ -9,6 +9,7 @@ import { ref, computed, watch } from 'vue'
 import { getDoctorFamilies, getBoundFamilyMembers } from '../api/doctor'
 import { getDoctorView } from '../api/family'
 import { ElMessage } from 'element-plus'
+import { useUserStore } from './user'
 
 // 本地存储键名
 const STORAGE_KEY_CURRENT_FAMILY_ID = 'doctor_current_family_id'
@@ -222,6 +223,12 @@ export const useDoctorStore = defineStore('doctor', () => {
 
   // 侦听器：当 currentFamilyId 变化时，自动获取相关数据
   watch(currentFamilyId, (newId) => {
+    const userStore = useUserStore()
+    // 只有当用户是医生角色时，才自动获取数据
+    if (userStore.profile?.role !== 'DOCTOR') {
+      return
+    }
+
     if (newId && newId !== 'null') {
       // 当 familyId 有效时，获取该家庭的全部核心数据
       fetchSummary(newId, aiEnabled.value)

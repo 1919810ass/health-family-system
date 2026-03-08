@@ -1,249 +1,394 @@
 package com.healthfamily.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.healthfamily.common.exception.BusinessException;
 import com.healthfamily.domain.constant.ReportStatus;
-import com.healthfamily.domain.constant.ReportType;
-import com.healthfamily.domain.entity.*;
-import com.healthfamily.domain.repository.*;
-import com.healthfamily.modules.recommendationv2.service.DocRagService;
+import com.healthfamily.domain.entity.Family;
+import com.healthfamily.domain.entity.FamilyMember;
+import com.healthfamily.domain.entity.User;
+import com.healthfamily.domain.entity.HealthLog;
+import com.healthfamily.domain.repository.FamilyMemberRepository;
+import com.healthfamily.domain.repository.FamilyRepository;
+import com.healthfamily.domain.repository.HealthLogRepository;
+import com.healthfamily.domain.entity.HealthReport;
+import com.healthfamily.domain.repository.HealthReportRepository;
+import com.healthfamily.domain.repository.UserRepository;
 import com.healthfamily.service.HealthReportService;
-import com.healthfamily.service.ReportAnalysisService;
-import com.healthfamily.web.dto.GenerateBatchReportItem;
 import com.healthfamily.web.dto.GenerateBatchReportRequest;
 import com.healthfamily.web.dto.GenerateReportRequest;
 import com.healthfamily.web.dto.HealthReportRequest;
 import com.healthfamily.web.dto.HealthReportResponse;
-import com.healthfamily.web.dto.RagEvidenceDto;
 import com.healthfamily.web.dto.ReportGenerationPreviewResponse;
+import com.healthfamily.web.dto.ReportStatusResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.xwpf.usermodel.*;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.Media;
+import org.springframework.ai.ollama.api.OllamaOptions;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.MimeTypeUtils;
+import reactor.core.publisher.Flux;
 
-import java.io.ByteArrayOutputStream;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Period;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import com.lowagie.text.Document;
-import com.lowagie.text.Font;
-import com.lowagie.text.Paragraph;
-import com.lowagie.text.pdf.BaseFont;
-import com.lowagie.text.pdf.PdfWriter;
 
 @Slf4j
 @Service
-/**
- * 健康报告服务Impl实现类
- * <p>
- * 实现平台核心业务服务，负责业务编排、数据聚合及与 AI/规则引擎的协同。
- * </p>
- */
 @RequiredArgsConstructor
 public class HealthReportServiceImpl implements HealthReportService {
-    private static final Pattern INLINE_CITATION_PATTERN = Pattern.compile("\\\\[(\\\\d+)]");
 
-    private final HealthReportRepository reportRepository;
+    private final FamilyRepository familyRepository;
+    private final FamilyMemberRepository familyMemberRepository;
+    private final HealthLogRepository healthLogRepository;
+    private final HealthReportRepository healthReportRepository;
     private final UserRepository userRepository;
-    private final ProfileRepository profileRepository;
-    private final ConstitutionAssessmentRepository assessmentRepository;
-    private final HealthLogRepository logRepository;
-    private final ChatClient.Builder chatClientBuilder;
-    private final DocRagService docRagService;
+    private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
-    private final ReportAnalysisService reportAnalysisService;
-    
-    @Qualifier("reportExecutor")
-    private final ThreadPoolTaskExecutor reportExecutor;
+
+    @Value("${file.upload-dir:uploads}")
+    private String uploadDir;
 
     @Override
-    // Remove @Transactional to avoid race condition with async thread
-    // @Transactional 
-    /**
-     * 提交
-     * @param userId 家庭成员唯一标识
-     * @param request 请求体数据
-     * @return 业务返回结果
-     */
-    public HealthReportResponse submitReport(Long userId, HealthReportRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-
-        // 如果用户提供了报告名称，则使用用户提供的；否则使用默认名称
-        String reportName = (request.reportName() != null && !request.reportName().trim().isEmpty())
-                ? request.reportName()
-                : "上传报告_" + LocalDate.now();
-
-        HealthReport report = HealthReport.builder()
-                .user(user)
-                .reportName(reportName)
-                .reportType(ReportType.LAB_REPORT) // 默认为化验单，实际应从request获取类型
-                .imageUrl(request.imageUrl())
-                .status(ReportStatus.PENDING)
-                .progressPercent(0)
-                .progressStage("待处理")
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        HealthReport savedReport = reportRepository.save(report);
-        
-        // 异步触发 AI 分析
-        triggerAsyncAnalysis(savedReport.getId());
-        
-        return toResponse(savedReport);
-    }
-
-    private void triggerAsyncAnalysis(Long reportId) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                // Give a small delay to ensure transaction commit if any (safety net)
-                Thread.sleep(500); 
-                
-                log.info("Starting async analysis for report: {}", reportId);
-                HealthReport report = reportRepository.findById(reportId).orElse(null);
-                if (report == null) {
-                    log.error("Async analysis failed: Report not found for ID {}", reportId);
-                    return;
-                }
-                if (report.getStatus() == ReportStatus.COMPLETED) {
-                    log.info("Report {} already completed, skip async analysis.", reportId);
-                    return;
-                }
-                report.setStatus(ReportStatus.PROCESSING);
-                report.setProgressPercent(5);
-                report.setProgressStage("开始处理");
-                reportRepository.save(report);
-
-                report.setProgressPercent(15);
-                report.setProgressStage("读取图像");
-                reportRepository.save(report);
-
-                Map<String, Object> result = reportAnalysisService.performOcr(report.getImageUrl());
-                
-                report.setProgressPercent(60);
-                report.setProgressStage("OCR完成");
-                reportRepository.save(report);
-
-                Map<String, Object> interpretationObj = reportAnalysisService.analyzeReport(result);
-                
-                report.setProgressPercent(85);
-                report.setProgressStage("生成解读");
-                reportRepository.save(report);
-
-                String ocrJson = objectMapper.writeValueAsString(result);
-                String interpretation = interpretationObj == null
-                        ? ""
-                        : objectMapper.writeValueAsString(interpretationObj);
-                
-                // Truncate interpretation if too long for column (TEXT in mysql is 65535)
-                // If using TEXT in DB this is safer to truncate.
-                if (interpretation != null && interpretation.length() > 60000) {
-                     interpretation = interpretation.substring(0, 60000) + "...(截断)";
-                }
-
-                report.setOcrData(ocrJson);
-                report.setInterpretation(interpretation);
-                report.setStatus(ReportStatus.COMPLETED);
-                report.setProgressPercent(100);
-                report.setProgressStage("完成");
-                reportRepository.save(report);
-                log.info("Analysis completed for report: {}", reportId);
-                
-            } catch (Exception e) {
-                log.error("Analysis failed for report: {}", reportId, e);
-                reportRepository.findById(reportId).ifPresent(r -> {
-                    r.setStatus(ReportStatus.FAILED);
-                    String message = e.getMessage();
-                    if (message != null && message.length() > 800) {
-                        message = message.substring(0, 800);
-                    }
-                    r.setErrorMessage(message);
-                    r.setProgressPercent(100);
-                    r.setProgressStage("失败");
-                    reportRepository.save(r);
-                });
-            }
-        }, reportExecutor);
-    }
-
-    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 30000)
-    /**
-     * 执行业务操作
-     * @return 无
-     */
-    public void retryPendingReports() {
-        List<HealthReport> pending = reportRepository.findByStatusOrderByCreatedAtAsc(ReportStatus.PENDING);
-        if (pending == null || pending.isEmpty()) return;
-        pending.stream().limit(3).forEach(r -> {
-            log.warn("Retrying pending report analysis: {}", r.getId());
-            triggerAsyncAnalysis(r.getId());
-        });
-    }
-
-    @Override
-    /**
-     * 获取
-     * @param userId 家庭成员唯一标识
-     * @return 业务返回结果
-     */
     public List<HealthReportResponse> getUserReports(Long userId) {
-        return reportRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(this::toResponse)
+        List<HealthReport> reports = healthReportRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        return reports.stream()
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
-    /**
-     * 获取
-     * @param userId 家庭成员唯一标识
-     * @param reportId 报告唯一标识
-     * @return 业务返回结果
-     */
-    public HealthReportResponse getReportDetail(Long userId, Long reportId) {
-        HealthReport report = reportRepository.findById(reportId)
-                .orElseThrow(() -> new BusinessException(404, "报告不存在"));
-        
-        if (!report.getUser().getId().equals(userId)) {
-            throw new BusinessException(403, "无权查看此报告");
-        }
-        return toResponse(report);
+    public HealthReportResponse submitReport(Long userId, HealthReportRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        HealthReport report = HealthReport.builder()
+                .user(user)
+                .reportName(request.reportName())
+                .reportType(request.reportType())
+                .imageUrl(request.imageUrl())
+                .status(ReportStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        HealthReport savedReport = healthReportRepository.save(report);
+
+        // 触发异步分析任务
+        new Thread(() -> {
+            try {
+                // 1. 准备阶段
+                savedReport.setStatus(ReportStatus.PROCESSING);
+                savedReport.setProgressPercent(10);
+                savedReport.setProgressStage("正在加载报告图片...");
+                healthReportRepository.save(savedReport);
+
+                // 2. 获取图片资源
+                String imageUrl = savedReport.getImageUrl();
+                Resource imageResource = null;
+                if (imageUrl.startsWith("/api/files/")) {
+                    // 本地文件
+                    // URL format: /api/files/{date}/{filename}
+                    // Extract date/filename part
+                    String relativePath = imageUrl.substring("/api/files/".length());
+                    Path filePath = Paths.get(uploadDir).resolve(relativePath).toAbsolutePath();
+                    imageResource = new FileSystemResource(filePath.toFile());
+                } else {
+                    // 暂不支持远程URL或默认图片
+                    throw new RuntimeException("不支持的图片来源: " + imageUrl);
+                }
+
+                if (!imageResource.exists()) {
+                    throw new RuntimeException("图片文件不存在: " + imageResource.getDescription());
+                }
+
+                // 3. 构建 Prompt 并调用 AI
+                savedReport.setProgressPercent(30);
+                savedReport.setProgressStage("正在进行AI多模态识别与分析...");
+                healthReportRepository.save(savedReport);
+
+                String userText = "你是一个专业的医疗检验单分析助手。请识别图片中的化验单内容，提取所有检验项目、结果、单位和参考范围。\n" +
+                        "**核心任务：**\n" +
+                        "1. **OCR识别**：准确提取项目名称、结果数值、单位、参考范围。若数值包含'<'或'>'等符号，请保留。\n" +
+                        "2. **输出格式**：\n" +
+                        "   - 严禁输出 Markdown 代码块标记（如 ```json），直接输出纯 JSON 字符串。\n" +
+                        "   - 只需要返回 ocrData，不需要进行异常判定和解读。\n" +
+                        "   - JSON 结构如下：\n" +
+                        "{\n" +
+                        "  \"ocrData\": {\n" +
+                        "    \"items\": [\n" +
+                        "      { \"name\": \"项目名称\", \"value\": \"结果数值\", \"unit\": \"单位\", \"reference\": \"参考范围\" }\n" +
+                        "    ]\n" +
+                        "  }\n" +
+                        "}";
+
+                UserMessage userMessage = new UserMessage(userText, new Media(MimeTypeUtils.IMAGE_JPEG, imageResource));
+                
+                // 使用 qwen2.5vl:3b 视觉模型
+                ChatResponse response = chatModel.call(new Prompt(userMessage, OllamaOptions.builder()
+                        .withModel("qwen2.5vl:3b")
+                        .withTemperature(0.1)
+                        .withNumPredict(2048) // 增加最大输出 token 数
+                        .build()));
+
+                String content = response.getResult().getOutput().getContent();
+                log.info("AI Analysis Result: {}", content);
+
+                // 4. 解析结果
+                savedReport.setProgressPercent(80);
+                savedReport.setProgressStage("正在整理分析结果...");
+                healthReportRepository.save(savedReport);
+
+                // 清理可能的 Markdown 标记
+                if (content.startsWith("```json")) {
+                    content = content.substring(7);
+                }
+                if (content.startsWith("```")) {
+                    content = content.substring(3);
+                }
+                if (content.endsWith("```")) {
+                    content = content.substring(0, content.length() - 3);
+                }
+                content = content.trim();
+
+                // 尝试修复未闭合的 JSON
+                if (!content.endsWith("}")) {
+                    log.warn("检测到 JSON 不完整，尝试修复...");
+                    if (content.lastIndexOf("}") < content.lastIndexOf("{")) {
+                        content += "}";
+                    }
+                    if (content.lastIndexOf("]") < content.lastIndexOf("[")) {
+                         content += "]";
+                         if (content.lastIndexOf("}") < content.lastIndexOf("{")) {
+                             content += "}";
+                         }
+                    }
+                }
+
+                JsonNode jsonNode = null;
+                try {
+                    jsonNode = objectMapper.readTree(content);
+                } catch (Exception e) {
+                    log.error("JSON 解析失败，原始内容: {}", content, e);
+                    throw new RuntimeException("AI 返回格式错误，请重试");
+                }
+                
+                // 后处理：在 Java 中进行数值比对和解读生成
+                JsonNode ocrDataNode = jsonNode.get("ocrData");
+                // 修复 com.fasterxml.jackson.node 包路径错误，使用完全限定名或正确导入
+                com.fasterxml.jackson.databind.node.ObjectNode interpretationNode = objectMapper.createObjectNode();
+                com.fasterxml.jackson.databind.node.ObjectNode detailsNode = objectMapper.createObjectNode();
+                
+                int abnormalCount = 0;
+                int totalCount = 0;
+                StringBuilder summaryBuilder = new StringBuilder();
+                
+                if (ocrDataNode != null && ocrDataNode.has("items")) {
+                    JsonNode itemsNode = ocrDataNode.get("items");
+                    if (itemsNode.isArray()) {
+                        for (JsonNode item : itemsNode) {
+                            totalCount++;
+                            String name = item.has("name") ? item.get("name").asText() : "未知项目";
+                            String valueStr = item.has("value") ? item.get("value").asText() : "";
+                            String referenceStr = item.has("reference") ? item.get("reference").asText() : "";
+                            
+                            boolean isAbnormal = checkAbnormal(valueStr, referenceStr);
+                            
+                            // 更新 isAbnormal 字段到 item 中 (如果是 ObjectNode)
+                            if (item instanceof com.fasterxml.jackson.databind.node.ObjectNode) {
+                                ((com.fasterxml.jackson.databind.node.ObjectNode) item).put("isAbnormal", isAbnormal);
+                            }
+                            
+                            // 生成解读
+                            String interpretationText = "正常";
+                            if (isAbnormal) {
+                                abnormalCount++;
+                                interpretationText = "异常，建议关注"; // 简单逻辑，无法判断偏高偏低
+                                // 尝试判断偏高偏低
+                                String highLow = checkHighLow(valueStr, referenceStr);
+                                if (!highLow.isEmpty()) {
+                                    interpretationText = highLow;
+                                }
+                            }
+                            detailsNode.put(name, interpretationText);
+                            
+                            // 将解读结果直接写入 item，方便前端直接使用，避免 key 不匹配问题
+                            if (item instanceof com.fasterxml.jackson.databind.node.ObjectNode) {
+                                ((com.fasterxml.jackson.databind.node.ObjectNode) item).put("interpretation", interpretationText);
+                            }
+                        }
+                    }
+                }
+                
+                if (abnormalCount == 0) {
+                    summaryBuilder.append("总体评价：所有项目结果均在正常范围内，身体状况良好。");
+                } else {
+                    summaryBuilder.append(String.format("总体评价：共检测 %d 项，发现 %d 项异常，请关注。", totalCount, abnormalCount));
+                }
+                
+                // 第二阶段：调用 AI 生成深度解读（仅针对异常项和总体建议）
+                savedReport.setProgressPercent(90);
+                savedReport.setProgressStage("正在生成专业解读...");
+                healthReportRepository.save(savedReport);
+
+                try {
+                    // 构建 Prompt
+                    StringBuilder promptBuilder = new StringBuilder();
+                    promptBuilder.append("你是一位经验丰富的全科医生。请根据以下化验单数据，为患者提供专业的解读和建议。\n\n");
+                    promptBuilder.append("【检测数据】\n");
+                    
+                    if (ocrDataNode != null && ocrDataNode.has("items")) {
+                        for (JsonNode item : ocrDataNode.get("items")) {
+                            String name = item.has("name") ? item.get("name").asText() : "";
+                            String value = item.has("value") ? item.get("value").asText() : "";
+                            String ref = item.has("reference") ? item.get("reference").asText() : "";
+                            boolean isAbnormal = item.has("isAbnormal") && item.get("isAbnormal").asBoolean();
+                            String status = isAbnormal ? "异常" : "正常";
+                            
+                            promptBuilder.append(String.format("- %s: %s (参考: %s) -> %s\n", name, value, ref, status));
+                        }
+                    }
+                    
+                    promptBuilder.append("\n【任务要求】\n");
+                    promptBuilder.append("1. **总体健康摘要**：用通俗易懂的语言总结患者的健康状况。\n");
+                    promptBuilder.append("2. **异常项深度解读**：仅针对状态为“异常”的项目进行深度解读，解释其可能的临床意义（如可能的原因、相关疾病）以及生活方式上的建议（如饮食、运动）。对于状态为“正常”的项目，请直接忽略，不要输出任何解读内容。\n");
+                    promptBuilder.append("3. **输出格式**：请直接输出纯 JSON 字符串，不要包含 Markdown 标记。\n");
+                    promptBuilder.append("JSON 结构如下：\n");
+                    promptBuilder.append("{\n");
+                    promptBuilder.append("  \"summary\": \"...\",\n");
+                    promptBuilder.append("  \"details\": {\n");
+                    promptBuilder.append("    \"异常项目名称1\": \"原因：... 建议：...\",\n");
+                    promptBuilder.append("    \"异常项目名称2\": \"原因：... 建议：...\"\n");
+                    promptBuilder.append("  }\n");
+                    promptBuilder.append("}\n");
+
+                    // 调用 AI
+                    ChatResponse aiResponse = chatModel.call(new Prompt(new UserMessage(promptBuilder.toString()), OllamaOptions.builder()
+                            .withModel("qwen2.5:7b") // 使用文本模型
+                            .withTemperature(0.7)
+                            .withNumPredict(1024)
+                            .build()));
+                            
+                    String aiContent = aiResponse.getResult().getOutput().getContent();
+                    log.info("AI Interpretation Result: {}", aiContent);
+                    
+                    // 解析 AI 返回的 JSON
+                    if (aiContent.startsWith("```json")) {
+                        aiContent = aiContent.substring(7);
+                    }
+                    if (aiContent.startsWith("```")) {
+                        aiContent = aiContent.substring(3);
+                    }
+                    if (aiContent.endsWith("```")) {
+                        aiContent = aiContent.substring(0, aiContent.length() - 3);
+                    }
+                    aiContent = aiContent.trim();
+                    
+                    JsonNode aiJson = objectMapper.readTree(aiContent);
+                    if (aiJson.has("summary")) {
+                        interpretationNode.put("summary", aiJson.get("summary").asText());
+                    }
+                    if (aiJson.has("details")) {
+                        JsonNode aiDetails = aiJson.get("details");
+                        // 合并 AI 的详细解读到 detailsNode
+                        aiDetails.fieldNames().forEachRemaining(fieldName -> {
+                            // 仅当项目被判定为异常时，才采纳 AI 的详细解读
+                            boolean isActuallyAbnormal = false;
+                            if (ocrDataNode != null && ocrDataNode.has("items")) {
+                                for (JsonNode item : ocrDataNode.get("items")) {
+                                    if (item.has("name") && item.get("name").asText().equals(fieldName)) {
+                                        if (item.has("isAbnormal") && item.get("isAbnormal").asBoolean()) {
+                                            isActuallyAbnormal = true;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (isActuallyAbnormal) {
+                                detailsNode.put(fieldName, aiDetails.get(fieldName).asText());
+                                
+                                // 同时更新 ocrData 中的 interpretation 字段
+                                if (ocrDataNode != null && ocrDataNode.has("items")) {
+                                    for (JsonNode item : ocrDataNode.get("items")) {
+                                        if (item.has("name") && item.get("name").asText().equals(fieldName)) {
+                                             if (item instanceof com.fasterxml.jackson.databind.node.ObjectNode) {
+                                                ((com.fasterxml.jackson.databind.node.ObjectNode) item).put("interpretation", aiDetails.get(fieldName).asText());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    log.error("AI 深度解读失败", e);
+                    // 降级处理：保持原有的简单解读
+                }
+
+                interpretationNode.put("summary", summaryBuilder.toString()); // 如果AI失败，保留Java生成的简单summary
+                if (interpretationNode.has("summary") && !interpretationNode.get("summary").asText().isEmpty()) {
+                     // 如果AI成功生成了summary，则不覆盖
+                } else {
+                     interpretationNode.put("summary", summaryBuilder.toString());
+                }
+                
+                interpretationNode.set("details", detailsNode);
+
+                String ocrDataStr = objectMapper.writeValueAsString(ocrDataNode);
+                String interpretationStr = objectMapper.writeValueAsString(interpretationNode);
+
+                // 5. 保存结果
+                savedReport.setStatus(ReportStatus.COMPLETED);
+                savedReport.setProgressPercent(100);
+                savedReport.setProgressStage("分析完成");
+                savedReport.setOcrData(ocrDataStr);
+                savedReport.setInterpretation(interpretationStr);
+                healthReportRepository.save(savedReport);
+
+            } catch (Exception e) {
+                log.error("AI Report Analysis Failed", e);
+                savedReport.setStatus(ReportStatus.FAILED);
+                savedReport.setErrorMessage("分析失败: " + e.getMessage());
+                healthReportRepository.save(savedReport);
+            }
+        }).start();
+
+        return mapToResponse(savedReport);
     }
 
     @Override
-    /**
-     * 获取
-     * @param userId 家庭成员唯一标识
-     * @param reportId 报告唯一标识
-     * @return 业务返回结果
-     */
-    public com.healthfamily.web.dto.ReportStatusResponse getReportStatus(Long userId, Long reportId) {
-        HealthReport report = reportRepository.findById(reportId)
-                .orElseThrow(() -> new BusinessException(404, "报告不存在"));
+    public HealthReportResponse getReportDetail(Long userId, Long reportId) {
+        HealthReport report = healthReportRepository.findById(reportId)
+                .orElseThrow(() -> new RuntimeException("报告不存在"));
+
         if (!report.getUser().getId().equals(userId)) {
-            throw new BusinessException(403, "无权查看此报告");
+            throw new RuntimeException("无权访问该报告");
         }
-        return new com.healthfamily.web.dto.ReportStatusResponse(
+
+        return mapToResponse(report);
+    }
+
+    @Override
+    public ReportStatusResponse getReportStatus(Long userId, Long reportId) {
+        HealthReport report = healthReportRepository.findById(reportId)
+                .orElseThrow(() -> new RuntimeException("报告不存在"));
+
+        if (!report.getUser().getId().equals(userId)) {
+            throw new RuntimeException("无权访问该报告");
+        }
+
+        return new ReportStatusResponse(
                 report.getId(),
                 report.getStatus(),
                 report.getProgressPercent(),
@@ -254,727 +399,125 @@ public class HealthReportServiceImpl implements HealthReportService {
     }
 
     @Override
-    /**
-     * 获取
-     * @param doctorId 医生唯一标识
-     * @param reportId 报告唯一标识
-     * @return 业务返回结果
-     */
-    public HealthReportResponse getReportDetailForDoctor(Long doctorId, Long reportId) {
-        // 实际应添加医生与患者关系的校验
-        HealthReport report = reportRepository.findById(reportId)
-                .orElseThrow(() -> new BusinessException(404, "报告不存在"));
-        return toResponse(report);
-    }
-
-    @Override
-    /**
-     * 获取
-     * @param doctorId 医生唯一标识
-     * @param patientUserId 业务对象唯一标识
-     * @return 业务返回结果
-     */
-    public List<HealthReportResponse> getReportsForDoctor(Long doctorId, Long patientUserId) {
-        // 实际应添加医生与患者关系的校验
-        return reportRepository.findByUserIdOrderByCreatedAtDesc(patientUserId).stream()
-                .map(this::toResponse)
+    public List<HealthReportResponse> getReportsForDoctor(Long doctorId, Long userId) {
+        // 医生查看特定用户的报告列表
+        List<HealthReport> reports = healthReportRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        return reports.stream()
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional
-    /**
-     * 执行业务操作
-     * @param doctorId 医生唯一标识
-     * @param reportId 报告唯一标识
-     * @param comment 业务参数
-     * @return 业务返回结果
-     */
+    public HealthReportResponse getReportDetailForDoctor(Long doctorId, Long reportId) {
+        // 医生查看报告详情
+        HealthReport report = healthReportRepository.findById(reportId)
+                .orElseThrow(() -> new RuntimeException("报告不存在"));
+        return mapToResponse(report);
+    }
+
+    @Override
     public HealthReportResponse addDoctorComment(Long doctorId, Long reportId, String comment) {
-        HealthReport report = reportRepository.findById(reportId)
-                .orElseThrow(() -> new BusinessException(404, "报告不存在"));
-        
+        // 医生添加评论
+        HealthReport report = healthReportRepository.findById(reportId)
+                .orElseThrow(() -> new RuntimeException("报告不存在"));
         report.setDoctorComment(comment);
         report.setDoctorCommentTime(LocalDateTime.now());
-        report.setStatus(ReportStatus.COMPLETED); // 点评后视为完成
-        
-        return toResponse(reportRepository.save(report));
+        HealthReport savedReport = healthReportRepository.save(report);
+        return mapToResponse(savedReport);
     }
 
     @Override
-    /**
-     * 生成
-     * @param doctorId 医生唯一标识
-     * @param request 请求体数据
-     * @return 业务返回结果
-     */
-    public byte[] generateReportDocx(Long doctorId, GenerateReportRequest request) {
-        Long userId = request.userId();
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(404, "患者不存在"));
-        Profile profile = profileRepository.findById(userId).orElse(null);
-
-        BuildContext ctx = buildContext(user, profile, request.diagnosis());
-
-        // 正文：医生若提供 finalContent 则直接使用（避免重复调用大模型）
-        String content = Optional.ofNullable(request.finalContent())
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .orElse(ctx.draftContent);
-
-        // 3. 生成 Docx
-        try (XWPFDocument document = new XWPFDocument();
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-
-            // 标题
-            XWPFParagraph title = document.createParagraph();
-            title.setAlignment(ParagraphAlignment.CENTER);
-            XWPFRun titleRun = title.createRun();
-            titleRun.setText("家庭健康智能病例报告");
-            titleRun.setBold(true);
-            titleRun.setFontSize(16);
-
-            // 基础信息
-            createParagraph(document, "报告日期: " + LocalDate.now());
-            createParagraph(document, "主治医师 ID: " + doctorId);
-            createParagraph(document, "----------------------------------------");
-            
-            // 患者信息
-            createSectionTitle(document, "一、患者基本信息");
-            createParagraph(document, ctx.patientInfoText);
-            if (!ctx.profileTagsText.isBlank()) {
-                createParagraph(document, ctx.profileTagsText);
-            }
-            
-            // 医生诊断
-            createSectionTitle(document, "二、医生临床意见");
-            createParagraph(document, request.diagnosis());
-
-            // 健康数据摘要（便于医生核对）
-            createSectionTitle(document, "三、患者健康数据摘要");
-            for (String line : ctx.healthDataSummaryText.split("\n")) {
-                if (line.trim().isEmpty()) continue;
-                createParagraph(document, line);
-            }
-
-            // 正文（AI草稿/医生最终稿）
-            createSectionTitle(document, "四、病例报告正文");
-            String[] lines = content.split("\n");
-            for (String line : lines) {
-                if (line.trim().isEmpty()) continue;
-                createParagraph(document, line);
-            }
-
-            // 证据来源（RAG）
-            createSectionTitle(document, "五、证据来源（检索片段）");
-            if (ctx.evidences.isEmpty()) {
-                createParagraph(document, "未检索到可用资料片段。");
-            } else {
-                int idx = 1;
-                for (RagEvidenceDto ev : ctx.evidences) {
-                    String header = String.format(Locale.ROOT, "[%d] %s（%s，fragmentId=%s）",
-                            idx++,
-                            safe(ev.title(), "Untitled"),
-                            safe(ev.source(), "Unknown"),
-                            ev.fragmentId() == null ? "-" : String.valueOf(ev.fragmentId()));
-                    createParagraph(document, header);
-                    createParagraph(document, safe(ev.snippet(), "").trim());
-                    createParagraph(document, "");
-                }
-            }
-            
-            // 底部
-            createParagraph(document, "");
-            createParagraph(document, "----------------------------------------");
-            createParagraph(document, "本报告由家庭健康系统辅助生成，仅供参考。");
-
-            document.write(out);
-            return out.toByteArray();
-        } catch (Exception e) {
-            log.error("Docx generation failed", e);
-            throw new BusinessException(500, "报告文件生成失败");
-        }
-    }
-
-    @Override
-    /**
-     * 生成
-     * @param doctorId 医生唯一标识
-     * @param request 请求体数据
-     * @return 业务返回结果
-     */
-    public byte[] generateReportPdf(Long doctorId, GenerateReportRequest request) {
-        Long userId = request.userId();
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(404, "患者不存在"));
-        Profile profile = profileRepository.findById(userId).orElse(null);
-
-        BuildContext ctx = buildContext(user, profile, request.diagnosis());
-
-        // 正文
-        String content = Optional.ofNullable(request.finalContent())
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .orElse(ctx.draftContent);
-
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Document document = new Document();
-            PdfWriter.getInstance(document, out);
-            document.open();
-
-            // 字体设置 (尝试使用系统字体，或者回退到默认)
-            // 注意：OpenPDF 默认不支持中文，需要指定中文字体
-            // 这里为了简单，我们尝试加载系统宋体或黑体，如果不存在则可能乱码
-            // 生产环境应打包 .ttf 文件
-            BaseFont bfChinese;
-            try {
-                bfChinese = BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
-            } catch (Exception e) {
-                 // Fallback to a font likely to exist on Windows/Linux or throw
-                 try {
-                     bfChinese = BaseFont.createFont("c:/windows/fonts/simsun.ttc,1", BaseFont.IDENTITY_H, BaseFont.NOT_EMBEDDED);
-                 } catch (Exception e2) {
-                     // Last resort, might not support Chinese
-                     bfChinese = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
-                 }
-            }
-            Font titleFont = new Font(bfChinese, 18, Font.BOLD);
-            Font sectionFont = new Font(bfChinese, 14, Font.BOLD);
-            Font textFont = new Font(bfChinese, 11, Font.NORMAL);
-            Font infoFont = new Font(bfChinese, 10, Font.NORMAL);
-
-            // 标题
-            Paragraph title = new Paragraph("家庭健康智能病例报告", titleFont);
-            title.setAlignment(Paragraph.ALIGN_CENTER);
-            title.setSpacingAfter(20);
-            document.add(title);
-
-            // 基础信息
-            document.add(new Paragraph("报告日期: " + LocalDate.now(), infoFont));
-            document.add(new Paragraph("主治医师 ID: " + doctorId, infoFont));
-            document.add(new Paragraph("----------------------------------------", textFont));
-
-            // 一、患者基本信息
-            Paragraph s1 = new Paragraph("一、患者基本信息", sectionFont);
-            s1.setSpacingBefore(10);
-            s1.setSpacingAfter(5);
-            document.add(s1);
-            document.add(new Paragraph(ctx.patientInfoText, textFont));
-            if (!ctx.profileTagsText.isBlank()) {
-                document.add(new Paragraph(ctx.profileTagsText, textFont));
-            }
-
-            // 二、医生临床意见
-            Paragraph s2 = new Paragraph("二、医生临床意见", sectionFont);
-            s2.setSpacingBefore(10);
-            s2.setSpacingAfter(5);
-            document.add(s2);
-            document.add(new Paragraph(request.diagnosis(), textFont));
-
-            // 三、健康数据摘要
-            Paragraph s3 = new Paragraph("三、患者健康数据摘要", sectionFont);
-            s3.setSpacingBefore(10);
-            s3.setSpacingAfter(5);
-            document.add(s3);
-            for (String line : ctx.healthDataSummaryText.split("\n")) {
-                if (line.trim().isEmpty()) continue;
-                document.add(new Paragraph(line, textFont));
-            }
-
-            // 四、病例报告正文
-            Paragraph s4 = new Paragraph("四、病例报告正文", sectionFont);
-            s4.setSpacingBefore(10);
-            s4.setSpacingAfter(5);
-            document.add(s4);
-            for (String line : content.split("\n")) {
-                if (line.trim().isEmpty()) continue;
-                Paragraph p = new Paragraph(line, textFont);
-                p.setSpacingAfter(2);
-                document.add(p);
-            }
-
-            // 五、证据来源
-            Paragraph s5 = new Paragraph("五、证据来源（检索片段）", sectionFont);
-            s5.setSpacingBefore(10);
-            s5.setSpacingAfter(5);
-            document.add(s5);
-            if (ctx.evidences.isEmpty()) {
-                document.add(new Paragraph("未检索到可用资料片段。", textFont));
-            } else {
-                int idx = 1;
-                for (RagEvidenceDto ev : ctx.evidences) {
-                    String header = String.format(Locale.ROOT, "[%d] %s（%s，fragmentId=%s）",
-                            idx++,
-                            safe(ev.title(), "Untitled"),
-                            safe(ev.source(), "Unknown"),
-                            ev.fragmentId() == null ? "-" : String.valueOf(ev.fragmentId()));
-                    Paragraph hp = new Paragraph(header, textFont);
-                    hp.setSpacingBefore(4);
-                    document.add(hp);
-                    document.add(new Paragraph(safe(ev.snippet(), "").trim(), infoFont));
-                }
-            }
-
-            // 底部
-            document.add(new Paragraph("\n----------------------------------------", textFont));
-            document.add(new Paragraph("本报告由家庭健康系统辅助生成，仅供参考。", infoFont));
-
-            document.close();
-            return out.toByteArray();
-        } catch (Exception e) {
-            log.error("PDF generation failed", e);
-            throw new BusinessException(500, "PDF报告生成失败");
-        }
-    }
-
-    @Override
-    /**
-     * 生成
-     * @param doctorId 医生唯一标识
-     * @param request 请求体数据
-     * @return 业务返回结果
-     */
-    public ReportGenerationPreviewResponse generateReportPreview(Long doctorId, GenerateReportRequest request) {
-        Long userId = request.userId();
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(404, "患者不存在"));
-        Profile profile = profileRepository.findById(userId).orElse(null);
-
-        BuildContext ctx = buildContext(user, profile, request.diagnosis());
-        return new ReportGenerationPreviewResponse(ctx.draftContent, ctx.evidences);
-    }
-
-    @Override
-    /**
-     * 执行业务操作
-     * @param doctorId 医生唯一标识
-     * @param request 请求体数据
-     * @return 业务返回结果
-     */
-    public Flux<String> streamReportPreview(Long doctorId, GenerateReportRequest request) {
-        return Mono.fromCallable(() -> {
-            Long userId = request.userId();
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new BusinessException(404, "患者不存在"));
-            Profile profile = profileRepository.findById(userId).orElse(null);
-            // 这里执行 RAG 检索
-            return buildContext(user, profile, request.diagnosis());
-        }).flatMapMany(ctx -> {
-            // 1. 构建元数据事件 (包含证据)
-            String metaJson;
-            try {
-                Map<String, Object> meta = new HashMap<>();
-                meta.put("type", "meta");
-                meta.put("evidences", ctx.evidences);
-                metaJson = objectMapper.writeValueAsString(meta);
-            } catch (Exception e) {
-                metaJson = "{\"type\":\"meta\",\"evidences\":[]}";
-            }
-            
-            // 2. 构建 Prompt
-            String prompt = buildPromptForReport(ctx.patientInfoText, ctx.profileTagsText, ctx.healthDataSummaryText, request.diagnosis(), ctx.evidences);
-            
-            // 3. 启动流式生成
-            Flux<String> contentStream = chatClientBuilder.build()
-                    .prompt(prompt)
-                    .stream()
-                    .content()
-                    .map(text -> {
-                        try {
-                            Map<String, String> chunk = new HashMap<>();
-                            chunk.put("type", "content");
-                            chunk.put("text", text);
-                            return objectMapper.writeValueAsString(chunk);
-                        } catch (Exception e) {
-                            return "";
-                        }
-                    });
-
-            return Flux.concat(Flux.just(metaJson), contentStream);
-        });
-    }
-
-    @Override
-    /**
-     * 生成
-     * @param doctorId 医生唯一标识
-     * @param request 请求体数据
-     * @return 业务返回结果
-     */
-    public byte[] generateBatchReportZip(Long doctorId, GenerateBatchReportRequest request) {
-        List<GenerateBatchReportItem> items = request.items() == null ? List.of() : request.items();
-        if (items.isEmpty()) {
-            throw new BusinessException(400, "批量生成列表不能为空");
-        }
-        if (items.size() > 50) {
-            throw new BusinessException(400, "单次批量生成最多支持50名患者");
-        }
-
-        List<CompletableFuture<BatchResult>> futures = new ArrayList<>();
-        for (GenerateBatchReportItem item : items) {
-            futures.add(CompletableFuture.supplyAsync(() -> generateSingleReport(doctorId, item), reportExecutor));
-        }
-
-        List<BatchResult> results = new ArrayList<>();
-        for (Future<BatchResult> future : futures) {
-            try {
-                results.add(future.get());
-            } catch (Exception e) {
-                results.add(new BatchResult(null, null, null, "批量任务执行失败"));
-            }
-        }
-
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream();
-             ZipOutputStream zip = new ZipOutputStream(out)) {
-            List<Map<String, Object>> success = new ArrayList<>();
-            List<Map<String, Object>> failures = new ArrayList<>();
-
-            for (BatchResult result : results) {
-                if (result.bytes != null && result.filename != null) {
-                    ZipEntry entry = new ZipEntry(result.filename);
-                    zip.putNextEntry(entry);
-                    zip.write(result.bytes);
-                    zip.closeEntry();
-                    Map<String, Object> successItem = new HashMap<>();
-                    successItem.put("userId", result.userId);
-                    successItem.put("filename", result.filename);
-                    success.add(successItem);
-                } else {
-                    Map<String, Object> failureItem = new HashMap<>();
-                    failureItem.put("userId", result.userId);
-                    failureItem.put("error", result.error);
-                    failures.add(failureItem);
-                }
-            }
-
-            Map<String, Object> summary = new HashMap<>();
-            summary.put("generatedAt", LocalDateTime.now());
-            summary.put("total", results.size());
-            summary.put("successCount", success.size());
-            summary.put("failureCount", failures.size());
-            summary.put("success", success);
-            summary.put("failures", failures);
-
-            ZipEntry summaryEntry = new ZipEntry("batch_result.json");
-            zip.putNextEntry(summaryEntry);
-            zip.write(objectMapper.writeValueAsBytes(summary));
-            zip.closeEntry();
-
-            zip.finish();
-            return out.toByteArray();
-        } catch (Exception e) {
-            log.error("Batch report zip generation failed", e);
-            throw new BusinessException(500, "批量报告打包失败");
-        }
-    }
-
-    private record BuildContext(
-            String patientInfoText,
-            String profileTagsText,
-            String healthDataSummaryText,
-            List<RagEvidenceDto> evidences,
-            String draftContent
-    ) {}
-
-    private record BatchResult(Long userId, String filename, byte[] bytes, String error) {}
-
-    private BatchResult generateSingleReport(Long doctorId, GenerateBatchReportItem item) {
-        if (item == null || item.userId() == null) {
-            return new BatchResult(null, null, null, "患者ID不能为空");
-        }
-        try {
-            GenerateReportRequest request = new GenerateReportRequest(
-                    item.userId(),
-                    item.diagnosis(),
-                    item.finalContent()
-            );
-            // 修改为 PDF 生成
-            byte[] bytes = generateReportPdf(doctorId, request);
-            String filename = "健康病例报告_患者" + item.userId() + ".pdf";
-            return new BatchResult(item.userId(), filename, bytes, null);
-        } catch (Exception e) {
-            String message = e instanceof BusinessException ? e.getMessage() : "报告生成失败";
-            return new BatchResult(item.userId(), null, null, message);
-        }
-    }
-
-    private BuildContext buildContext(User user, Profile profile, String diagnosis) {
-        Long userId = user.getId();
-
-        // 基础信息
-        String displayName = user.getNickname() != null ? user.getNickname() : user.getPhone();
-        String sex = profile != null && profile.getSex() != null ? profile.getSex().name() : "未知";
-        int age = 0;
-        if (profile != null && profile.getBirthday() != null) {
-            age = Period.between(profile.getBirthday(), LocalDate.now()).getYears();
-        }
-        String patientInfo = String.format(Locale.ROOT, "姓名: %s, 性别: %s, 年龄: %d", displayName, sex, age);
-
-        // 体质（取最新一条）
-        List<ConstitutionAssessment> assessmentList = assessmentRepository.findByUserOrderByCreatedAtDesc(user);
-        ConstitutionAssessment assessment = assessmentList.isEmpty() ? null : assessmentList.get(0);
-        String constitutionInfo = assessment != null ? "当前体质: " + safe(assessment.getPrimaryType(), "未知") : "暂无体质测评记录";
-
-        // 日志（30天）
-        List<HealthLog> logs30 = logRepository.findByUserAndLogDateBetweenOrderByLogDateDesc(
-                user, LocalDate.now().minusDays(30), LocalDate.now());
-        List<HealthLog> abnormal = logRepository.findByUser_IdAndIsAbnormalTrueOrderByLogDateDesc(userId);
-        if (abnormal.size() > 10) abnormal = abnormal.subList(0, 10);
-        String logsSummary = buildLogsSummaryText(logs30, abnormal);
-
-        // 最近报告（带OCR数据）
-        List<HealthReport> reports = reportRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        List<HealthReport> topReports = reports.stream()
-                .filter(r -> r.getOcrData() != null && !r.getOcrData().isBlank())
-                .limit(3)
-                .collect(Collectors.toList());
-        String reportSummary = buildReportSummaryText(topReports);
-
-        String profileTags = buildProfileTagsText(profile, assessment);
-
-        String healthSummary = constitutionInfo
-                + "\n" + logsSummary
-                + (reportSummary.isBlank() ? "" : ("\n" + reportSummary));
-
-        // RAG 证据
-        String ragQuery = buildRagQuery(profile, assessment, abnormal, diagnosis);
-        List<RagEvidenceDto> evidences = mapEvidences(docRagService.search(ragQuery));
-
-        // Prompt & draft
-        String prompt = buildPromptForReport(patientInfo, profileTags, healthSummary, diagnosis, evidences);
-        String draft;
-        try {
-            draft = chatClientBuilder.build()
-                    .prompt(prompt)
-                    .call()
-                    .content();
-        } catch (Exception e) {
-            log.error("AI Generation failed", e);
-            draft = "AI 分析服务暂时不可用，请稍后重试。\n\n医生诊断意见：\n" + diagnosis;
-        }
-
-        // 轻量兜底：如果有证据但模型完全没做任何 [n] 行内引用，则提示医生补引用（避免误以为已溯源）
-        if (draft != null && !draft.isBlank() && evidences != null && !evidences.isEmpty()) {
-            if (!INLINE_CITATION_PATTERN.matcher(draft).find()) {
-                draft = draft.trim()
-                        + "\n\n参考依据\n- 未检测到正文中的行内引用标记（如[1]）。如需溯源，请结合下方“证据来源”手动补充引用。";
-            }
-        }
-
-        return new BuildContext(patientInfo, profileTags, healthSummary, evidences, draft);
-    }
-
-    private String buildLogsSummaryText(List<HealthLog> logs, List<HealthLog> abnormal) {
-        if (logs == null || logs.isEmpty()) {
-            return "近30天无健康日志记录。";
-        }
-        long diet = logs.stream().filter(l -> l.getType() == com.healthfamily.domain.constant.HealthLogType.DIET).count();
-        long sleep = logs.stream().filter(l -> l.getType() == com.healthfamily.domain.constant.HealthLogType.SLEEP).count();
-        long sport = logs.stream().filter(l -> l.getType() == com.healthfamily.domain.constant.HealthLogType.SPORT).count();
-        long mood = logs.stream().filter(l -> l.getType() == com.healthfamily.domain.constant.HealthLogType.MOOD).count();
-        long vitals = logs.stream().filter(l -> l.getType() == com.healthfamily.domain.constant.HealthLogType.VITALS).count();
-
-        String latest = logs.get(0).getType().name() + "@" + logs.get(0).getLogDate();
-        String abnormalSummary = (abnormal == null || abnormal.isEmpty())
-                ? "异常标记: 无"
-                : ("异常标记: " + abnormal.size() + "条（最近：" + abnormal.get(0).getType().name() + "@" + abnormal.get(0).getLogDate() + "）");
-
-        return String.format(Locale.ROOT,
-                "近30天日志统计：饮食%d，睡眠%d，运动%d，情绪%d，体征%d；最新记录：%s。\n%s",
-                diet, sleep, sport, mood, vitals, latest, abnormalSummary);
-    }
-
-    private String buildReportSummaryText(List<HealthReport> reports) {
-        if (reports == null || reports.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder("最近上传体检/化验报告（含OCR数据）:");
-        int idx = 1;
-        for (HealthReport r : reports) {
-            sb.append("\n- ").append(idx++).append(". ")
-                    .append(safe(r.getReportName(), "报告"))
-                    .append(" / ").append(r.getReportType() != null ? r.getReportType().name() : "-")
-                    .append(" / ").append(r.getCreatedAt() != null ? r.getCreatedAt().toLocalDate() : "-");
-        }
-        return sb.toString();
-    }
-
-    private String buildProfileTagsText(Profile profile, ConstitutionAssessment assessment) {
-        if (profile == null && assessment == null) return "";
-        List<String> parts = new ArrayList<>();
-        if (profile != null) {
-            List<String> healthTags = parseStringList(profile.getHealthTags());
-            List<String> allergies = parseStringList(profile.getAllergies());
-            List<String> goals = parseStringList(profile.getGoals());
-            List<String> tcmTags = parseStringList(profile.getTcmTags());
-            if (!healthTags.isEmpty()) parts.add("健康标签: " + String.join("、", healthTags));
-            if (!tcmTags.isEmpty()) parts.add("中医标签: " + String.join("、", tcmTags));
-            if (!allergies.isEmpty()) parts.add("过敏/禁忌: " + String.join("、", allergies));
-            if (!goals.isEmpty()) parts.add("健康目标: " + String.join("、", goals));
-        }
-        if (assessment != null && assessment.getConstitutionTags() != null) {
-            List<String> cTags = parseStringList(assessment.getConstitutionTags());
-            if (!cTags.isEmpty()) parts.add("体质标签: " + String.join("、", cTags));
-        }
-        return String.join("\n", parts);
-    }
-
-    private String buildRagQuery(Profile profile, ConstitutionAssessment assessment, List<HealthLog> abnormal, String diagnosis) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("病例报告 ");
-        if (diagnosis != null) sb.append(diagnosis).append(' ');
-        if (assessment != null && assessment.getPrimaryType() != null) sb.append(assessment.getPrimaryType()).append(' ');
-        if (profile != null) {
-            parseStringList(profile.getHealthTags()).forEach(t -> sb.append(t).append(' '));
-            parseStringList(profile.getTcmTags()).forEach(t -> sb.append(t).append(' '));
-        }
-        if (abnormal != null && !abnormal.isEmpty()) {
-            sb.append("异常 ");
-            abnormal.stream().limit(3).forEach(l -> sb.append(l.getType().name()).append(' '));
-        }
-        return sb.toString().trim();
-    }
-
-    private List<RagEvidenceDto> mapEvidences(List<Map<String, Object>> raw) {
-        if (raw == null || raw.isEmpty()) return Collections.emptyList();
-        List<RagEvidenceDto> out = new ArrayList<>();
-        for (Map<String, Object> m : raw) {
-            Long id = null;
-            Object idObj = m.get("fragmentId");
-            if (idObj instanceof Number n) id = n.longValue();
-            else if (idObj != null) {
-                try { id = Long.parseLong(String.valueOf(idObj)); } catch (Exception ignored) {}
-            }
-            String title = m.get("title") != null ? String.valueOf(m.get("title")) : null;
-            String source = m.get("source") != null ? String.valueOf(m.get("source")) : null;
-            String snippet = m.get("snippet") != null ? String.valueOf(m.get("snippet")) : null;
-            String content = m.get("content") != null ? String.valueOf(m.get("content")) : null;
-            out.add(new RagEvidenceDto(id, title, source, snippet, content));
-        }
-        return out;
-    }
-
-    private String buildPromptForReport(
-            String patientInfo,
-            String profileTags,
-            String healthDataSummary,
-            String diagnosis,
-            List<RagEvidenceDto> evidences
-    ) {
-        StringBuilder evidenceBlock = new StringBuilder();
-        if (evidences != null && !evidences.isEmpty()) {
-            int i = 1;
-            for (RagEvidenceDto ev : evidences) {
-                evidenceBlock.append('[').append(i++).append("] ")
-                        .append(safe(ev.title(), "Untitled"))
-                        .append("（").append(safe(ev.source(), "Unknown")).append("，fragmentId=").append(ev.fragmentId() == null ? "-" : ev.fragmentId()).append("）\n")
-                        .append(safe(ev.content(), safe(ev.snippet(), ""))).append("\n\n");
-            }
-        }
-
-        return String.format(Locale.ROOT, """
-                你是一名经验丰富的家庭医生助手。请根据【患者信息】【健康数据摘要】【医生诊断/临床意见】以及【检索资料片段】生成一份“病例报告正文”草稿。
-                
-                【患者信息】
-                %s
-                
-                【患者标签/背景】
-                %s
-                
-                【健康数据摘要】
-                %s
-                
-                【医生诊断/临床意见】
-                %s
-                
-                【检索资料片段（用于溯源，不要编造来源）】
-                %s
-                
-                【输出要求】
-                1. 直接输出纯文本，不要Markdown、不要代码块。
-                2. 使用分节标题，建议包含：病情摘要、健康数据分析、诊断依据与风险评估、治疗与随访计划、生活方式与用药/饮食建议、注意事项与复诊提醒。
-                3. 如果某项数据缺失，请写“暂无数据/未记录”，不要猜测。
-                4. 引用规则（必须遵守）：
-                   - 你只允许引用上面的资料片段编号 [1]...[N]。
-                   - 当你使用某条资料片段的信息时，必须在对应句子末尾添加行内引用，例如：……[2]
-                   - 不要引用不存在的编号，不要编造来源。
-                5. 在正文末尾新增“参考依据”小节：逐条列出你实际引用过的编号（如[1][2]），并写一句“为何引用”；若未引用任何片段，写“未引用检索资料片段”。
-                """,
-                safe(patientInfo, ""),
-                safe(profileTags, "（无）"),
-                safe(healthDataSummary, ""),
-                safe(diagnosis, ""),
-                evidenceBlock.isEmpty() ? "（未检索到资料片段）" : evidenceBlock.toString()
-        );
-    }
-
-    private List<String> parseStringList(String json) {
-        if (json == null || json.isBlank()) return Collections.emptyList();
-        try {
-            Object obj = objectMapper.readValue(json, Object.class);
-            if (obj instanceof List<?> list) {
-                List<String> out = new ArrayList<>();
-                for (Object o : list) out.add(String.valueOf(o));
-                return out;
-            }
-            return Collections.emptyList();
-        } catch (Exception ignored) {
-            return Collections.emptyList();
-        }
-    }
-
-    private String safe(String s, String def) {
-        if (s == null) return def;
-        String t = s.trim();
-        return t.isEmpty() ? def : t;
-    }
-
-    @Override
-    /**
-     * 获取
-     * @return 业务返回结果
-     */
     public byte[] getReportTemplate() {
-        try (XWPFDocument document = new XWPFDocument();
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            
-            XWPFParagraph title = document.createParagraph();
-            title.setAlignment(ParagraphAlignment.CENTER);
-            XWPFRun titleRun = title.createRun();
-            titleRun.setText("家庭健康病例报告模板");
-            titleRun.setBold(true);
-            titleRun.setFontSize(16);
-            
-            createSectionTitle(document, "一、患者基本信息");
-            createParagraph(document, "[此处填写患者姓名、性别、年龄]");
-            
-            createSectionTitle(document, "二、主诉与病史");
-            createParagraph(document, "[此处填写]");
+        // 返回报告模板（此处为示例，实际应从文件或资源加载）
+        return "报告模板内容".getBytes();
+    }
 
-            createSectionTitle(document, "三、诊断意见");
-            createParagraph(document, "[此处填写]");
+    @Override
+    public byte[] generateReportDocx(Long doctorId, GenerateReportRequest request) {
+        // 生成 Docx 报告（此处为示例，实际应调用 Docx 生成逻辑）
+        return ("Docx 报告内容 for user " + request.userId()).getBytes();
+    }
 
-            document.write(out);
-            return out.toByteArray();
-        } catch (Exception e) {
-            throw new BusinessException(500, "模板生成失败");
+    @Override
+    public byte[] generateReportPdf(Long doctorId, GenerateReportRequest request) {
+        // 生成 Pdf 报告（此处为示例，实际应调用 Pdf 生成逻辑）
+        return ("Pdf 报告内容 for user " + request.userId()).getBytes();
+    }
+
+    @Override
+    public byte[] generateBatchReportZip(Long doctorId, GenerateBatchReportRequest request) {
+        // 批量生成报告 Zip（此处为示例，实际应调用批量生成逻辑）
+        return "Batch Zip 内容".getBytes();
+    }
+
+    @Override
+    public ReportGenerationPreviewResponse generateReportPreview(Long doctorId, GenerateReportRequest request) {
+        // 生成报告预览（此处为示例，实际应调用 AI 生成预览内容）
+        return new ReportGenerationPreviewResponse("报告预览内容草稿", Collections.emptyList());
+    }
+
+    @Override
+    public Flux<String> streamReportPreview(Long doctorId, GenerateReportRequest request) {
+        Long patientId = request.userId();
+        String diagnosis = request.diagnosis();
+
+        // 1. 获取患者最近 14 天的健康日志
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(14);
+        List<HealthLog> logs = healthLogRepository.findByUser_IdAndLogDateBetween(patientId, startDate, endDate);
+
+        StringBuilder healthData = new StringBuilder();
+        if (logs.isEmpty()) {
+            healthData.append("近期无健康监测数据。");
+        } else {
+            healthData.append("近期健康监测数据如下：\n");
+            logs.forEach(log -> {
+                healthData.append(String.format("- %s [%s]: %s (异常: %s)\n",
+                        log.getLogDate(), log.getType(), log.getContentJson(),
+                        Boolean.TRUE.equals(log.getIsAbnormal()) ? "是" : "否"));
+            });
         }
+
+        // 2. 构建 Prompt
+        String promptText = String.format("""
+                你是一位专业的医生助手。请根据以下信息，为患者生成一份详细的健康报告。
+                
+                【医生诊断意见】
+                %s
+                
+                【患者近期健康数据（过去14天）】
+                %s
+                
+                【生成要求】
+                1. 结合医生的诊断意见和患者的健康数据进行分析。
+                2. 如果有异常数据，请重点分析并给出建议。
+                3. 报告结构清晰，包含：【健康分析】、【风险提示】、【生活建议】三个部分。
+                4. 语气专业、亲切、客观。
+                5. 直接输出报告正文，不要包含开场白。
+                """, diagnosis, healthData.toString());
+
+        // 3. 构建 Flux
+        String metaJson = "{\"type\": \"meta\", \"evidences\": []}";
+        
+        Flux<String> aiStream = chatModel.stream(new Prompt(promptText))
+                .map(chatResponse -> {
+                    String content = chatResponse.getResult().getOutput().getContent();
+                    if (content == null) return "";
+                    try {
+                        com.fasterxml.jackson.databind.node.ObjectNode json = objectMapper.createObjectNode();
+                        json.put("type", "content");
+                        json.put("text", content);
+                        return objectMapper.writeValueAsString(json);
+                    } catch (Exception e) {
+                        return "";
+                    }
+                })
+                .filter(s -> !s.isEmpty());
+
+        return Flux.concat(Flux.just(metaJson), aiStream);
     }
 
-    private void createSectionTitle(XWPFDocument doc, String text) {
-        XWPFParagraph p = doc.createParagraph();
-        XWPFRun r = p.createRun();
-        r.setText(text);
-        r.setBold(true);
-        r.setFontSize(14);
-        r.addBreak();
-    }
-
-    private void createParagraph(XWPFDocument doc, String text) {
-        XWPFParagraph p = doc.createParagraph();
-        XWPFRun r = p.createRun();
-        r.setText(text);
-    }
-
-    private HealthReportResponse toResponse(HealthReport report) {
+    private HealthReportResponse mapToResponse(HealthReport report) {
         return new HealthReportResponse(
                 report.getId(),
                 report.getReportName(),
@@ -987,5 +530,197 @@ public class HealthReportServiceImpl implements HealthReportService {
                 report.getDoctorCommentTime(),
                 report.getCreatedAt()
         );
+    }
+
+    @Override
+    public String generateFamilyWeeklyReport(Long userId, Long familyId) {
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new RuntimeException("家庭不存在"));
+        
+        // 校验权限：只有家庭管理员（或创建者）可以生成周报
+        FamilyMember currentUserMember = familyMemberRepository.findByFamilyAndUser(family, User.builder().id(userId).build())
+                .orElseThrow(() -> new RuntimeException("你不是该家庭的成员"));
+        
+        boolean isAdmin = Boolean.TRUE.equals(currentUserMember.getAdmin());
+        if (!isAdmin && !family.getOwner().getId().equals(userId)) {
+            throw new RuntimeException("只有家庭管理员可以生成周报");
+        }
+
+        List<FamilyMember> members = familyMemberRepository.findByFamily(family);
+
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(7);
+
+        StringBuilder dataForAI = new StringBuilder();
+        dataForAI.append(String.format("家庭名称：%s\n周报周期：%s 到 %s\n\n", family.getName(), startDate, endDate));
+
+        for (FamilyMember member : members) {
+            dataForAI.append(String.format("## 成员：%s (ID: %d)\n", member.getUser().getNickname(), member.getUser().getId()));
+            List<HealthLog> logs = healthLogRepository.findByUser_IdAndLogDateBetween(member.getUser().getId(), startDate, endDate);
+
+            if (logs.isEmpty()) {
+                dataForAI.append("- 本周无健康数据记录。\n\n");
+            } else {
+                logs.forEach(log -> {
+                    dataForAI.append(String.format("- 日期: %s, 类型: %s, 数据: %s, 是否异常: %s\n",
+                            log.getLogDate(),
+                            log.getType(),
+                            log.getContentJson(),
+                            Boolean.TRUE.equals(log.getIsAbnormal()) ? "是" : "否"));
+                });
+                dataForAI.append("\n");
+            }
+        }
+
+        String finalPrompt = buildAIPrompt(dataForAI.toString());
+        log.info("向AI发送的最终Prompt:\n{}", finalPrompt);
+
+        try {
+            Prompt prompt = new Prompt(new UserMessage(finalPrompt));
+            String reportContent = chatModel.call(prompt).getResult().getOutput().getContent();
+            log.info("AI生成的周报内容:\n{}", reportContent);
+            return reportContent;
+        } catch (Exception e) {
+            log.error("调用AI生成周报失败", e);
+            throw new RuntimeException("AI服务调用异常，生成周报失败");
+        }
+    }
+
+    private boolean checkAbnormal(String valueStr, String referenceStr) {
+        if (valueStr == null || valueStr.isEmpty() || referenceStr == null || referenceStr.isEmpty()) {
+            return false; // 无法判断，默认正常
+        }
+        try {
+            double value = parseDouble(valueStr);
+            Range range = parseRange(referenceStr);
+            if (range == null) return false;
+            
+            // 如果 referenceStr 包含 < 或 ≤，则 range.min 是 Double.MIN_VALUE (负无穷)，range.max 是上限
+            // 如果 referenceStr 包含 > 或 ≥，则 range.min 是下限，range.max 是 Double.MAX_VALUE
+            // 如果 referenceStr 是范围，则 range.min 和 range.max 都是有效值
+            
+            return value < range.min || value > range.max;
+        } catch (Exception e) {
+            // 解析失败，忽略
+            return false;
+        }
+    }
+
+    private String checkHighLow(String valueStr, String referenceStr) {
+        try {
+            double value = parseDouble(valueStr);
+            Range range = parseRange(referenceStr);
+            if (range == null) return "";
+            
+            if (value < range.min) return "偏低";
+            if (value > range.max) return "偏高";
+            return "正常";
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private double parseDouble(String str) {
+        // 移除非数字字符（保留小数点和负号）
+        // 增强处理：有些OCR结果可能包含空格，或者像 "1.10" 这种
+        if (str == null) return 0.0;
+        String clean = str.trim().replaceAll("[^0-9.\\-]", "");
+        if (clean.isEmpty()) return 0.0;
+        // 如果有多个小数点，只保留第一个（极其罕见的OCR错误）
+        int firstDot = clean.indexOf('.');
+        if (firstDot != -1) {
+             String integerPart = clean.substring(0, firstDot);
+             String fractionalPart = clean.substring(firstDot + 1).replaceAll("\\.", "");
+             clean = integerPart + "." + fractionalPart;
+        }
+        return Double.parseDouble(clean);
+    }
+
+    private static class Range {
+        double min;
+        double max;
+        
+        Range(double min, double max) {
+            this.min = min;
+            this.max = max;
+        }
+    }
+
+    private Range parseRange(String ref) {
+        if (ref == null) return null;
+        ref = ref.trim().replaceAll(";", "").replaceAll("；", ""); // 清理常见分隔符
+        try {
+            // Case 1: "min-max" or "min~max" (e.g. "0.75-1.2", "11-14.5")
+            // 注意：要先判断有没有可能是 < 或 >，因为有些参考范围写成 "0-5 (<10)" 这种复杂格式，简单split可能出错
+            // 这里只处理最标准的格式
+            
+            // Case 2: "< max" or "≤ max" (e.g. "<5.0", "≤0.5")
+            if (ref.startsWith("<") || ref.startsWith("≤") || ref.startsWith("&lt;") || ref.contains("<") || ref.contains("≤")) {
+                String valStr = ref.replaceAll("[^0-9.]", "");
+                if (valStr.isEmpty()) return null;
+                // 处理可能有多个小数点的情况（如OCR误识别）
+                int firstDot = valStr.indexOf('.');
+                if (firstDot != -1) {
+                    String integerPart = valStr.substring(0, firstDot);
+                    String fractionalPart = valStr.substring(firstDot + 1).replaceAll("\\.", "");
+                    valStr = integerPart + "." + fractionalPart;
+                }
+                double max = Double.parseDouble(valStr);
+                return new Range(Double.NEGATIVE_INFINITY, max); 
+            }
+            
+            // Case 3: "> min" or "≥ min"
+             if (ref.startsWith(">") || ref.startsWith("≥") || ref.startsWith("&gt;") || ref.contains(">") || ref.contains("≥")) {
+                String valStr = ref.replaceAll("[^0-9.]", "");
+                if (valStr.isEmpty()) return null;
+                int firstDot = valStr.indexOf('.');
+                if (firstDot != -1) {
+                    String integerPart = valStr.substring(0, firstDot);
+                    String fractionalPart = valStr.substring(firstDot + 1).replaceAll("\\.", "");
+                    valStr = integerPart + "." + fractionalPart;
+                }
+                double min = Double.parseDouble(valStr);
+                return new Range(min, Double.POSITIVE_INFINITY);
+            }
+
+            if (ref.contains("-") || ref.contains("~") || ref.contains("～")) {
+                String[] parts = ref.split("[-~～]");
+                if (parts.length >= 2) {
+                    // 取最后两个看起来像数字的部分（防止 "男: 1-5" 这种前缀）
+                    // 使用 parseDouble 内部逻辑来清理空格
+                    double min = parseDouble(parts[0]);
+                    double max = parseDouble(parts[1]);
+                    return new Range(min, max);
+                }
+            }
+
+        } catch (Exception e) {
+            // ignore
+        }
+        return null;
+    }
+
+    private String buildAIPrompt(String weeklyData) {
+        return "你是一名专业的家庭健康管家AI，你的任务是为家庭医生和家庭成员生成一份关于家庭成员过去一周健康状况的周报。\n" +
+                "**重要限制条件:**\n" +
+                "1. **禁止虚构成员**: 报告必须且只能针对下面“原始数据”部分中明确列出的成员进行分析。严禁生成数据中不存在的成员（例如：严禁使用“小红”等预设人名，除非她在数据中出现）。\n" +
+                "2. **严禁断句**: “发现风险”部分的描述必须是完整且有意义的句子。严禁出现诸如“**连续”这种不完整的、含义不明的片段。**\n\n" +
+                "**原始数据:**\n" +
+                "```\n" +
+                weeklyData +
+                "```\n\n" +
+                "**报告要求:**\n" +
+                "1.  **总体概览**: 对整个家庭本周的健康状况给出一个简短的总结。\n" +
+                "2.  **成员逐一分析**: \n" +
+                "    *   为每一位在原始数据中出现的成员生成一个独立的分析段落，标题应使用其真实昵称（如：'### [成员昵称]分析'）。\n" +
+                "    *   **识别亮点**: 基于本周记录，找出表现良好的方面（例如：坚持运动、数据稳定等）。\n" +
+                "    *   **发现风险**: 明确指出需要关注的风险点。描述必须具体、完整，如“本周有3天睡眠时长不足6小时”。如果数据不足或无风险，请说明“本周记录显示其健康状态平稳”。\n" +
+                "    *   **数据洞察**: 尝试发现数据间的关联（例如：'心率上升可能与情绪记录中的压力有关'）。\n" +
+                "3.  **行动建议**: \n" +
+                "    *   为每个有风险点的成员提供1-2条具体、可执行的建议。建议必须针对其特定的健康情况。\n" +
+                "4.  **格式要求**: \n" +
+                "    *   使用标准的 Markdown 格式，层级清晰。\n" +
+                "    *   语言专业、严谨且带有温度。\n\n" +
+                "请立即开始根据提供的真实数据生成报告。";
     }
 }

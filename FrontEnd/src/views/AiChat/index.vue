@@ -138,9 +138,12 @@ const scrollToBottom = async () => {
 }
 
 const handleEnter = (e) => {
-  if (!e.shiftKey) {
-    handleSend()
+  // 如果按下了 Shift + Enter，则插入换行符，不发送消息
+  if (e.shiftKey) {
+    return
   }
+  // 否则发送消息
+  handleSend()
 }
 
 const sendMessage = (text) => {

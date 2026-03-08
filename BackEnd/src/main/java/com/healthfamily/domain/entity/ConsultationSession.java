@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Formula;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -102,6 +103,9 @@ public class ConsultationSession {
      */
     @Column(name = "patient_symptoms", columnDefinition = "TEXT")
     private String patientSymptoms;
+
+    @Formula("(SELECT COUNT(m.id) FROM consultation_messages m WHERE m.session_id = id)")
+    private Integer messageCount;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

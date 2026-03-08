@@ -26,14 +26,25 @@ public interface HealthReminderRepository extends JpaRepository<HealthReminder, 
 
     List<HealthReminder> findByFamily_IdOrderByScheduledTimeAsc(Long familyId);
 
+    List<HealthReminder> findByFamily_IdOrderByCreatedAtDesc(Long familyId);
+
     List<HealthReminder> findByAssignedTo_IdOrderByScheduledTimeAsc(Long userId);
+
+    List<HealthReminder> findByAssignedTo_IdOrderByCreatedAtDesc(Long userId);
 
     List<HealthReminder> findByUserAndTypeOrderByScheduledTimeDesc(User user, com.healthfamily.domain.constant.ReminderType type);
 
     List<HealthReminder> findByUser_IdOrAssignedTo_IdOrderByScheduledTimeAsc(Long userId, Long assignedToId);
+
+    List<HealthReminder> findByUser_IdOrAssignedTo_IdOrderByCreatedAtDesc(Long userId, Long assignedToId);
     
     List<HealthReminder> findByCreator_Id(Long creatorId);
     
     List<HealthReminder> findByCreator_IdAndFamily_Id(Long creatorId, Long familyId);
+
+    /**
+     * 根据内容统计使用该模板的用户数
+     */
+    long countByContent(String content);
 }
 
