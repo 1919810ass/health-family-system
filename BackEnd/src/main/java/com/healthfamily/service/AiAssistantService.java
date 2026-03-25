@@ -51,14 +51,16 @@ public class AiAssistantService {
 
      */
 
-    public Flux<String> chatStream(String userMessage, Long userId) {
+    public Flux<String> chatStream(String userMessage, Long userId, boolean ragEnabled) {
         // 1. RAG 检索上下文 (增加异常处理，避免 RAG 失败导致整个对话崩溃)
         List<Map<String, Object>> docs = List.of();
-        try {
-            docs = docRagService.search(userMessage);
-        } catch (Exception e) {
-            log.warn("RAG retrieval failed: {}", e.getMessage());
-            // 继续执行，降级为普通对话
+        if (ragEnabled) {
+            try {
+                docs = docRagService.search(userMessage);
+            } catch (Exception e) {
+                log.warn("RAG retrieval failed: {}", e.getMessage());
+                // 继续执行，降级为普通对话
+            }
         }
 
         String context = "";
@@ -108,6 +110,12 @@ public class AiAssistantService {
         }
 
         return responseStream;
+    }
+
+    public String chatBlocking(String userMessage, Long userId, boolean ragEnabled) {
+        Flux<String> stream = chatStream(userMessage, userId, ragEnabled);
+        // 阻塞并收集所有流式响应的片段，最后将它们拼接成一个完整的字符串
+        return stream.collect(Collectors.joining()).block();
     }
 
     /**

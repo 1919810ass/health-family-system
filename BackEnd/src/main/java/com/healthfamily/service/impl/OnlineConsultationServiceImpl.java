@@ -1,6 +1,8 @@
 package com.healthfamily.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.healthfamily.common.exception.BusinessException;
+import com.healthfamily.domain.constant.HealthLogType;
 import com.healthfamily.domain.entity.*;
 import com.healthfamily.domain.repository.*;
 import com.healthfamily.service.OnlineConsultationService;
@@ -14,8 +16,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -37,6 +43,7 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
     private final FamilyRepository familyRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final FamilyDoctorRepository familyDoctorRepository;
+    private final HealthLogRepository healthLogRepository;
     private final ProfileRepository profileRepository;
     private final ObjectMapper objectMapper;
 
@@ -411,17 +418,26 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
     }
 
     private ConsultationSessionResponse toSessionResponse(ConsultationSession session) {
+        // 为医生端视图强制生成统一、正确的标题
+        String title = "与" + session.getPatient().getNickname() + "的咨询";
+
+        // 读取患者健康标签和最新指标
+        List<String> healthTags = readHealthTags(session.getPatient().getId());
+        Map<String, Object> latestMetrics = getLatestMetrics(session.getPatient().getId());
+
         return new ConsultationSessionResponse(
                 session.getId(),
                 session.getPatient().getId(),
                 session.getPatient().getNickname(),
                 readAvatar(session.getPatient().getId()),
+                healthTags,
+                latestMetrics,
                 session.getFamily().getId(),
                 session.getFamily().getName(),
                 session.getDoctor() != null ? session.getDoctor().getId() : null,
                 session.getDoctor() != null ? session.getDoctor().getNickname() : null,
                 session.getDoctor() != null ? readAvatar(session.getDoctor().getId()) : null,
-                session.getTitle(),
+                title, // 使用新生成的标题
                 session.getStatus(),
                 session.getUnreadCountDoctor(),
                 session.getUnreadCountPatient(),
@@ -462,6 +478,67 @@ public class OnlineConsultationServiceImpl implements OnlineConsultationService 
                 return null;
             }
         }).orElse(null);
+    }
+
+    private List<String> readHealthTags(Long userId) {
+        Optional<Profile> profileOpt = profileRepository.findById(userId);
+        if (profileOpt.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        String tagsJson = profileOpt.get().getHealthTags();
+        if (tagsJson == null || tagsJson.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        try {
+            // Explicitly define the type to avoid compiler inference issues
+            return objectMapper.readValue(tagsJson, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            log.error("Failed to parse health tags for user {}", userId, e);
+            return Collections.emptyList();
+        }
+    }
+
+    private Map<String, Object> getLatestMetrics(Long userId) {
+        Map<String, Object> latestMetrics = new java.util.HashMap<>();
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return Collections.emptyMap();
+        }
+
+        // 1. 优先使用体征类日志（VITALS），避免被饮食/运动等非体征日志覆盖
+        List<HealthLog> vitalsLogs = healthLogRepository.findByUser_IdAndTypeOrderByLogDateDesc(
+                userId, HealthLogType.VITALS);
+
+        List<HealthLog> recentLogs;
+        if (vitalsLogs != null && !vitalsLogs.isEmpty()) {
+            recentLogs = vitalsLogs;
+        } else {
+            // 兼容旧数据：如果没有体征日志，则退回到所有日志
+            recentLogs = healthLogRepository.findByUserOrderByLogDateDesc(user);
+        }
+
+        if (recentLogs == null || recentLogs.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // 2. 直接在所有体征日志上，从旧到新合并 JSON 字段，保证最新的值覆盖旧值
+        for (int i = recentLogs.size() - 1; i >= 0; i--) {
+            HealthLog healthLog = recentLogs.get(i);
+            String contentJson = healthLog.getContentJson();
+            if (contentJson != null && !contentJson.isBlank()) {
+                try {
+                    Map<String, Object> content = objectMapper.readValue(
+                            contentJson, new TypeReference<Map<String, Object>>() {});
+                    latestMetrics.putAll(content);
+                } catch (Exception e) {
+                    log.error("Failed to parse metrics from log ID {} for user {}", healthLog.getId(), userId, e);
+                }
+            }
+        }
+
+        return latestMetrics;
     }
 }
 

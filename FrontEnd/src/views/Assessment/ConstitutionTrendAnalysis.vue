@@ -105,6 +105,7 @@ import { MagicStick, List, TrendCharts } from '@element-plus/icons-vue'
 const router = useRouter()
 const loading = ref(false)
 const trendData = ref(null)
+const detailedAnalysis = ref(null) // <-- 1. Add new ref for AI analysis
 const streamingInsights = ref('')
 const isStreaming = ref(false)
 const md = new MarkdownIt({
@@ -203,12 +204,20 @@ const loadInsightsStream = async () => {
 const loadTrendData = async () => {
   try {
     loading.value = true
-    const response = await assessmentApi.getConstitutionTrend(90) // 获取最近90天的趋势
+    // Reset previous data
+    trendData.value = null
+    detailedAnalysis.value = null
+
+    const response = await assessmentApi.getConstitutionTrend(365) // 获取最近365天的趋势
     trendData.value = response.data
     
-    // Start streaming insights after data load
+    // Start streaming insights and fetch detailed analysis after data load
     if (trendData.value && trendData.value.hasData) {
         loadInsightsStream()
+
+        // Fetch detailed AI analysis for the table
+        const analysisResponse = await assessmentApi.getConstitutionTrendDetailsAnalysis()
+        detailedAnalysis.value = analysisResponse.data
     }
   } catch (error) {
     ElMessage.error('获取体质趋势数据失败: ' + error.message)
@@ -288,7 +297,7 @@ const trendChartOption = computed(() => {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      bottom: '15%', // Increase bottom margin to make space for dataZoom
       containLabel: true
     },
     xAxis: {
@@ -296,6 +305,26 @@ const trendChartOption = computed(() => {
       boundaryGap: false,
       data: xAxisData
     },
+    dataZoom: [
+      {
+        type: 'slider',
+        startValue: xAxisData.length > 5 ? xAxisData[Math.max(0, xAxisData.length - Math.round(xAxisData.length * 0.5))] : xAxisData[0], // Default to last 50% or last 5 points
+        endValue: xAxisData[xAxisData.length - 1],
+        bottom: 10,
+        height: 20,
+        dataBackground: {
+          lineStyle: { color: '#dddddd' },
+          areaStyle: { color: '#dddddd' }
+        },
+        selectedDataBackground: {
+          lineStyle: { color: '#b3e5fc' },
+          areaStyle: { color: '#b3e5fc' }
+        }
+      },
+      {
+        type: 'inside'
+      }
+    ],
     yAxis: {
       type: 'value',
       min: 0,
@@ -319,10 +348,11 @@ const trendItems = computed(() => {
     return []
   }
   
+  // Use the detailed analysis if available, otherwise fallback to the old format
   return Object.entries(trendData.value.trends).map(([type, trend]) => ({
     name: getConstitutionName(type),
-    trend: trend,
-    description: `${getConstitutionName(type)}体质${trend}趋势`
+    trend: detailedAnalysis.value ? detailedAnalysis.value[type]?.trend || trend : trend,
+    description: detailedAnalysis.value ? detailedAnalysis.value[type]?.analysis : `${getConstitutionName(type)}体质${trend}趋势`
   }))
 })
 

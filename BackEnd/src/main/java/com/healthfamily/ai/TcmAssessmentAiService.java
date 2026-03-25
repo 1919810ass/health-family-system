@@ -458,4 +458,8 @@ Here is the JSON Schema instance your output must adhere to:
         }
         return "{}";
     }
+
+    public String generateSingleLineAnalysis(String prompt) {
+        return callTextWithFallback(prompt);
+    }
 }

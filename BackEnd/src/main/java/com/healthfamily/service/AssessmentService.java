@@ -48,5 +48,10 @@ public interface AssessmentService {
      * 获取体质趋势洞察流
      */
     Flux<ServerSentEvent<String>> getTrendInsightsStream(Long userId, int lookbackDays);
+
+    /**
+     * 获取AI生成的体质趋势详情分析
+     */
+    Map<String, com.healthfamily.service.dto.TrendDetailAnalysis> getTrendDetailsAnalysis(Long userId);
 }
 

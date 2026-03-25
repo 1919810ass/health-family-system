@@ -122,6 +122,77 @@ public class AssessmentServiceImpl implements AssessmentService {
             Flux.just(ServerSentEvent.<String>builder().event("complete").data("").build())
         );
     }
+
+    @Override
+    public Map<String, com.healthfamily.service.dto.TrendDetailAnalysis> getTrendDetailsAnalysis(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(40401, "用户不存在"));
+
+        List<ConstitutionAssessment> assessments = assessmentRepository.findByUserOrderByCreatedAtDesc(user)
+                .stream()
+                .filter(a -> a.getCreatedAt().isAfter(LocalDateTime.now().minusDays(90)))
+                .sorted((a1, a2) -> a1.getCreatedAt().compareTo(a2.getCreatedAt())) // 升序
+                .collect(Collectors.toList());
+
+        if (assessments.size() < 2) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, List<Double>> scoresOverTime = new LinkedHashMap<>();
+        // 初始化所有可能的体质, 保证顺序
+        DEFAULT_DIMENSIONS.forEach(dim -> scoresOverTime.put((String) dim.get("code"), new ArrayList<>()));
+
+        for (ConstitutionAssessment assessment : assessments) {
+            Map<String, Object> vec = fromJson(assessment.getScoreVector(), new TypeReference<Map<String, Object>>() {});
+            for (Map.Entry<String, Object> entry : vec.entrySet()) {
+                if (scoresOverTime.containsKey(entry.getKey())) {
+                    scoresOverTime.get(entry.getKey()).add(norm(entry.getValue()));
+                }
+            }
+        }
+
+        Map<String, com.healthfamily.service.dto.TrendDetailAnalysis> analysisMap = new LinkedHashMap<>();
+
+        for (Map.Entry<String, List<Double>> entry : scoresOverTime.entrySet()) {
+            String constitutionType = entry.getKey();
+            List<Double> values = entry.getValue();
+            String trend = "稳定";
+            String analysis = getConstitutionName(constitutionType) + "体质保持稳定。";
+
+            if (values.size() >= 2) {
+                double oldest = values.get(0);
+                double newest = values.get(values.size() - 1);
+                
+                if (newest > oldest + 5) {
+                    trend = "上升";
+                } else if (newest < oldest - 5) {
+                    trend = "下降";
+                }
+
+                // 为该体质生成AI分析
+                String prompt = String.format(
+                    "用户 [%s] 体质在过去90天内得分从 %.1f 变为 %.1f, 呈 [%s] 趋势。请用不超过50字的通俗语言, 为用户解读这一变化, 并给出一句总结性的话。",
+                    getConstitutionName(constitutionType), oldest, newest, trend
+                );
+                
+                try {
+                    // 调用AI服务，假设有一个简单的非流式调用方法
+                    analysis = aiService.generateSingleLineAnalysis(prompt);
+                } catch (Exception e) {
+                    // AI调用失败，使用默认文案
+                    analysis = String.format("%s体质从 %.1f 分变为 %.1f 分，呈%s趋势。", getConstitutionName(constitutionType), oldest, newest, trend);
+                }
+            } else if (!values.isEmpty()) {
+                 analysis = String.format("%s体质当前得分为 %.1f，暂无足够数据分析趋势。", getConstitutionName(constitutionType), values.get(0));
+            } else {
+                 analysis = String.format("%s体质暂无评分数据。", getConstitutionName(constitutionType));
+            }
+
+            analysisMap.put(constitutionType, new com.healthfamily.service.dto.TrendDetailAnalysis(trend, analysis));
+        }
+
+        return analysisMap;
+    }
     
     private final ConstitutionAssessmentRepository assessmentRepository;
     private final UserRepository userRepository;

@@ -44,7 +44,7 @@ public class AiAssistantController {
         // 为简化演示，这里暂不强依赖 ID 逻辑，实际业务中应传入真实 User ID
         Long userId = 1L; 
         
-        return aiAssistantService.chatStream(message, userId);
+        return aiAssistantService.chatStream(message, userId, Boolean.parseBoolean(request.get("ragEnabled")));
     }
 
     @Operation(summary = "多模态流式对话", description = "支持图片上传的流式问答接口")
@@ -64,5 +64,20 @@ public class AiAssistantController {
         Long userId = 1L; 
         
         return aiAssistantService.chatImageStream(message, image, userId);
+    }
+
+    @Operation(summary = "非流式对话", description = "一次性返回完整回答，用于测试")
+    @PostMapping("/blocking")
+    public Map<String, String> chatBlocking(
+            @RequestBody Map<String, String> request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        String message = request.get("message");
+        Long userId = 1L;
+        boolean ragEnabled = Boolean.parseBoolean(request.get("ragEnabled"));
+        
+        String reply = aiAssistantService.chatBlocking(message, userId, ragEnabled);
+        
+        return Map.of("reply", reply);
     }
 }

@@ -94,74 +94,82 @@ public class SeasonalWellnessServiceImpl implements SeasonalWellnessService {
      * @return 业务返回结果
      */
     public Flux<ServerSentEvent<String>> getWellnessAdviceStream(Long userId) {
-        String todayDate = LocalDate.now().toString();
-        String solarTerm = SolarTermUtil.getCurrentSolarTerm();
-        boolean isSolarTermDay = SolarTermUtil.isSolarTermDate(LocalDate.now());
-        
-        // 1. 获取用户体质
-        String constitution = getUserConstitution(userId);
-        log.info("Starting wellness advice stream for userId: {}, constitution: {}, solarTerm: {}", userId, constitution, solarTerm);
-        
-        // 2. 准备元数据
-        String imageUrl = getSolarTermImage(solarTerm);
-        Map<String, String> metadata = Map.of(
-            "solarTerm", solarTerm,
-            "constitution", constitution != null ? constitution : "",
-            "imageUrl", imageUrl
-        );
-        
-        // 3. 检查缓存
-        // 使用 v2 前缀以强制刷新旧缓存
-        String cacheKey = "wellness:v2:uid:" + userId + ":date:" + todayDate;
-        String cachedValue = redisTemplate.opsForValue().get(cacheKey);
-        
-        if (cachedValue != null) {
-            try {
-                log.info("Cache hit for wellness advice, userId: {}", userId);
-                SeasonalWellnessDTO cachedDto = objectMapper.readValue(cachedValue, SeasonalWellnessDTO.class);
-                return Flux.just(
-                    ServerSentEvent.<String>builder().event("meta").data(writeJson(metadata)).build(),
-                    ServerSentEvent.<String>builder().event("data").data(cachedDto.getAdvice()).build(),
-                    ServerSentEvent.<String>builder().event("complete").data("").build()
-                );
-            } catch (Exception e) {
-                log.error("Cache parse error", e);
+        // 使用Flux.defer将整个逻辑包装在响应式流中，以捕获所有阶段的同步和异步异常
+        return Flux.defer(() -> {
+            String todayDate = LocalDate.now().toString();
+            String solarTerm = SolarTermUtil.getCurrentSolarTerm();
+            boolean isSolarTermDay = SolarTermUtil.isSolarTermDate(LocalDate.now());
+
+            // 1. 获取用户体质
+            String constitution = getUserConstitution(userId);
+            log.info("Starting wellness advice stream for userId: {}, constitution: {}, solarTerm: {}", userId, constitution, solarTerm);
+
+            // 2. 准备元数据
+            String imageUrl = getSolarTermImage(solarTerm);
+            Map<String, String> metadata = Map.of(
+                "solarTerm", solarTerm,
+                "constitution", constitution != null ? constitution : "",
+                "imageUrl", imageUrl
+            );
+
+            // 3. 检查缓存
+            // 使用 v2 前缀以强制刷新旧缓存
+            String cacheKey = "wellness:v2:uid:" + userId + ":date:" + todayDate;
+            String cachedValue = redisTemplate.opsForValue().get(cacheKey);
+
+            if (cachedValue != null) {
+                try {
+                    log.info("Cache hit for wellness advice, userId: {}", userId);
+                    SeasonalWellnessDTO cachedDto = objectMapper.readValue(cachedValue, SeasonalWellnessDTO.class);
+                    return Flux.just(
+                        ServerSentEvent.<String>builder().event("meta").data(writeJson(metadata)).build(),
+                        ServerSentEvent.<String>builder().event("data").data(cachedDto.getAdvice()).build(),
+                        ServerSentEvent.<String>builder().event("complete").data("").build()
+                    );
+                } catch (Exception e) {
+                    log.error("Cache parse error, falling back to AI generation.", e);
+                    // 缓存解析失败，当作缓存未命中处理，继续走AI逻辑
+                }
             }
-        }
-        
-        // 4. AI 流式生成
-        String promptText = buildPromptText(solarTerm, constitution, isSolarTermDay);
-        log.info("Cache miss. Calling AI for wellness advice. Prompt: {}", promptText);
-        StringBuilder accumulatedAdvice = new StringBuilder();
-        
-        return Flux.concat(
-            Flux.just(ServerSentEvent.<String>builder().event("meta").data(writeJson(metadata)).build()),
-            
-            callStreamWithFallback(promptText)
-                .map(chunk -> {
-                    if (chunk != null) {
-                        accumulatedAdvice.append(chunk);
-                        log.debug("AI Stream chunk for userId {}: {}", userId, chunk);
-                    }
-                    return ServerSentEvent.<String>builder().event("data").data(chunk != null ? chunk : "").build();
-                })
-                .doOnError(e -> log.error("Error during AI streaming for userId " + userId, e))
-                .doOnComplete(() -> log.info("AI streaming completed for userId: {}", userId)),
-                
-            Flux.just(ServerSentEvent.<String>builder().event("complete").data("").build())
-                .doOnNext(signal -> {
-                    // 完成后缓存
-                    String finalAdvice = accumulatedAdvice.toString();
-                    log.info("Caching AI generated advice for userId: {}, length: {}", userId, finalAdvice.length());
-                    SeasonalWellnessDTO dto = SeasonalWellnessDTO.builder()
-                            .solarTerm(solarTerm)
-                            .constitution(constitution)
-                            .advice(finalAdvice)
-                            .imageUrl(imageUrl)
-                            .build();
-                    cacheResult(cacheKey, dto);
-                })
-        );
+
+            // 4. AI 流式生成
+            String promptText = buildPromptText(solarTerm, constitution, isSolarTermDay);
+            log.info("Cache miss. Calling AI for wellness advice. Prompt: {}", promptText);
+            StringBuilder accumulatedAdvice = new StringBuilder();
+
+            return Flux.concat(
+                Flux.just(ServerSentEvent.<String>builder().event("meta").data(writeJson(metadata)).build()),
+
+                callStreamWithFallback(promptText)
+                    .map(chunk -> {
+                        if (chunk != null) {
+                            accumulatedAdvice.append(chunk);
+                            log.debug("AI Stream chunk for userId {}: {}", userId, chunk);
+                        }
+                        return ServerSentEvent.<String>builder().event("data").data(chunk != null ? chunk : "").build();
+                    }),
+
+                Flux.just(ServerSentEvent.<String>builder().event("complete").data("").build())
+                    .doOnSubscribe(subscription -> {
+                        // 完成后缓存
+                        String finalAdvice = accumulatedAdvice.toString();
+                        if (finalAdvice != null && !finalAdvice.isEmpty()) {
+                            log.info("Caching AI generated advice for userId: {}, length: {}", userId, finalAdvice.length());
+                            SeasonalWellnessDTO dto = SeasonalWellnessDTO.builder()
+                                    .solarTerm(solarTerm)
+                                    .constitution(constitution)
+                                    .advice(finalAdvice)
+                                    .imageUrl(imageUrl)
+                                    .build();
+                            cacheResult(cacheKey, dto);
+                        }
+                    })
+            );
+        }).onErrorResume(e -> { // 统一的异常处理，捕获所有上游（包括defer内部的同步代码）的错误
+            log.error("Error during wellness advice stream for userId " + userId, e);
+            String errorMessage = "服务暂时不可用，请稍后再试。";
+            return Flux.just(ServerSentEvent.<String>builder().event("error").data(errorMessage).build());
+        });
     }
 
     private String getUserConstitution(Long userId) {

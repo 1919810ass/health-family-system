@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
 @RestController
-@RequestMapping("/api/wellness")
+@RequestMapping("api/wellness")
 /**
  * SeasonalWellness控制器
  * <p>

@@ -28,7 +28,7 @@ import java.util.List;
  * 提供相关 REST API，负责请求参数校验、鉴权信息提取，并调用服务层完成业务处理。
  * </p>
  */
-@RequestMapping("/api/assessments")
+@RequestMapping("api/assessments")
 public class AssessmentController {
 
     private final AssessmentService assessmentService;
@@ -75,6 +75,16 @@ public class AssessmentController {
         Long userId = principal != null ? principal.getUserId() : userHeader;
         if (userId == null) throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException("未登录或缺少用户身份信息");
         return Result.success(assessmentService.listFamilyLatest(userId, familyId));
+    }
+
+    @GetMapping("/trend-details-analysis")
+    public Result<java.util.Map<String, com.healthfamily.service.dto.TrendDetailAnalysis>> getTrendDetailsAnalysis(@AuthenticationPrincipal UserPrincipal principal,
+                                                                     @org.springframework.web.bind.annotation.RequestHeader(value = "X-User-Id", required = false) Long userHeader) {
+        Long userId = principal != null ? principal.getUserId() : userHeader;
+        if (userId == null) {
+            throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException("未登录或缺少用户身份信息");
+        }
+        return Result.success(assessmentService.getTrendDetailsAnalysis(userId));
     }
 }
 

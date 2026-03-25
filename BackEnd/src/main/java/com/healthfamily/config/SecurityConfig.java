@@ -46,6 +46,8 @@ public class SecurityConfig {
     @Order(0) // 设置为Order(0)，确保优先于推荐模块的Order(1)执行，能够处理所有路径
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // 关键：明确此过滤器链只处理/api/**下的请求
+                .securityMatcher("/api/**")
                 // 启用CORS（使用唯一配置）
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // 禁用CSRF（JWT场景不需要）
@@ -73,7 +75,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/reminders").hasAnyRole("ADMIN", "FAMILY_ADMIN", "DOCTOR", "MEMBER")
                         .requestMatchers("/api/reminders/**").hasAnyRole("ADMIN", "FAMILY_ADMIN", "DOCTOR")
                         // 养生建议接口
-                        .requestMatchers("/api/wellness/**").permitAll()
+                        .requestMatchers("/api/wellness/**").authenticated()
                         // 静态资源文件 (图片上传后的访问路径)
                         .requestMatchers("/api/lifestyle/files/**").permitAll()
                         .requestMatchers("/api/files/**").permitAll()
@@ -81,8 +83,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/tcm-assessment/**").permitAll()
                         // AI 聊天接口，需要认证
                         .requestMatchers("/api/ai/chat/**").authenticated()
-                        // 其他需要认证的API接口
-                        .requestMatchers("/api/**").authenticated()
                         // 其他所有请求需要认证
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -61,13 +61,15 @@
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
 
-    <!-- 热部署工具 -->
+    <!-- 热部署工具 (调试时发现与Spring Security类加载器冲突，暂时注释) -->
+    <!--
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-devtools</artifactId>
       <scope>runtime</scope>
       <optional>true</optional>
     </dependency>
+    -->
 
     <!-- JWT -->
     <dependency>

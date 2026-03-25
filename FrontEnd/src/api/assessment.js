@@ -15,6 +15,7 @@ export const getFamilyLatest = (familyId) => request.get(`/assessments/family/${
 // TCM相关API
 export const getTcmPersonalizedPlan = () => request.get('/tcm-assessment/personalized-plan')
 export const getConstitutionTrend = (lookbackDays = 90) => request.get('/tcm-assessment/trend', { params: { lookbackDays } })
+export const getConstitutionTrendDetailsAnalysis = () => request.get('/assessments/trend-details-analysis') // New endpoint for AI analysis
 export const getFamilyTcmHealthOverview = (familyId) => request.get(`/tcm-assessment/family-overview/${familyId}`)
 
 // AI测评相关API

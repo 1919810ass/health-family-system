@@ -3,6 +3,8 @@ package com.healthfamily.web.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 咨询会话响应DTO
@@ -13,7 +15,9 @@ public record ConsultationSessionResponse(
         Long patientUserId,
         String patientName,
         String patientAvatar,
-        
+        List<String> patientHealthTags,
+        Map<String, Object> latestMetrics,
+
         Long familyId,
         String familyName,
         

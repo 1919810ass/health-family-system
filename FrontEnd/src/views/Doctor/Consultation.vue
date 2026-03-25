@@ -256,6 +256,63 @@ const patientVitals = ref({
   weight: ''
 })
 
+/**
+ * 从会话返回的 latestMetrics 中提取患者最近一次关键体征数据。
+ * latestMetrics 来源于后端 OnlineConsultationServiceImpl#getLatestMetrics，
+ * 会聚合近几天健康日志中的字段，如 heartRate、bloodPressure、temperature 等。
+ */
+const fillVitalsFromLatestMetrics = (metrics) => {
+  if (!metrics || typeof metrics !== 'object') return
+
+  const safeGet = (...keys) => {
+    for (const key of keys) {
+      if (key && Object.prototype.hasOwnProperty.call(metrics, key)) {
+        const val = metrics[key]
+        if (val != null && String(val).trim() !== '') {
+          return String(val).trim()
+        }
+      }
+    }
+    return ''
+  }
+
+  const newVitals = {
+    heartRate: '',
+    bloodPressure: '',
+    temperature: '',
+    bloodGlucose: '',
+    weight: ''
+  }
+
+  // 心率：支持 heartRate / heart_rate / hr / 心率
+  newVitals.heartRate = safeGet('heartRate', 'heart_rate', 'hr', '心率')
+
+  // 血压：优先直接使用组合字段，否则使用收缩压/舒张压拼接
+  newVitals.bloodPressure = safeGet('bloodPressure', 'blood_pressure', 'bp', '血压')
+  if (!newVitals.bloodPressure) {
+    const systolic = safeGet('systolic', '收缩压')
+    const diastolic = safeGet('diastolic', '舒张压')
+    if (systolic || diastolic) {
+      newVitals.bloodPressure = `${systolic || '--'}/${diastolic || '--'}`
+    }
+  }
+
+  // 体温：支持 temperature / temp / 体温
+  newVitals.temperature = safeGet('temperature', 'temp', '体温')
+
+  // 血糖：支持 bloodGlucose / blood_glucose / glucose / bloodSugar / 血糖
+  newVitals.bloodGlucose = safeGet('bloodGlucose', 'blood_glucose', 'glucose', 'bloodSugar', '血糖')
+
+  // 体重：支持 weight / val / 体重 / 体重变化
+  newVitals.weight = safeGet('weight', 'val', '体重', '体重变化')
+
+  // 只有在至少有一个指标有值时才覆盖，避免把已有数据清空
+  const hasAny = Object.values(newVitals).some(v => v !== '')
+  if (hasAny) {
+    patientVitals.value = newVitals
+  }
+}
+
 // 阈值定义
 const THRESHOLDS = {
   heartRate: { min: 60, max: 100 },
@@ -336,6 +393,17 @@ const toggleHealthProfile = async () => {
 
 const loadPatientVitals = async () => {
   if (!currentSession.value?.familyId) return
+
+  // 1) 优先使用会话自带的 latestMetrics（后端已按用户聚合最近体征）
+  const metrics = currentSession.value.latestMetrics || currentSession.value.patientLatestMetrics
+  if (metrics && Object.keys(metrics).length > 0) {
+    fillVitalsFromLatestMetrics(metrics)
+    // 如果已经能填充出任何一个指标，就不再额外请求医生视图接口，避免重复计算
+    const hasAny = Object.values(patientVitals.value || {}).some(v => v !== '')
+    if (hasAny) {
+      return
+    }
+  }
   
   loadingVitals.value = true
   try {

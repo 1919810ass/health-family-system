@@ -1935,7 +1935,7 @@ public class DoctorServiceImpl implements DoctorService {
         String legacyPrompt = systemPrompt + "\n\n" + userPrompt;
         StringBuilder fullResponse = new StringBuilder();
 
-        reactor.core.publisher.Flux<String> stream = aiAssistantService.chatStream(legacyPrompt, patientId)
+        reactor.core.publisher.Flux<String> stream = aiAssistantService.chatStream(legacyPrompt, patientId, true)
                 .doOnSubscribe(s -> log.info("[AI] LLM 请求已发送"))
                 .doOnNext(chunk -> {
                     fullResponse.append(chunk);
@@ -3982,7 +3982,7 @@ public class DoctorServiceImpl implements DoctorService {
             return Collections.emptyList();
         }
 
-        LocalDate threeDaysAgo = LocalDate.now().minusDays(3);
+        LocalDate thirtyDaysAgo = LocalDate.now().minusDays(30);
 
         // 2. 预加载每个患者最近3天体征日志（体征风险）
         Map<Long, List<HealthLog>> patientLogsMap = new HashMap<>();
@@ -3990,7 +3990,7 @@ public class DoctorServiceImpl implements DoctorService {
             List<HealthLog> logs = healthLogRepository
                     .findByUser_IdAndTypeOrderByLogDateDesc(patientId, com.healthfamily.domain.constant.HealthLogType.VITALS)
                     .stream()
-                    .filter(l -> !l.getLogDate().isBefore(threeDaysAgo))
+                    .filter(l -> !l.getLogDate().isBefore(thirtyDaysAgo))
                     .collect(Collectors.toList());
             if (!logs.isEmpty()) {
                 patientLogsMap.put(patientId, logs);
